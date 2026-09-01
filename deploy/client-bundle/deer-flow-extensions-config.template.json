@@ -5,8 +5,14 @@
       "type": "http",
       "url": "http://openviking:1933/mcp",
       "headers": {
-        "X-API-Key": "${OPENVIKING_API_KEY}"
+        "X-API-Key": "${OPENVIKING_ROOT_API_KEY}"
       }
+    },
+    "pacgate": {
+      "enabled": true,
+      "type": "http",
+      "url": "http://pacgate-mcp:8000/mcp",
+      "description": "Query pacgate's legal RAG knowledge base and external legal database connectors."
     }
   }
 }
