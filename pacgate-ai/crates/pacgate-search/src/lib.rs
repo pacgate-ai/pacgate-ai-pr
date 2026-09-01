@@ -196,24 +196,34 @@ impl SearchRouter {
 
     /// Search all available connectors and merge results.
     ///
-    /// Failed connectors are logged and skipped — partial results are returned.
+    /// Connectors are queried concurrently (bounded by each connector's own
+    /// timeout) so a slow external database does not serialize the whole
+    /// fan-out. Failed connectors are logged and skipped — partial results
+    /// are returned.
     pub async fn search_all(&self, query: &SearchQuery) -> Vec<SearchResult> {
-        let mut all_results = Vec::new();
+        let futures = self.connectors.iter().map(|connector| {
+            let connector = Arc::clone(connector);
+            async move {
+                if !connector.is_available() {
+                    tracing::debug!(connector = connector.name(), "skipping unavailable connector");
+                    return Vec::new();
+                }
 
-        for connector in &self.connectors {
-            if !connector.is_available() {
-                tracing::debug!(connector = connector.name(), "skipping unavailable connector");
-                continue;
+                let results = connector.search(query).await;
+                tracing::info!(
+                    connector = connector.name(),
+                    results = results.len(),
+                    "connector returned results"
+                );
+                results
             }
+        });
 
-            let results = connector.search(query).await;
-            tracing::info!(
-                connector = connector.name(),
-                results = results.len(),
-                "connector returned results"
-            );
-            all_results.extend(results);
-        }
+        let mut all_results: Vec<SearchResult> = futures::future::join_all(futures)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
 
         // Sort by source_level priority (authority_verified > auxiliary_db > internal_template > model_inference)
         all_results.sort_by(|a, b| {
