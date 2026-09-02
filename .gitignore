@@ -31,6 +31,14 @@ desktop.ini
 # Rendered deer-flow MCP config (contains client API key)
 deploy/client-bundle/deer-flow-extensions-config.json
 
+# Cloned upstream deer-flow source used to build the frontend image
+# (deploy/client-bundle/deer-flow-src/frontend/Dockerfile.pacgate → pacgate-deer-flow-frontend:0.2.0).
+# Rebuild it from the git tag; never commit the 29MB source checkout.
+deploy/client-bundle/deer-flow-src/
+
+# Runtime copy of qm-pacgate staged by setup-qm.ps1 (tracked source is deploy/qm-pacgate/)
+deploy/client-bundle/qm-pacgate/
+
 # OpenViking runtime state (client-owned, per-machine)
 deploy/client-bundle/openviking/ov.conf
 deploy/client-bundle/openviking/workspace/

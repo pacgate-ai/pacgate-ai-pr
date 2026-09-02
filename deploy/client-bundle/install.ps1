@@ -76,14 +76,27 @@ if ((Test-Path $envPath) -and (Test-Path $ovTemplate)) {
     $dfTemplate = ".\deer-flow-extensions-config.template.json"
     $dfRendered = ".\deer-flow-extensions-config.json"
     if ((Test-Path $dfTemplate) -and -not (Test-Path $dfRendered)) {
-        if ($envVars['OPENVIKING_API_KEY'] -and $envVars['OPENVIKING_API_KEY'] -notmatch '^change-me') {
+        # The template's openviking entry uses ${OPENVIKING_ROOT_API_KEY} (the
+        # server's root key), NOT ${OPENVIKING_API_KEY}. Replacing the wrong
+        # placeholder is a no-op and leaves a literal ${...} in the rendered
+        # file, which makes openviking return 401 and rolls back the entire MCP
+        # tool load (deer-flow uses asyncio.gather). See handbook finding #2.
+        if ($envVars['OPENVIKING_ROOT_API_KEY'] -and $envVars['OPENVIKING_ROOT_API_KEY'] -notmatch '^change-me') {
             $df = Get-Content $dfTemplate -Raw
-            $df = $df.Replace('${OPENVIKING_API_KEY}', $envVars['OPENVIKING_API_KEY'])
-            Set-Content -Path $dfRendered -Value $df -NoNewline -Encoding UTF8
+            $df = $df.Replace('${OPENVIKING_ROOT_API_KEY}', $envVars['OPENVIKING_ROOT_API_KEY'])
+            # Write BOM-free UTF-8. PowerShell 5.1's `Set-Content -Encoding UTF8`
+            # prepends a UTF-8 BOM, which deer-flow's JSON parser rejects
+            # ("Unexpected UTF-8 BOM"). Use .NET WriteAllText with a no-BOM
+            # UTF8Encoding so the rendered config is valid JSON.
+            [System.IO.File]::WriteAllText(
+                (Join-Path $PWD $dfRendered),
+                $df,
+                [System.Text.UTF8Encoding]::new($false)
+            )
             Write-Host "[OK] Rendered $dfRendered from template" -ForegroundColor Green
         } else {
-            Write-Host "ERROR: $dfRendered missing and OPENVIKING_API_KEY is unset or still 'change-me'." -ForegroundColor Red
-            Write-Host "  Set OPENVIKING_API_KEY in .env, then re-run. compose.prod.yaml mounts this" -ForegroundColor Yellow
+            Write-Host "ERROR: $dfRendered missing and OPENVIKING_ROOT_API_KEY is unset or still 'change-me'." -ForegroundColor Red
+            Write-Host "  Set OPENVIKING_ROOT_API_KEY in .env, then re-run. compose.prod.yaml mounts this" -ForegroundColor Yellow
             Write-Host "  file :ro, so a missing file breaks deer-flow memory recall (OV-2a)." -ForegroundColor Yellow
             exit 1
         }
