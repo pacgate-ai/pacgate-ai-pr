@@ -22,6 +22,16 @@ models:
     max_tokens: 8192
     temperature: 0.1
 
+  - name: nemotron-3.5-lightning-30b-local
+    display_name: Nemotron 3.5 Lightning 30B (Local)
+    description: Local Nemotron model, long context. Good for legal reasoning and case analysis.
+    use: langchain_openai:ChatOpenAI
+    model: nemotron-3.5-lightning:30b-a3b
+    api_key: ollama
+    base_url: http://host.docker.internal:11434/v1
+    max_tokens: 16384
+    temperature: 0.1
+
   - name: gemma4-12b-local
     display_name: Gemma 4 12B (Local)
     description: Local Gemma model.

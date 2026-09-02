@@ -1,0 +1,115 @@
+# Pacgate-ai bundle — single compose project for the full client runtime.
+#
+# Combines pacgate-api (metadata), deer-flow (research) + frontend, pacgate-mcp,
+# OpenViking, Postgres, and nginx into ONE named compose project so they can be
+# started/stopped together as `pacgate-ai-bundle`. QM (co-working workspace) runs
+# SEPARATELY via `qm up` from deploy/qm-pacgate/ (its own lifecycle) — see
+# setup-qm.ps1.
+#
+# Usage (from deploy/client-bundle/):
+#   docker compose -f compose.bundle.yaml up -d
+#   docker compose -f compose.bundle.yaml ps
+#   docker compose -f compose.bundle.yaml down
+#
+# This file uses the SHARED environment variables from .env (same as compose.prod.yaml).
+
+name: pacgate-ai-bundle
+
+services:
+  pacgate-db:
+    image: postgres:16-alpine
+    container_name: pacgate-db
+    environment:
+      POSTGRES_DB: pacgate
+      POSTGRES_USER: pacgate
+      POSTGRES_PASSWORD: ${PACGATE_DB_PASSWORD}
+    volumes:
+      - pacgate-db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  pacgate-api:
+    image: ghcr.io/jzkk720/pacgate-api:0.1.2
+    container_name: pacgate-api
+    depends_on: [pacgate-db]
+    environment:
+      DATABASE_URL: postgres://pacgate:${PACGATE_DB_PASSWORD}@pacgate-db:5432/pacgate
+      DATA_DIR: /data/tenants
+      PACGATE_JWT_SECRET: ${PACGATE_JWT_SECRET}
+      PACGATE_DEFAULT_TENANT: ${PACGATE_TENANT_ID:-default-firm}
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      RUST_LOG: info
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
+  deer-flow:
+    image: ghcr.io/jzkk720/deer-flow-pacgate:0.1.0
+    container_name: deer-flow
+    depends_on: [pacgate-api, openviking, pacgate-mcp]
+    environment:
+      PACGATE_API_URL: http://pacgate-api:8080
+      PACGATE_TENANT_ID: ${PACGATE_TENANT_ID:-default-firm}
+      PACGATE_JWT_TOKEN: ${PACGATE_JWT_TOKEN}
+      PACGATE_API_EMAIL: ${PACGATE_API_EMAIL}
+      PACGATE_API_PASSWORD: ${PACGATE_API_PASSWORD}
+      PACGATE_MATTER_ID: ${PACGATE_MATTER_ID}
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      DEER_FLOW_EXTENSIONS_CONFIG_PATH: /app/deer-flow-extensions-config.json
+    volumes:
+      - ./data:/data
+      - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
+      - ./workflows:/app/workflows:ro
+      - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
+    restart: unless-stopped
+
+  deer-flow-frontend:
+    image: ghcr.io/bytedance/deer-flow-frontend:latest
+    container_name: deer-flow-frontend
+    depends_on: [deer-flow]
+    environment:
+      NEXT_PUBLIC_BACKEND_BASE_URL: http://localhost:8089
+      NEXT_PUBLIC_LANGGRAPH_BASE_URL: http://localhost:8089/api
+      DEER_FLOW_INTERNAL_GATEWAY_BASE_URL: http://deer-flow:8001
+    ports:
+      - "8090:3000"
+    restart: unless-stopped
+
+  pacgate-mcp:
+    build:
+      context: ../pacgate-mcp
+      dockerfile: Dockerfile
+    image: pacgate-mcp:0.1.0
+    container_name: pacgate-mcp
+    depends_on: [pacgate-api]
+    environment:
+      PACGATE_API_URL: http://pacgate-api:8080
+      PACGATE_API_EMAIL: ${PACGATE_API_EMAIL}
+      PACGATE_API_PASSWORD: ${PACGATE_API_PASSWORD}
+      PACGATE_JWT_TOKEN: ${PACGATE_JWT_TOKEN}
+      PACGATE_MCP_PORT: "8000"
+      PACGATE_MCP_TIMEOUT: "60"
+    restart: unless-stopped
+
+  openviking:
+    image: ghcr.io/volcengine/openviking@sha256:46f9e34cd37238c28cbd9535033773d179006bdf7f3e528dd1c46567abce7701
+    container_name: openviking
+    ports:
+      - "1933:1933"
+    volumes:
+      - ./openviking:/app/.openviking
+    environment:
+      OPENVIKING_CONF_CONTENT: ${OPENVIKING_CONF_CONTENT}
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: pacgate-nginx
+    depends_on: [pacgate-api, deer-flow, deer-flow-frontend]
+    ports:
+      - "8089:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+volumes:
+  pacgate-db-data:
