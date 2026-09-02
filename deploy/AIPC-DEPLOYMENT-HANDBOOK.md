@@ -1,8 +1,50 @@
 # Pacgate AI - Two-AIPC Deployment Handbook
 
 > Clone the repo on each machine, run the same install steps, and both machines become fully operational with deer-flow research and qm collaboration.
-> Version 0.1.2 - 2026-08-30
+> Version 0.1.3 - 2026-09-02
 > Prerequisites: Docker Desktop, Ollama, Node.js 24+. `install.ps1` pulls the models listed in `ollama-models.txt`.
+
+## ⚠️ Significant findings (2026-09-02) — read before deploying AIPC #2
+
+These were discovered during the AIPC #1 pilot and are **already fixed in this repo**.
+AIPC #2 must pull the **updated** code (from `pacgate-ai/pacgate-ai-pr`, see Stage 1) so it
+gets these fixes, not the older `JZKK720/pacgate-ai-pr` main.
+
+1. **deer-flow agent could not query pacgate's legal databases.** Root cause: no tool was
+   wired to pacgate-api's `/api/kb/search` (RAG) or `/api/search` (legal connectors), and the
+   memory adapter silently fell back to local files (`PacgateMemoryStorage requires
+   PACGATE_MATTER_ID`). **Fix:** a new `pacgate-mcp` service (FastMCP) exposes
+   `pacgate_kb_search`, `pacgate_connector_search`, `pacgate_list_connectors` to deer-flow.
+   Registered in `deer-flow-extensions-config.json` beside openviking.
+
+2. **openviking MCP had the wrong API key baked in.** `deer-flow-extensions-config.json`
+   used the app key (`OPENVIKING_API_KEY`) but openviking's `root_api_key` is
+   `OPENVIKING_ROOT_API_KEY`. A wrong key made openviking return 401, which rolled back the
+   **entire** MCP tool load (deer-flow uses `asyncio.gather`), so **no** MCP tools appeared.
+   **Fix:** use `OPENVIKING_ROOT_API_KEY` (template now uses `${OPENVIKING_ROOT_API_KEY}`).
+
+3. **`docker compose up -d --force-recreate deer-flow` wipes deer-flow's local DB.**
+   The SQLite DB, admin user, threads, and `.jwt_secret` live at `/app/backend/.deer-flow/`
+   **inside the container** (not mounted). Recreating the container loses them → the frontend
+   gets 401 and the `/setup` page appears. **Use `docker compose restart deer-flow`** for
+   config changes; only recreate if you accept losing the local DB (then re-run `/setup`).
+
+4. **QM sign-in needs a `RESEND_API_KEY`, not Outlook SMTP.** The old SMTP path
+   (`smtp.office365.com` + app password) is broken — Microsoft retired Basic Auth / app
+   passwords for Exchange Online (Sep 2025). `qm check` failed with
+   `535 5.7.139 Authentication unsuccessful`. **Fix:** qm's auth broker now uses the
+   **Resend** transport (`AUTH_EMAIL_TRANSPORT=resend`). You must supply a `RESEND_API_KEY`
+   in `deploy/qm-pacgate/.env` (see Stage 4).
+
+5. **The qm web-ui cannot self-authenticate.** Its server (`/app/server/index.ts`) sets
+   `AUTH_MODE = COOKIE_AUTH ? "dev" : "portal"`. Because `CORE_SIGNING_SECRET` is set,
+   it's in **portal** mode and requires a portal-issued identity token. There is **no
+   no-secret way** to reach the web-ui directly — you must run `portal`+`auth` (Resend) or
+   an external OIDC provider. `ADMIN_GRANTS` is an authorization seed, not a sign-in.
+
+6. **Git push to `JZKK720/pacgate-ai-pr` is blocked for the `pacgate-ai` account** (403,
+   needs 2FA grant). **Workaround:** the `pacgate-ai` account can create a fork and push
+   there. The fork `pacgate-ai/pacgate-ai-pr` now carries all fixes on `main`.
 
 ## Architecture: two identical machines
 
@@ -79,9 +121,14 @@ On both machines:
 
 ```powershell
 cd C:\
-git clone https://github.com/JZKK720/pacgate-ai-pr.git
+git clone https://github.com/pacgate-ai/pacgate-ai-pr.git
 cd pacgate-ai-pr
 ```
+
+> **AIPC #2 note:** clone from the **`pacgate-ai/pacgate-ai-pr`** fork (it carries all the
+> 2026-09-02 fixes on `main`). The `pacgate-ai` account owns it, so it's writable and always
+> up to date. If you must use `JZKK720/pacgate-ai-pr`, pull the `feat/deer-flow-pacgate-mcp`
+> branch (or apply the patches in `patches/`) to get the same fixes.
 
 If the repo is private and GitHub prompts for credentials, use a personal access token or the GitHub CLI (`gh auth login`).
 
@@ -206,21 +253,45 @@ The script prompts for:
 
 The script generates signing secrets, creates `.env` in the qm-pacgate directory, validates the config with `qm check`, and builds the sandbox image with `qm sandbox build`.
 
+**QM sign-in requires a Resend API key.** The qm auth broker delivers sign-in magic links
+via **Resend** (`AUTH_EMAIL_TRANSPORT=resend`), not Outlook SMTP (Microsoft retired Basic
+Auth / app passwords for Exchange Online). Before `qm up` will start `portal`+`auth`, set
+`RESEND_API_KEY` in `deploy/qm-pacgate/.env`:
+
+```
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Also set `AUTH_EMAIL_FROM` to a **Resend-verified sender** (an Outlook address is not
+verified). Either verify a real domain (e.g. `pacgate-law.com`) in Resend, or use Resend's
+test sender for now:
+```
+AUTH_EMAIL_FROM="PacGate <onboarding@resend.dev>"
+```
+
 Start qm:
 
 ```powershell
 cd C:\pacgate-ai-pr\deploy\qm-pacgate
-npm exec qm -- up
+node_modules\.bin\qm.cmd up
 ```
+
+> **Note:** `npm exec qm -- up` may be blocked by the PowerShell execution policy
+> (`npm.ps1`). Use `node_modules\.bin\qm.cmd up` instead.
 
 Verify qm:
 
 ```powershell
-# Open http://localhost:8182
-# Sign in with the admin email
+# Open http://localhost:8182  (web-ui) — requires a portal identity token
+# Open http://localhost:8181  (portal) — the sign-in front door
+# Sign in with the admin email (magic link via Resend)
 # Send a test message
 # Ask: "List available pacgate workflows"
 ```
+
+> **Web-ui auth reality:** the qm web-ui (`:8182`) cannot authenticate anyone on its own —
+> it must be reached through the portal (`:8181`), which issues the identity token. If you
+> open `:8182` directly you'll see "reached through the portal." Always go through `:8181`.
 
 ## Stage 5: Verify deer-flow (both machines)
 
