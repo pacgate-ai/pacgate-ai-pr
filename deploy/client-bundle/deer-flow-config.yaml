@@ -42,6 +42,23 @@ models:
     max_tokens: 8192
     temperature: 0.1
 
+  # Nemotron 3.5 Lightning 30B — longest-context local model (1M context window).
+  # Supports tools + thinking. Heavier (32.9B, Q4_K_M) so it is NOT the default;
+  # select it in the chat model picker for long-context research runs.
+  - name: nemotron-3.5-lightning-30b-local
+    display_name: Nemotron 3.5 Lightning 30B (Local)
+    description: Longest-context local model (1M tokens). Supports thinking + tools. Best for deep multi-step research.
+    use: langchain_openai:ChatOpenAI
+    model: nemotron-3.5-lightning:30b-a3b
+    api_key: ollama
+    base_url: http://host.docker.internal:11434/v1
+    max_tokens: 8192
+    temperature: 0.1
+    supports_thinking: true
+    # Long thinking pauses on a 30B reasoning model — raise the stream chunk
+    # timeout so the gateway does not drop the connection mid-thought.
+    stream_chunk_timeout: 300
+
 sandbox:
   use: deerflow.sandbox.local:LocalSandboxProvider
 
