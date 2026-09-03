@@ -31,6 +31,10 @@ desktop.ini
 # Rendered deer-flow MCP config (contains client API key)
 deploy/client-bundle/deer-flow-extensions-config.json
 
+# Deer-flow admin login credentials (per-machine, created at runtime in the
+# container's local SQLite DB; NOT in .env). Never commit.
+deploy/client-bundle/.deer-flow-credentials
+
 # Cloned upstream deer-flow source used to build the frontend image
 # (deploy/client-bundle/deer-flow-src/frontend/Dockerfile.pacgate → pacgate-deer-flow-frontend:0.2.0).
 # Rebuild it from the git tag; never commit the 29MB source checkout.
