@@ -60,6 +60,8 @@ Ollama :11434（原生安装，GPU/NPU）
 | `pacgate-adapters/python/` | deer-flow 适配器（约 150 行） |
 | `pacgate-adapters/typescript/` | qm 合约库（8 项测试） |
 | `deploy/client-bundle/` | 客户部署包（compose、install.ps1、nginx、qm 引导脚本） |
+| `deploy/client-delivery/` | 客户交付包（文档 PDF + README 索引） |
+| `deploy/handbooks/` | 集成手册（deer-flow/qm + OpenViking + pacgate 网关）+ 渲染脚本 |
 | `deploy/qm-pacgate/` | qm 部署目录（配置、沙箱、桥接工具） |
 | `deploy/AIPC-DEPLOYMENT-HANDBOOK.md` | 双 AIPC 分步安装指南 |
 | `deploy/SETUP-AND-OPERATIONS-ZH.md` | 完整三天驻场安装指南（中文版） |

@@ -58,6 +58,8 @@ Both AIPC machines run the full stack identically. Each machine is independently
 | `pacgate-adapters/python/` | deer-flow adapter (~150 lines) |
 | `pacgate-adapters/typescript/` | qm contract library (8 tests) |
 | `deploy/client-bundle/` | Client deployment bundle (compose, install.ps1, nginx, qm bootstrap) |
+| `deploy/client-delivery/` | Client-facing delivery package (docs PDFs + README index) |
+| `deploy/handbooks/` | Integration handbooks (deer-flow/qm + OpenViking + pacgate gateway) + render script |
 | `deploy/qm-pacgate/` | qm deployment directory (config, sandbox, bridge tool) |
 | `deploy/AIPC-DEPLOYMENT-HANDBOOK.md` | Two-AIPC step-by-step install guide |
 | `deploy/SETUP-AND-OPERATIONS.md` | Full 3-day on-site installation guide |
