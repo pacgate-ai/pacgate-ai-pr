@@ -96,6 +96,17 @@ Serial chain 1→2→3→4; step 5 after 3; steps 6→7 serial. No parallelism w
 
 ---
 
+## Execution log (2026-09-06, completed)
+
+- Steps 1–6 all green. Live stack: `pacgate-ai/*:0.1.7` × 4, deer-flow persistence mount active, admin + 175 checkpoints survived recreate, `kb/search` returns ranked hybrid results (decode fix proven), OpenViking vlm loaded (no OPENAI_API_KEY error), QM core untouched.
+- Two upstream commits arrived mid-session (`c69a34e` docs, `0047ee9` GATEWAY_CORS_ORIGINS-from-.env) — both rebased cleanly; live container CORS already equals the new default, so no recreate.
+- Pushed: `4facdc2` (EUR-Lex fix), `72b29d8` (qm tasks + plan), `20da94e` (gitignore `data/`).
+- **Plan corrections discovered during execution:**
+  1. `deploy/client-bundle/data/` was NOT gitignored (the old `.gitignore:45` match was stale). It now holds the LIVE deer-flow DB bind mount — fixed in `20da94e`.
+  2. Seed gotcha: `pacgate-seed` defaults to `--tenant-slug default-firm`, but this machine's API runs `PACGATE_DEFAULT_TENANT=pacgate-law` → first seed produced chunks the API couldn't see (`kb/search` → `[]`). Re-seeded with `--tenant-slug pacgate-law`; stray `default-firm` copy purged.
+  3. Login response field is `token` (not `access_token`); deer-flow browser session invalidates on backend recreate (JWT secret rotation) — re-login once after upgrades, expected.
+  4. `docker exec -d` lost its log here; run `pacgate-seed` synchronously via `docker exec` instead.
+
 ## Adversarial self-review (anti-pattern check)
 
 - ❌ "Just `git pull` and `up -d`": rejected — would wipe deer-flow admin (no mount yet at 0.1.3) and silently lose the QM patch. Steps 1/4 handle both.
