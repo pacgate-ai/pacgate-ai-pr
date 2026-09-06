@@ -49,3 +49,8 @@ deploy/client-bundle/qm-pacgate/
 # OpenViking runtime state (client-owned, per-machine)
 deploy/client-bundle/openviking/ov.conf
 deploy/client-bundle/openviking/workspace/
+
+# deer-flow persistent state (live SQLite: admin password hash, threads,
+# checkpoints) + pre-upgrade DB backups. NEVER commit — contains credential
+# material and client chat history. This dir is the ./data/deer-flow bind mount.
+deploy/client-bundle/data/
