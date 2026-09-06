@@ -30,11 +30,11 @@
 
 | 组件 | 端口 | 职责 | 实现 |
 |---|---|---|---|
-| **deer-flow** | 8001 | 研究工作空间：多步骤检索、文件分析、报告生成 | `ghcr.io/jzkk720/deer-flow-pacgate:0.1.0`（包装镜像） |
-| **deer-flow-frontend** | 8090 | Next.js 前端，重写 `/api/*` 到 deer-flow 网关 | `ghcr.io/bytedance/deer-flow-frontend:latest` |
+| **deer-flow** | 8001 | 研究工作空间：多步骤检索、文件分析、报告生成 | `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0`（包装镜像） |
+| **deer-flow-frontend** | 8090 | Next.js 前端，重写 `/api/*` 到 deer-flow 网关 | `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0`（构建时烘焙网关地址） |
 | **OpenViking** | 1933 | 长期记忆：结构化记忆、语义检索、跨会话上下文 | `ghcr.io/volcengine/openviking` |
-| **pacgate-mcp** | 8000 | 向 deer-flow 暴露 RAG + 法律连接器检索（FastMCP） | `pacgate-mcp:0.1.0` |
-| **pacgate-api** | 8080 | 法律元数据：案件、文档、工作流、RAG、连接器 | `ghcr.io/jzkk720/pacgate-api:0.1.3`（Rust） |
+| **pacgate-mcp** | 8000 | 向 deer-flow 暴露 RAG + 法律连接器 + 文档/工作流（FastMCP） | `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` |
+| **pacgate-api** | 8080 | 法律元数据：案件、文档、工作流、RAG、连接器 | `ghcr.io/pacgate-ai/pacgate-api:0.1.3`（Rust） |
 | **pacgate-nginx** | 8089 | 统一入口，路由 `/`、`/api/`、`/pacgate/` | `nginx:1.27-alpine` |
 | **pacgate-db** | 5432 | 元数据数据库（租户、案件、文档、审计） | `postgres:16-alpine` |
 | **Ollama** | 11434 | 本地/云路由模型 + embedding | Windows 原生 |
@@ -62,15 +62,17 @@ cd backend && uv run --no-sync uvicorn app.gateway.app:app --host 0.0.0.0 --port
 
 ### 3.3 模型配置
 
-`config.yaml` 定义了 deer-flow 可用的模型列表（全部通过 Ollama 路由）：
+`config.yaml` 定义了 deer-flow 可用的模型列表（全部通过 Ollama 路由）。以下为**客户 AIPC 部署**实际使用的 `deploy/client-bundle/deer-flow-config.yaml` 模型：
 
 | 模型 | 说明 | 用途 |
 |---|---|---|
-| `deepseek-v4-flash:0731-cloud` | DeepSeek V4 Flash 0731（云路由） | 快速法律执行模型 |
-| `deepseek-v4-pro:0813-cloud` | DeepSeek V4 Pro 0813（云路由） | 复杂检索任务 |
-| `qwen3.8:27b-mtp-q4_K_M` | Qwen 3.8 27B（本地 GPU） | 无云依赖 |
-| `nemotron-3.5-lightning:30b-a3b` | Nemotron 3.5 Lightning 30B（本地 GPU） | 法律推理 |
-| `gemma4:26b-a4b-it-qat` | Gemma 4 26B（本地 GPU） | 草稿生成 |
+| `ornith-1.5:9b` | Ornith 1.5 9B（本地，默认） | 快速非推理模型，默认研究模型 |
+| `ornith-1.5:35b` | Ornith 1.5 35B（本地） | 复杂研究任务 |
+| `nemotron-3.5-lightning:30b-a3b` | Nemotron 3.5 Lightning 30B（本地，1M 上下文） | 法律推理与长上下文 |
+| `gemma4:12b-it-q8_0` | Gemma 4 12B（本地） | 草稿生成 |
+| `qwen3.5:9b-q8_0` | Qwen 3.5 9B（本地） | 通用任务 |
+
+> **注意**：`deploy/deer-flow-pacgate/config.yaml`（云路由 deepseek-v4、qwen3.8:27b、gemma4:26b）是**开发/CI 参考**，并非客户 AIPC 运行时使用的配置。客户部署通过 `compose.prod.yaml` 挂载 `deploy/client-bundle/deer-flow-config.yaml`。
 
 > **切换模型**：调整 `models` 列表的顺序，把优先模型放在最前。所有模型使用 `api_key: ollama` 与 `base_url: http://host.docker.internal:11434/v1`。
 
@@ -146,7 +148,7 @@ pacgate-api 是 Pacgate-ai 的**法律元数据网关**（Rust 实现）。它�
 | **案件** | `GET /api/matters` | 列出案件 |
 | **文档** | `GET /api/matters/:id/documents` | 某案件的文档 |
 | **工作流** | `GET /api/workflows` | 列出工作流模板 |
-| 工作流分类 | `GET /api/workflow-categories` | 工作流分类 |
+| 工作流分类 | `GET /api/workflows/categories` | 工作流分类 |
 | 工作流详情 | `GET /api/workflows/:id` | 单工作流步骤 |
 | **RAG** | `GET /api/kb/search` | 内部按案件向量检索 |
 | **连接器** | `GET /api/search` | 外部法律数据库检索 |
@@ -194,13 +196,22 @@ pacgate-api 暴露 **10 个法律工作流模板**：
 
 ### 5.5 pacgate-mcp 桥
 
-`pacgate-mcp`（FastMCP，端口 8000）向 deer-flow 暴露三个工具，**deer-flow 永远看不到凭据**（认证在 pacgate-api 内部完成）：
+`pacgate-mcp`（FastMCP，端口 8000）向 deer-flow 暴露 **10 个工具**，**deer-flow 永远看不到凭据**（认证在 pacgate-api 内部完成）：
 
 | 工具 | 说明 |
 |---|---|
 | `pacgate_kb_search` | 内部按案件 RAG 检索（`GET /api/kb/search`） |
 | `pacgate_connector_search` | 外部法律数据库检索（`GET /api/search`） |
 | `pacgate_list_connectors` | 列出可用法律数据源连接器 |
+| `pacgate_list_matters` | 列出当前租户的案件（`GET /api/matters`） |
+| `pacgate_list_documents` | 列出某案件的文档（`GET /api/matters/:id/documents`） |
+| `pacgate_read_document` | 读取/下载某文档的字节（`GET /api/documents/:id/download`） |
+| `pacgate_upload_document` | 将生成的成果回传至某案件（`POST /api/documents`） |
+| `pacgate_list_workflows` | 列出工作流模板（`GET /api/workflows`） |
+| `pacgate_get_workflow` | 获取某工作流模板的步骤（`GET /api/workflows/:id`） |
+| `pacgate_execute_workflow` | 运行某工作流模板（`POST /api/workflows/:id/execute`） |
+
+> 新增的工具（案件、文档、工作流）让 deer-flow 不仅能**检索**法律知识，还能**访问文档库**、**读取/写入文件**并**运行预置工作流模板**——消除了之前"deer-flow 只能查询、无法触碰文档与模板"的架构缺口。
 
 它启动时用 `PACGATE_API_EMAIL`/`PACGATE_API_PASSWORD` 登录一次，之后在每次调用时转发 Bearer 令牌。
 
@@ -219,10 +230,10 @@ pacgate-api 暴露 **10 个法律工作流模板**：
 
 | 组件 | 镜像 |
 |---|---|
-| pacgate-api | `ghcr.io/jzkk720/pacgate-api:0.1.3` |
-| deer-flow | `ghcr.io/jzkk720/deer-flow-pacgate:0.1.0` |
-| deer-flow-frontend | `ghcr.io/bytedance/deer-flow-frontend:latest` |
-| pacgate-mcp | `pacgate-mcp:0.1.0` |
+| pacgate-api | `ghcr.io/pacgate-ai/pacgate-api:0.1.3` |
+| deer-flow | `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0` |
+| deer-flow-frontend | `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` |
+| pacgate-mcp | `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` |
 | nginx | `nginx:1.27-alpine` |
 | openviking | `ghcr.io/volcengine/openviking` |
 

@@ -36,8 +36,11 @@ deploy/client-bundle/deer-flow-extensions-config.json
 deploy/client-bundle/.deer-flow-credentials
 
 # Cloned upstream deer-flow source used to build the frontend image
-# (deploy/client-bundle/deer-flow-src/frontend/Dockerfile.pacgate → pacgate-deer-flow-frontend:0.2.0).
-# Rebuild it from the git tag; never commit the 29MB source checkout.
+# (deploy/deer-flow-src/ → deploy/deer-flow-frontend-pacgate/Dockerfile →
+# ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.0).
+# Rebuild it from the git tag; never commit the source checkout.
+deploy/deer-flow-src/
+# Legacy path (older build) kept ignored to avoid accidental commits.
 deploy/client-bundle/deer-flow-src/
 
 # Runtime copy of qm-pacgate staged by setup-qm.ps1 (tracked source is deploy/qm-pacgate/)

@@ -53,7 +53,7 @@ AIPC #2 必须拉取**更新后**的代码（来自 `pacgate-ai/pacgate-ai-pr`�
 
 ```
 每台 AIPC 机器：
-  nginx :8081  -> pacgate-api :8080（Rust 元数据 API）
+  nginx :8089  -> pacgate-api :8080（Rust 元数据 API）
                 -> deer-flow  :8001（研究工作空间）
   Postgres :5432（本地元数据数据库）
   OpenViking :1933（长期记忆通道，MCP）
@@ -62,7 +62,7 @@ AIPC #2 必须拉取**更新后**的代码（来自 `pacgate-ai/pacgate-ai-pr`�
 ```
 
 每台机器都是自包含且独立可运行的。任一机器上的律师都可以使用研究模式
-（deer-flow，位于 `http://localhost:8081/research/`）和协作模式
+（deer-flow，位于 `http://localhost:8089/research/`）和协作模式
 （qm，位于 `http://localhost:8182`），无需依赖另一台机器。
 
 如果之后希望在两台机器之间共享事项数据，请用私有网格（Tailscale 或 WireGuard）
@@ -84,11 +84,13 @@ AIPC #2 必须拉取**更新后**的代码（来自 `pacgate-ai/pacgate-ai-pr`�
 
 | 镜像 | 状态 |
 |---|---|
-| `ghcr.io/jzkk720/pacgate-api:0.1.2` | 已发布。修复 0.1.1 的容器网络 bug（LLM 路由器遵循 `OLLAMA_BASE_URL`，应用按租户的模型覆盖）。 |
-| `ghcr.io/jzkk720/deer-flow-pacgate:0.1.0` | 已发布。上游 deer-flow 后端的精简包装；未更改。 |
+| `ghcr.io/pacgate-ai/pacgate-api:0.1.3` | 已发布。修复 0.1.1 的容器网络 bug（LLM 路由器遵循 `OLLAMA_BASE_URL`，应用按租户的模型覆盖）。 |
+| `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` | 已发布。向 deer-flow 暴露 10 个 MCP 工具（RAG 检索、连接器检索、文档、工作流模板、工作流执行）。 |
+| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0` | 已发布。上游 deer-flow 后端的精简包装；未更改。 |
+| `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` | 已发布。Next.js 检索界面，构建时烘焙 `DEER_FLOW_INTERNAL_GATEWAY_BASE_URL`（无需运行时补丁）。 |
 | `ghcr.io/volcengine/openviking@sha256:46f9e34c…` | 在 `compose.prod.yaml` 中按摘要固定。上游公开镜像。 |
 
-**两个 Pacgate 包必须在 GHCR 上设置为公开可见**，以便 AIPC 无需注册表凭据即可拉取。
+**所有 Pacgate 包必须在 GHCR 上设置为公开可见**，以便 AIPC 无需注册表凭据即可拉取。
 上线前验证：
 
 ```powershell
@@ -117,9 +119,9 @@ docker push ghcr.io/jzkk720/pacgate-api:0.1.3
 
 **不要在 AIPC 上重建**——试点运行已发布的摘要。
 
-> **端口冲突说明：** 栈将 nginx 绑定到主机端口 `8081`。如果该端口在机器上已被占用，
-> 请编辑 `deploy/client-bundle/compose.prod.yaml` 中 `nginx` 的 `ports:` 条目
-> （例如 `"8089:80"`），并在下方所有验证 URL 中使用新端口。
+> **端口说明：** 栈将 nginx 绑定到主机端口 `8089`（`deploy/client-bundle/compose.prod.yaml` 中提交的值）。如果该端口在机器上已被占用，
+> 请编辑 `deploy/client-bundle/compose.prod.yaml` 中 `nginx` 的 `ports:` 条目，
+> 并在下方所有验证 URL 中使用新端口。
 
 ## Stage 1：在每台 AIPC 上克隆仓库
 
@@ -188,7 +190,7 @@ OPENVIKING_API_KEY=<生成一个 32 字符十六进制字符串>
 
 ```powershell
 docker compose -f compose.prod.yaml ps
-curl http://localhost:8081/health
+curl http://localhost:8089/health
 ```
 
 预期：五个容器全部运行（pacgate-db、pacgate-api、deer-flow、openviking、nginx），
@@ -204,14 +206,14 @@ docker exec pacgate-db psql -U pacgate -c "INSERT INTO tenants (name, slug) VALU
 
 # 注册管理员用户
 $body = @{email="admin@pacgate-law.com"; password="<strong-password>"} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8081/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
 ```
 
 注册一个 qm 桥接服务账号（qm 需要它来向 pacgate-api 认证）：
 
 ```powershell
 $body = @{email="qm-bridge@pacgate.local"; password="<strong-bridge-password>"} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8081/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
 ```
 
 ## Stage 3.5：验证 OpenViking 记忆服务（两台机器）
@@ -310,7 +312,7 @@ node_modules\.bin\qm.cmd up
 在每台机器上，验证研究工作空间：
 
 ```powershell
-# 打开 http://localhost:8081/research/
+# 打开 http://localhost:8089/research/
 # 选择或创建一个事项
 # 询问："Summarize recent force majeure case law in China"
 # 验证：回复包含引用
@@ -396,11 +398,11 @@ docker network connect pacgate-ai-bundle_default qm-pacgate-core
 ### 核心栈
 
 - [ ] `docker compose -f compose.prod.yaml ps` 显示 5 个服务运行（含 openviking）
-- [ ] `curl http://localhost:8081/health` 返回 `ok`
+- [ ] `curl http://localhost:8089/health` 返回 `ok`
 - [ ] `curl http://localhost:1933/health` 返回健康 JSON
 - [ ] Postgres 有 `pacgate-law` 租户
-- [ ] 管理员用户可以在 `http://localhost:8081/api/auth/login` 登录
-- [ ] deer-flow 在 `http://localhost:8081/research/` 返回真实研究回复
+- [ ] 管理员用户可以在 `http://localhost:8089/api/auth/login` 登录
+- [ ] deer-flow 在 `http://localhost:8089/research/` 返回真实研究回复
 
 ### qm 协作
 
@@ -470,7 +472,7 @@ qm（协作工作空间）：
 
 ```powershell
 $body = @{email="<user>@pacgate-law.com"; password="<password>"} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8081/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
 ```
 
 ### 备份数据库

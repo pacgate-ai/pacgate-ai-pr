@@ -17,7 +17,7 @@ services:
     restart: unless-stopped
 
   pacgate-api:
-    image: ghcr.io/jzkk720/pacgate-api:0.1.3
+    image: ghcr.io/pacgate-ai/pacgate-api:0.1.3
     container_name: pacgate-api
     depends_on: [pacgate-db]
     environment:
@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/jzkk720/deer-flow-pacgate:0.1.0
+    image: ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0
     container_name: deer-flow
     depends_on: [pacgate-api, openviking, pacgate-mcp]
     environment:
@@ -64,14 +64,12 @@ services:
     restart: unless-stopped
 
   # DeerFlow Next.js web UI (the research workspace frontend).
-  # The upstream deer-flow stack runs frontend(:3000) + nginx(:2026) + gateway(:8001).
-  # The pacgate wrapper only shipped the gateway, so the research UI was missing.
-  # NOTE: the published bytedance image bakes DEER_FLOW_INTERNAL_GATEWAY_BASE_URL
-  # =http://127.0.0.1:8001 (build-time) and a newer 2.1.x login schema. This image
-  # is built from the deer-flow v2.0.0 tag to match the backend (deer-flow-pacgate
-  # wraps backend 2.0.0) and sets the gateway URL to deer-flow:8001.
+  # Built by deploy/deer-flow-frontend-pacgate/Dockerfile with the gateway URL
+  # (http://deer-flow:8001) baked in at BUILD time, so the /api/* rewrites are
+  # correct without a runtime patch. Published to GHCR by the build-ghcr.yml
+  # workflow; pushed on every release tag so both AIPCs stay in sync.
   deer-flow-frontend:
-    image: pacgate-deer-flow-frontend:0.2.0
+    image: ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0
     container_name: deer-flow-frontend
     depends_on: [deer-flow]
     ports:
@@ -83,10 +81,7 @@ services:
     restart: unless-stopped
 
   pacgate-mcp:
-    build:
-      context: ../pacgate-mcp
-      dockerfile: Dockerfile
-    image: pacgate-mcp:0.1.0
+    image: ghcr.io/pacgate-ai/pacgate-mcp:0.1.3
     container_name: pacgate-mcp
     depends_on: [pacgate-api]
     environment:

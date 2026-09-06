@@ -52,7 +52,7 @@ Both AIPCs run the complete stack:
 
 ```
 Each AIPC machine:
-  nginx :8081  -> pacgate-api :8080 (Rust metadata API)
+  nginx :8089  -> pacgate-api :8080 (Rust metadata API)
                 -> deer-flow  :8001 (research workspace)
   Postgres :5432 (local metadata DB)
   OpenViking :1933 (long-term memory lane, MCP)
@@ -60,7 +60,7 @@ Each AIPC machine:
   Ollama :11434 (native, GPU/NPU)
 ```
 
-Each machine is self-contained and independently operational. Lawyers on either machine can use both research mode (deer-flow at `http://localhost:8081/research/`) and collaboration mode (qm at `http://localhost:8182`) without depending on the other machine.
+Each machine is self-contained and independently operational. Lawyers on either machine can use both research mode (deer-flow at `http://localhost:8089/research/`) and collaboration mode (qm at `http://localhost:8182`) without depending on the other machine.
 
 If you later want shared matter data across both machines, connect them with a private mesh (Tailscale or WireGuard) and decide on a sync or single-authority model. That is a post-pilot decision, not a deployment prerequisite.
 
@@ -80,11 +80,13 @@ The runtime is published on GHCR and needs no rebuild on the AIPC:
 
 | Image | Status |
 |---|---|
-| `ghcr.io/jzkk720/pacgate-api:0.1.2` | Published. Fixes the 0.1.1 container-networking bug (LLM router honors `OLLAMA_BASE_URL`, per-tenant model overrides applied). |
-| `ghcr.io/jzkk720/deer-flow-pacgate:0.1.0` | Published. Thin wrapper on the upstream deer-flow backend; unchanged. |
+| `ghcr.io/pacgate-ai/pacgate-api:0.1.3` | Published. Fixes the 0.1.1 container-networking bug (LLM router honors `OLLAMA_BASE_URL`, per-tenant model overrides applied). |
+| `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` | Published. Exposes 10 MCP tools to deer-flow (RAG search, connector search, documents, workflow templates, workflow execution). |
+| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0` | Published. Thin wrapper on the upstream deer-flow backend; unchanged. |
+| `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` | Published. Next.js research UI with `DEER_FLOW_INTERNAL_GATEWAY_BASE_URL` baked in (no runtime patch needed). |
 | `ghcr.io/volcengine/openviking@sha256:46f9e34c…` | Pinned by digest in `compose.prod.yaml`. Upstream public image. |
 
-**Both Pacgate packages must be set to public visibility on GHCR** so an AIPC can pull
+**All Pacgate packages must be set to public visibility on GHCR** so an AIPC can pull
 without registry credentials. Verify before rollout:
 
 ```powershell
@@ -92,7 +94,7 @@ without registry credentials. Verify before rollout:
 # (The Accept header is required — omit it and a public manifest returns 404, not 200.)
 $acc = "application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json"
 $t = (Invoke-RestMethod "https://ghcr.io/token?scope=repository:jzkk720/pacgate-api:pull").token
-(Invoke-WebRequest "https://ghcr.io/v2/jzkk720/pacgate-api/manifests/0.1.2" -Headers @{Authorization="Bearer $t"; Accept=$acc} -Method Head -UseBasicParsing).StatusCode
+(Invoke-WebRequest "https://ghcr.io/v2/jzkk720/pacgate-api/manifests/0.1.3" -Headers @{Authorization="Bearer $t"; Accept=$acc} -Method Head -UseBasicParsing).StatusCode
 ```
 
 To flip it (GitHub web UI — the API route 404s for personal accounts):
@@ -113,7 +115,7 @@ Then bump the tag in `deploy/client-bundle/compose.prod.yaml`.
 
 Do **not** rebuild on the AIPC — the pilot runs the published digests.
 
-> **Port conflict note:** the stack binds nginx to host port `8081`. If that port is already in use on the machine, edit the `ports:` entry for `nginx` in `deploy/client-bundle/compose.prod.yaml` (e.g. `"8089:80"`) and use the new port in all verification URLs below.
+> **Port note:** the stack binds nginx to host port `8089` (the value committed in `deploy/client-bundle/compose.prod.yaml`). If that port is already in use on the machine, edit the `ports:` entry for `nginx` and use the new port in all verification URLs below.
 
 ## Stage 1: Clone the repo on each AIPC
 
@@ -184,7 +186,7 @@ Verify the core stack:
 
 ```powershell
 docker compose -f compose.prod.yaml ps
-curl http://localhost:8081/health
+curl http://localhost:8089/health
 ```
 
 Expected: all five containers running (pacgate-db, pacgate-api, deer-flow, openviking, nginx) and `/health` returns `ok`.
@@ -199,14 +201,14 @@ docker exec pacgate-db psql -U pacgate -c "INSERT INTO tenants (name, slug) VALU
 
 # Register the admin user
 $body = @{email="admin@pacgate-law.com"; password="<strong-password>"} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8081/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
 ```
 
 Register a qm bridge service account (needed by qm to authenticate with pacgate-api):
 
 ```powershell
 $body = @{email="qm-bridge@pacgate.local"; password="<strong-bridge-password>"} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8081/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
 ```
 
 ## Stage 3.5: Verify OpenViking memory service (both machines)
@@ -306,7 +308,7 @@ Verify qm:
 On each machine, verify the research workspace:
 
 ```powershell
-# Open http://localhost:8081/research/
+# Open http://localhost:8089/research/
 # Select or create a matter
 # Ask: "Summarize recent force majeure case law in China"
 # Verify: response includes citations
@@ -396,11 +398,11 @@ Run this checklist on each AIPC independently.
 ### Core stack
 
 - [ ] `docker compose -f compose.prod.yaml ps` shows 5 services up (incl. openviking)
-- [ ] `curl http://localhost:8081/health` returns `ok`
+- [ ] `curl http://localhost:8089/health` returns `ok`
 - [ ] `curl http://localhost:1933/health` returns healthy JSON
 - [ ] Postgres has the `pacgate-law` tenant
-- [ ] Admin user can log in at `http://localhost:8081/api/auth/login`
-- [ ] deer-flow returns a real research response at `http://localhost:8081/research/`
+- [ ] Admin user can log in at `http://localhost:8089/api/auth/login`
+- [ ] deer-flow returns a real research response at `http://localhost:8089/research/`
 
 ### qm collaboration
 
@@ -470,7 +472,7 @@ qm (co-working workspace):
 
 ```powershell
 $body = @{email="<user>@pacgate-law.com"; password="<password>"} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8081/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
 ```
 
 ### Backup the database

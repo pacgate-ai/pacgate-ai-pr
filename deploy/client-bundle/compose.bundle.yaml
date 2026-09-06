@@ -28,7 +28,7 @@ services:
     restart: unless-stopped
 
   pacgate-api:
-    image: ghcr.io/jzkk720/pacgate-api:0.1.3
+    image: ghcr.io/pacgate-ai/pacgate-api:0.1.3
     container_name: pacgate-api
     depends_on: [pacgate-db]
     environment:
@@ -50,7 +50,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/jzkk720/deer-flow-pacgate:0.1.0
+    image: ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0
     container_name: deer-flow
     depends_on: [pacgate-api, openviking, pacgate-mcp]
     environment:
@@ -70,7 +70,7 @@ services:
     restart: unless-stopped
 
   deer-flow-frontend:
-    image: ghcr.io/bytedance/deer-flow-frontend:latest
+    image: ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0
     container_name: deer-flow-frontend
     depends_on: [deer-flow]
     environment:
@@ -82,10 +82,7 @@ services:
     restart: unless-stopped
 
   pacgate-mcp:
-    build:
-      context: ../pacgate-mcp
-      dockerfile: Dockerfile
-    image: pacgate-mcp:0.1.0
+    image: ghcr.io/pacgate-ai/pacgate-mcp:0.1.3
     container_name: pacgate-mcp
     depends_on: [pacgate-api]
     environment:
