@@ -54,6 +54,11 @@
 - **首次设置**：若访问工作区显示 `/setup` 页面，说明尚未创建管理员账号，按页面提示填写邮箱与密码（与上面相同）完成创建。
 - **密码来源**：密码存放在客户 AIPC 的 `deploy/client-bundle/.env`（`PACGATE_API_PASSWORD`），**请勿**提交到仓库或在公开渠道传输。
 
+> **⚠️ 远程访问登录失败（403 "Cross-site auth request denied"）**：deer-flow 会拒绝**跨源**的登录 POST。默认仅允许 `localhost` 源（`GATEWAY_CORS_ORIGINS=http://localhost:8089,http://localhost:8090`）。若通过 **IP 或主机名**（如 `http://192.168.1.10:8089`）访问，登录会报 403。**修复**：在 `.env` 中将客户实际访问源加入 `GATEWAY_CORS_ORIGINS`（逗号分隔），然后 `docker compose up -d deer-flow` 重建：
+  ```
+  GATEWAY_CORS_ORIGINS=http://192.168.1.10:8089,http://localhost:8089,http://localhost:8090
+  ```
+
 > **⚠️ 安全提示**：`PACGATE_API_PASSWORD`、`OPENVIKING_ROOT_API_KEY` 等为**每台机器独立生成**的密钥，仅保存在该机的 `.env`（gitignored）。交接时请通过安全渠道传递，不要写入本手册。
 
 ---
