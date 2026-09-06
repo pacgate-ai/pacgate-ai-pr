@@ -172,7 +172,9 @@ impl RagStore {
             .into_iter()
             .map(|row| KbSearchResult {
                 content: row.get("content"),
-                score: row.get::<f64, _>("score") as f32,
+                // pgvector's `<=>` returns FLOAT4 (real), not FLOAT8. Decode as
+                // f32 to match the SQL type and avoid a ColumnDecode panic.
+                score: row.get::<f32, _>("score"),
                 source_doc: row.get("doc_name"),
                 page: row.get::<Option<i32>, _>("page").map(|p| p as u32),
             })
@@ -219,7 +221,8 @@ impl RagStore {
             .into_iter()
             .map(|row| KbSearchResult {
                 content: row.get("content"),
-                score: row.get::<f64, _>("score") as f32,
+                // ts_rank returns FLOAT4 (real), not FLOAT8. Decode as f32.
+                score: row.get::<f32, _>("score"),
                 source_doc: row.get("doc_name"),
                 page: row.get::<Option<i32>, _>("page").map(|p| p as u32),
             })
@@ -366,6 +369,14 @@ impl RagStore {
                 .await
                 .map_err(|e| RagError::Migration(e.to_string()))?;
 
+            // Migration 004 adds the T1-T4 data_level column to kb_chunks. Without it,
+            // ingest_with_data_level fails because the data_level column does not exist.
+            let data_level_sql = include_str!("../../../migrations/004_data_level.sql");
+            sqlx::raw_sql(data_level_sql)
+                .execute(&mut *conn)
+                .await
+                .map_err(|e| RagError::Migration(e.to_string()))?;
+
             Ok::<(), RagError>(())
         }
         .await;
@@ -378,7 +389,7 @@ impl RagStore {
 
         result?;
 
-        tracing::info!("RAG migrations applied (002_schema + 003_enrichment)");
+        tracing::info!("RAG migrations applied (002_schema + 003_enrichment + 004_data_level)");
         Ok(())
     }
 }
