@@ -36,7 +36,7 @@
 | **pacgate-mcp** | 8000 | 向 deer-flow 暴露 RAG + 法律连接器 + 文档/工作流（FastMCP） | `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` |
 | **pacgate-api** | 8080 | 法律元数据：案件、文档、工作流、RAG、连接器 | `ghcr.io/pacgate-ai/pacgate-api:0.1.3`（Rust） |
 | **pacgate-nginx** | 8089 | 统一入口，路由 `/`、`/api/`、`/pacgate/` | `nginx:1.27-alpine` |
-| **pacgate-db** | 5432 | 元数据数据库（租户、案件、文档、审计） | `postgres:16-alpine` |
+| **pacgate-db** | 5432 | 元数据数据库（租户、案件、文档、审计、RAG） | `pgvector/pgvector:pg16` |
 | **Ollama** | 11434 | 本地/云路由模型 + embedding | Windows 原生 |
 
 ---

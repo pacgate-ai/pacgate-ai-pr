@@ -124,7 +124,7 @@ client-bundle/
 ```yaml
 services:
   pacgate-db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: pacgate-db
     environment:
       POSTGRES_DB: pacgate
