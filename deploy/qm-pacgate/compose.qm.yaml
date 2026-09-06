@@ -17,6 +17,10 @@ name: qm-pacgate
 services:
   core:
     image: ghcr.io/yc-software/qm/core@sha256:bee03e7f22719dfe76ea2c83bb65db2bdefd55b714eae4014007033800bdb5ab
+    # Pin the name so `docker exec qm-pacgate-core`, tasks/patch-pi-models.sh,
+    # the handbooks, and Docker Desktop keep referencing the same container after
+    # migration. Without this, compose auto-names it qm-pacgate-core-1.
+    container_name: qm-pacgate-core
     user: node
     depends_on:
       - pg
@@ -70,6 +74,7 @@ services:
 
   web-ui:
     image: ghcr.io/yc-software/qm/web-ui@sha256:f037834fd726bcff220245665ef46accb10b476331006a85c59defbde1635e52
+    container_name: qm-pacgate-web-ui
     depends_on:
       - core
     environment:
@@ -86,6 +91,7 @@ services:
 
   portal:
     image: ghcr.io/yc-software/qm/portal@sha256:e245dfc2c12a47f18f0bb367622538b30e9b89e890a145dcfd5abefe342d0e98
+    container_name: qm-pacgate-portal
     depends_on:
       - core
       - auth
@@ -120,6 +126,7 @@ services:
 
   auth:
     image: ghcr.io/yc-software/qm/auth@sha256:27f2e1467adca3d5dc6fb75f2d624a514d113a437893cc75d1eb54ebf365639b
+    container_name: qm-pacgate-auth
     depends_on:
       - core
       - mailpit
@@ -148,6 +155,7 @@ services:
 
   admin:
     image: ghcr.io/yc-software/qm/admin@sha256:ec071338547e17d44337441d3144a068e6f3119fc377b2d9dd5c75d5b210c604
+    container_name: qm-pacgate-admin
     depends_on:
       - core
     environment:
@@ -164,6 +172,7 @@ services:
 
   mailpit:
     image: axllent/mailpit:v1.24
+    container_name: qm-mailpit
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"
@@ -173,6 +182,7 @@ services:
 
   pg:
     image: postgres:16
+    container_name: qm-pacgate-pg
     environment:
       POSTGRES_DB: qm
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
