@@ -1834,11 +1834,15 @@ impl DataSourceConnector for EurLexConnector {
     async fn search(&self, query: &SearchQuery) -> Vec<SearchResult> {
         // EUR-Lex Cellar SPARQL — query legal works by title keyword.
         // The SPARQL endpoint returns JSON when Accept is set.
+        // NOTE: the Cellar dataset exposes titles via cdm:work_title (294k+ hits).
+        // cdm:resource_legal_title_eng does not exist in the live dataset and
+        // always returns an empty binding set (verified 2026-09-05 against
+        // publications.europa.eu/webapi/rdf/sparql).
         let sparql = format!(
             "PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>\n\
              SELECT ?work ?title WHERE {{\n\
                ?work a cdm:resource_legal .\n\
-               ?work cdm:resource_legal_title_eng ?title .\n\
+               ?work cdm:work_title ?title .\n\
                FILTER(CONTAINS(LCASE(?title), \"{}\"))\n\
              }} LIMIT {}",
             query.keywords.to_lowercase(),
