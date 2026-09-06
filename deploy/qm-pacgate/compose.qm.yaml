@@ -56,10 +56,16 @@ services:
       FLY_SANDBOX_APP_NAME: pacgate-sandboxes
       SANDBOX_BACKEND: local
       DEPLOYMENT_LAYER: /layer
-      FLY_RESIDENT_ENV_PACGATE_API_URL: http://host.docker.internal:8089
+      # nginx routes the metadata API under /pacgate/ (root / goes to the
+      # deer-flow frontend) — mirror the 7528e49 qm.config.jsonc fix so sandbox
+      # pacgate tools reach pacgate-api, not the frontend.
+      FLY_RESIDENT_ENV_PACGATE_API_URL: http://host.docker.internal:8089/pacgate
       FLY_RESIDENT_ENV_PACGATE_API_EMAIL: ${PACGATE_API_EMAIL}
       FLY_RESIDENT_ENV_PACGATE_API_PASSWORD: ${PACGATE_API_PASSWORD}
       FLY_RESIDENT_ENV_OPENVIKING_URL: http://host.docker.internal:1933
+      # /mcp authenticates with the ROOT key; the app key returns 401 there.
+      # Provide both (7528e49 parity) so ov-* tools work in sandboxes.
+      FLY_RESIDENT_ENV_OPENVIKING_ROOT_API_KEY: ${OPENVIKING_ROOT_API_KEY}
       FLY_RESIDENT_ENV_OPENVIKING_API_KEY: ${OPENVIKING_API_KEY}
       FLY_RESIDENT_ENV_OPENVIKING_ACCOUNT: ${OPENVIKING_ACCOUNT}
       FLY_RESIDENT_ENV_OPENVIKING_USER: ${OPENVIKING_USER}
