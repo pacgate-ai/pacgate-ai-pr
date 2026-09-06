@@ -221,8 +221,9 @@ impl RagStore {
             .into_iter()
             .map(|row| KbSearchResult {
                 content: row.get("content"),
-                // ts_rank returns FLOAT4 (real), not FLOAT8. Decode as f32.
-                score: row.get::<f32, _>("score"),
+                // ts_rank returns FLOAT8 (double precision), not FLOAT4. Decode as
+                // f64 to match the SQL type and avoid a ColumnDecode panic.
+                score: row.get::<f64, _>("score") as f32,
                 source_doc: row.get("doc_name"),
                 page: row.get::<Option<i32>, _>("page").map(|p| p as u32),
             })
