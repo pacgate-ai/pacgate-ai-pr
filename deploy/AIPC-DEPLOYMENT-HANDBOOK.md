@@ -82,7 +82,7 @@ The runtime is published on GHCR and needs no rebuild on the AIPC:
 |---|---|
 | `ghcr.io/pacgate-ai/pacgate-api:0.1.3` | Published. Fixes the 0.1.1 container-networking bug (LLM router honors `OLLAMA_BASE_URL`, per-tenant model overrides applied). |
 | `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` | Published. Exposes 10 MCP tools to deer-flow (RAG search, connector search, documents, workflow templates, workflow execution). |
-| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0` | Published. Thin wrapper on the upstream deer-flow backend; unchanged. |
+| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3` | Published. Thin wrapper on the upstream deer-flow backend; unchanged. |
 | `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` | Published. Next.js research UI with `DEER_FLOW_INTERNAL_GATEWAY_BASE_URL` baked in (no runtime patch needed). |
 | `ghcr.io/volcengine/openviking@sha256:46f9e34c…` | Pinned by digest in `compose.prod.yaml`. Upstream public image. |
 

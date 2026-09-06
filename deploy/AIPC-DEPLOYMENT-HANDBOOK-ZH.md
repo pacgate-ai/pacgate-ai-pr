@@ -86,7 +86,7 @@ AIPC #2 必须拉取**更新后**的代码（来自 `pacgate-ai/pacgate-ai-pr`�
 |---|---|
 | `ghcr.io/pacgate-ai/pacgate-api:0.1.3` | 已发布。修复 0.1.1 的容器网络 bug（LLM 路由器遵循 `OLLAMA_BASE_URL`，应用按租户的模型覆盖）。 |
 | `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` | 已发布。向 deer-flow 暴露 10 个 MCP 工具（RAG 检索、连接器检索、文档、工作流模板、工作流执行）。 |
-| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0` | 已发布。上游 deer-flow 后端的精简包装；未更改。 |
+| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3` | 已发布。上游 deer-flow 后端的精简包装；未更改。 |
 | `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` | 已发布。Next.js 检索界面，构建时烘焙 `DEER_FLOW_INTERNAL_GATEWAY_BASE_URL`（无需运行时补丁）。 |
 | `ghcr.io/volcengine/openviking@sha256:46f9e34c…` | 在 `compose.prod.yaml` 中按摘要固定。上游公开镜像。 |
 

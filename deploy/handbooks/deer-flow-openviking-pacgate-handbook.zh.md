@@ -30,7 +30,7 @@
 
 | 组件 | 端口 | 职责 | 实现 |
 |---|---|---|---|
-| **deer-flow** | 8001 | 研究工作空间：多步骤检索、文件分析、报告生成 | `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0`（包装镜像） |
+| **deer-flow** | 8001 | 研究工作空间：多步骤检索、文件分析、报告生成 | `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3`（包装镜像） |
 | **deer-flow-frontend** | 8090 | Next.js 前端，重写 `/api/*` 到 deer-flow 网关 | `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0`（构建时烘焙网关地址） |
 | **OpenViking** | 1933 | 长期记忆：结构化记忆、语义检索、跨会话上下文 | `ghcr.io/volcengine/openviking` |
 | **pacgate-mcp** | 8000 | 向 deer-flow 暴露 RAG + 法律连接器 + 文档/工作流（FastMCP） | `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` |
@@ -231,7 +231,7 @@ pacgate-api 暴露 **10 个法律工作流模板**：
 | 组件 | 镜像 |
 |---|---|
 | pacgate-api | `ghcr.io/pacgate-ai/pacgate-api:0.1.3` |
-| deer-flow | `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0` |
+| deer-flow | `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3` |
 | deer-flow-frontend | `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` |
 | pacgate-mcp | `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` |
 | nginx | `nginx:1.27-alpine` |

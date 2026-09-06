@@ -66,7 +66,7 @@ produces the `pacgate-server` binary.
 #   ENV PACGATE_API_URL=http://pacgate-api:8080
 #   CMD ["sh", "-c", "cd backend && PYTHONPATH=. uv run --no-sync uvicorn app.gateway.app:app --host 0.0.0.0 --port 8001"]
 
-docker build -t ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0 `
+docker build -t ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3 `
   -f deploy/deer-flow-pacgate/Dockerfile `
   .
 ```
@@ -98,7 +98,7 @@ echo $env:GHCR_TOKEN | docker login ghcr.io -u pacgate-ai --password-stdin
 # Push the images (qm runs via qm up, not as a Docker image)
 docker push ghcr.io/pacgate-ai/pacgate-api:0.1.3
 docker push ghcr.io/pacgate-ai/pacgate-mcp:0.1.3
-docker push ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0
+docker push ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3
 docker push ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0
 ```
 
@@ -149,7 +149,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0
+    image: ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3
     container_name: deer-flow
     depends_on: [pacgate-api]
     environment:

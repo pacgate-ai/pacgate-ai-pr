@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0
+    image: ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3
     container_name: deer-flow
     depends_on: [pacgate-api, openviking, pacgate-mcp]
     environment:

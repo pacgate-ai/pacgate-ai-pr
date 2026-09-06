@@ -66,7 +66,7 @@ docker build -t ghcr.io/pacgate-ai/pacgate-api:0.1.3 -f pacgate-ai/Dockerfile ./
 docker build -t ghcr.io/pacgate-ai/pacgate-mcp:0.1.3 -f deploy/pacgate-mcp/Dockerfile ./deploy/pacgate-mcp
 
 # Build deer-flow wrapper
-docker build -t ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0 -f deploy/deer-flow-pacgate/Dockerfile .
+docker build -t ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3 -f deploy/deer-flow-pacgate/Dockerfile .
 
 # Build deer-flow frontend (gateway URL baked in)
 .\deploy\build-frontend.ps1 -Push
@@ -74,12 +74,12 @@ docker build -t ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0 -f deploy/deer-flow-p
 # Push images
 docker push ghcr.io/pacgate-ai/pacgate-api:0.1.3
 docker push ghcr.io/pacgate-ai/pacgate-mcp:0.1.3
-docker push ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0
+docker push ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3
 docker push ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0
 
 # Verify pullable
 docker pull ghcr.io/pacgate-ai/pacgate-api:0.1.3
-docker pull ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0
+docker pull ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3
 ```
 
 Note: qm does NOT have a Docker image — it runs via `qm up` from the
@@ -375,7 +375,7 @@ docker compose -f compose.prod.yaml logs deer-flow  # check logs
 | Image | Contains | Base |
 |---|---|---|
 | `ghcr.io/pacgate-ai/pacgate-api:0.1.3` | Rust binary (`pacgate-server`) + SQL migrations | `rust:1.94-bookworm` \u2192 `debian:bookworm-slim` |
-| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0` | deer-flow backend + Python adapter (176 lines) | `ghcr.io/bytedance/deer-flow-backend` (pinned SHA) |
+| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3` | deer-flow backend + Python adapter (176 lines) | `ghcr.io/bytedance/deer-flow-backend` (pinned SHA) |
 | `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` | pacgate-api MCP bridge (10 tools) | `python:3.12-slim` |
 | `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` | deer-flow Next.js research UI | `node:22-alpine` |
 

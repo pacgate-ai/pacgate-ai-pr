@@ -14,7 +14,7 @@
 - OpenViking 记忆模块：经 qm 桥接的 ov-remember / ov-search / ov-read，deer-flow 内 MCP 召回
 - 认证体系（JWT + argon2 + SOUL 解析中间件）
 - pacgate-api 镜像：`ghcr.io/jzkk720/pacgate-api:0.1.3`（公开；LLM 路由遵循 `OLLAMA_BASE_URL`，支持按租户模型覆盖）
-- deer-flow 封装镜像：`ghcr.io/jzkk720/deer-flow-pacgate:0.1.0`（公开）
+- deer-flow 封装镜像：`ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3`（公开）
 - pacgate-mcp 桥接镜像：`ghcr.io/jzkk720/pacgate-mcp:0.1.3`（公开；暴露 10 个 MCP 工具，含文档/工作流）
 - deer-flow 前端封装镜像：`ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.0`（公开；构建时烘焙网关地址）
 - qm 协作桥接已验证（Python CLI，HARNESS=pi，真实 Ollama）
@@ -80,7 +80,7 @@ Pacgate 运行时镜像均为**公开**（已验证匿名拉取）。源码仓�
 |-------|----------|------|
 | `ghcr.io/pacgate-ai/pacgate-api:0.1.3` | Rust 二进制 + SQL 迁移 | `rust:1.94-bookworm` -> `debian:bookworm-slim` |
 | `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` | pacgate-api MCP 桥接（10 个工具，含文档/工作流） | `python:3.12-slim` |
-| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0` | deer-flow 后端 + Python 适配器 | `ghcr.io/bytedance/deer-flow-backend`（固定 SHA） |
+| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3` | deer-flow 后端 + Python 适配器 | `ghcr.io/bytedance/deer-flow-backend`（固定 SHA） |
 | `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` | deer-flow Next.js 检索界面（构建时烘焙网关地址） | `node:22-alpine` |
 
 qm 不使用 GHCR 镜像，通过入库的 `deploy/qm-pacgate/` 目录以 `qm up` 启动。

@@ -66,7 +66,7 @@ docker build -t ghcr.io/pacgate-ai/pacgate-api:0.1.3 -f pacgate-ai/Dockerfile ./
 docker build -t ghcr.io/pacgate-ai/pacgate-mcp:0.1.3 -f deploy/pacgate-mcp/Dockerfile ./deploy/pacgate-mcp
 
 # 构建 deer-flow 包装镜像
-docker build -t ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0 -f deploy/deer-flow-pacgate/Dockerfile .
+docker build -t ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3 -f deploy/deer-flow-pacgate/Dockerfile .
 
 # 构建 deer-flow 前端（构建时烘焙网关地址）
 .\deploy\build-frontend.ps1 -Push
@@ -74,12 +74,12 @@ docker build -t ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0 -f deploy/deer-flow-p
 # 推送
 docker push ghcr.io/pacgate-ai/pacgate-api:0.1.3
 docker push ghcr.io/pacgate-ai/pacgate-mcp:0.1.3
-docker push ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0
+docker push ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3
 docker push ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0
 
 # 验证可拉取
 docker pull ghcr.io/pacgate-ai/pacgate-api:0.1.3
-docker pull ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0
+docker pull ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3
 ```
 
 注意：qm 没有 Docker 镜像，它通过 `deploy/qm-pacgate/` 目录里的 `qm up` 独立运行。
@@ -373,7 +373,7 @@ docker compose -f compose.prod.yaml logs deer-flow  # 查看日志
 | 镜像 | 内容 | 基础镜像 |
 |---|---|---|
 | `ghcr.io/pacgate-ai/pacgate-api:0.1.3` | Rust 二进制（pacgate-server）+ SQL migrations | `rust:1.94-bookworm` → `debian:bookworm-slim` |
-| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0` | deer-flow 后端 + Python 适配器（176 行） | `ghcr.io/bytedance/deer-flow-backend`（固定 SHA） |
+| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3` | deer-flow 后端 + Python 适配器（176 行） | `ghcr.io/bytedance/deer-flow-backend`（固定 SHA） |
 | `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` | pacgate-api MCP 桥接（10 个工具） | `python:3.12-slim` |
 | `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` | deer-flow Next.js 检索界面 | `node:22-alpine` |
 

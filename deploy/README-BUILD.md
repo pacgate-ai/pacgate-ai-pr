@@ -17,7 +17,7 @@ Before this change, two components were built locally and not on GHCR:
 | `pacgate-mcp` | built from `../pacgate-mcp` per machine | `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` |
 | `deer-flow-frontend` | built from `deer-flow-src/` per machine (`pacgate-deer-flow-frontend:0.2.0`) | `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` |
 | `pacgate-api` | `ghcr.io/jzkk720/pacgate-api:0.1.2` (README) / `0.1.3` (compose) | aligned to `0.1.3` |
-| `deer-flow-pacgate` | `ghcr.io/jzkk720/deer-flow-pacgate:0.1.0` | `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.0` |
+| `deer-flow-pacgate` | `ghcr.io/jzkk720/deer-flow-pacgate:0.1.0` | `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3` |
 
 ## Owner / namespace decision
 
