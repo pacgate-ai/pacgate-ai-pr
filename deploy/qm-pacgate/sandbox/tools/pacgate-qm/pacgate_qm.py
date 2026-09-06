@@ -69,7 +69,16 @@ def load_config(environ: dict[str, str] | None = None) -> RuntimeConfig:
         email=email,
         password=password,
         openviking_url=(env.get("OPENVIKING_URL", "").strip() or None),
-        openviking_api_key=(env.get("OPENVIKING_API_KEY", "").strip() or None),
+        # OpenViking's /mcp endpoint authenticates against the ROOT key, not the
+        # application key. Prefer OPENVIKING_ROOT_API_KEY (the key the
+        # deer-flow-extensions-config.json sends as X-API-Key); fall back to the
+        # legacy OPENVIKING_API_KEY for backward compatibility with older sandbox
+        # envs. Using the app key against /mcp returns 401 "Invalid API Key".
+        openviking_api_key=(
+            env.get("OPENVIKING_ROOT_API_KEY", "").strip()
+            or env.get("OPENVIKING_API_KEY", "").strip()
+            or None
+        ),
         openviking_account=(env.get("OPENVIKING_ACCOUNT", "").strip() or None),
         openviking_user=(env.get("OPENVIKING_USER", "").strip() or None),
     )

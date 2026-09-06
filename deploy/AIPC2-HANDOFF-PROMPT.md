@@ -79,7 +79,7 @@ Fill in: `PACGATE_DB_PASSWORD`, `PACGATE_JWT_SECRET`, `PACGATE_TENANT_ID=pacgate
 ```powershell
 .\install.ps1
 docker compose -f compose.prod.yaml ps
-curl http://localhost:8081/health
+curl http://localhost:8089/health
 ```
 Expected: 5 containers up, `/health` returns `ok`.
 
@@ -87,9 +87,9 @@ Expected: 5 containers up, `/health` returns `ok`.
 ```powershell
 docker exec pacgate-db psql -U pacgate -c "INSERT INTO tenants (name, slug) VALUES ('Pacgate Law', 'pacgate-law');"
 $body = @{email="admin@pacgate-law.com"; password="<strong-password>"} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8081/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
 $body = @{email="qm-bridge@pacgate.local"; password="<strong-bridge-password>"} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8081/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
 ```
 
 ### Stage 4 — QM (portal topology, Mailpit sign-in)
@@ -128,7 +128,7 @@ docker exec qm-pacgate-pg psql -U postgres -d qm -c "INSERT INTO admin_grants (p
 
 ### Stage 5 — verify deer-flow
 ```powershell
-# Open http://localhost:8081/research/
+# Open http://localhost:8089/research/
 # Ask: "Summarize recent force majeure case law in China"
 # Verify: response includes citations + is saved to matter memory
 ```

@@ -72,9 +72,9 @@
   "sandbox": { "image": "localhost:5000/pacgate-sandboxes@sha256:207a779d0d40ba0bc46c18a4139b936a5ce00dd825f0d8f389e547d1a9991ffc", "baseImage": "ghcr.io/yc-software/qm/sandbox-base@sha256:52cb44a6e9d166da20638c8ce55e3f423384f5557eba49915684cb8ed16e5873",
     "app": "pacgate-sandboxes",
     "env": {
-      "PACGATE_API_URL": "http://host.docker.internal:8089",
+      "PACGATE_API_URL": "http://host.docker.internal:8089/pacgate",
       "OPENVIKING_URL": "http://host.docker.internal:1933"
     },
-    "secretEnv": ["PACGATE_API_EMAIL", "PACGATE_API_PASSWORD", "OPENVIKING_API_KEY", "OPENVIKING_ACCOUNT", "OPENVIKING_USER", "FIRECRAWL_API_KEY"]
+    "secretEnv": ["PACGATE_API_EMAIL", "PACGATE_API_PASSWORD", "OPENVIKING_ROOT_API_KEY", "OPENVIKING_API_KEY", "OPENVIKING_ACCOUNT", "OPENVIKING_USER", "FIRECRAWL_API_KEY"]
   }
 }
