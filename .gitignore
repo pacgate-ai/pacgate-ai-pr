@@ -54,3 +54,13 @@ deploy/client-bundle/openviking/workspace/
 # checkpoints) + pre-upgrade DB backups. NEVER commit — contains credential
 # material and client chat history. This dir is the ./data/deer-flow bind mount.
 deploy/client-bundle/data/
+
+# OpenViking runtime CLI settings (per-machine, contains local state)
+deploy/client-bundle/openviking/ovcli.settings.conf
+
+# Generated build/delivery archives
+*.zip
+
+# Graphify knowledge-graph output (regenerable)
+graphify-out/
+
