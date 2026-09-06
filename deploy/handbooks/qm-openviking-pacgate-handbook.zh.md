@@ -40,6 +40,26 @@
 | **pacgate-nginx** | 8089 | 统一入口，`/pacgate/` 前缀 | `nginx:1.27-alpine` |
 | **Ollama** | 11434 | 本地/云路由模型 + embedding | Windows 原生 |
 
+### 2.3 登录与访问（客户交接）
+
+> 以下地址为**本机（localhost）**访问入口。若通过远程访问，将 `localhost` 替换为该 AIPC 的局域网/公网地址。
+
+| 访问入口 | 地址 | 用途 |
+|---|---|---|
+| **qm 门户（登录入口）** | `http://localhost:8181` | 律师登录入口（portal），登录后代理到 web-ui/admin |
+| **qm 协作界面** | `http://localhost:8182` | 会话、文件、审批（web-ui） |
+| **qm 管理控制台** | `http://localhost:8183` | 用户、资源、审计（admin） |
+| **qm 邮件捕手（登录链接）** | `http://localhost:8025` | 接收登录魔链（Mailpit），用于开发/测试环境 |
+| **OpenViking 记忆** | `http://localhost:1933` | 长期记忆服务（MCP），由 AI 调用 |
+| **pacgate-api 元数据** | `http://localhost:8089/pacgate/` | 机器对机器，由 pacgate-qm 工具调用 |
+
+**管理员账号**：
+- qm 的管理员邮箱为 **`pacgate.ai01@outlook.com`**（来自 `ADMIN_GRANTS`/`AUTH_ALLOWED_EMAILS`）。
+- **登录方式**：qm 使用**一次性登录魔链**（magic-link）。在门户 `http://localhost:8181` 输入管理员邮箱，系统发送登录链接；开发/测试环境下该链接发送到 **Mailpit**（`http://localhost:8025`），在发起登录的**同一浏览器**中打开链接并确认。
+- **重置管理员**：若 `admin_grants` 表为空（登录提示 "This deployment isn't set up yet"），向数据库种入管理员（见第 7.1 节）。
+
+> **⚠️ 安全提示**：`PACGATE_API_PASSWORD`、`OPENVIKING_ROOT_API_KEY`、`CORE_SIGNING_SECRET` 等为**每台机器独立生成**的密钥，仅保存在该机的 `.env`（gitignored）。交接时请通过安全渠道传递，不要写入本手册。
+
 ---
 
 ## 3. qm：协作工作空间
@@ -98,6 +118,8 @@ qm 沙箱通过 `pacgate-qm` 的 `ov-remember`/`ov-search`/`ov-read` 命令访�
 - `ov-search --query "<语义查询>"`：回忆相关记忆、资源与技能
 - `ov-read --uri "viking://user/default/memories/<path>"`：读取具体记忆文档
 
+> **⚠️ 密钥**：`ov-*` 命令调用 OpenViking 的 `/mcp` 端点，该端点使用 **root 密钥**（`OPENVIKING_ROOT_API_KEY`）认证，**不是**应用密钥 `OPENVIKING_API_KEY`。若配置了应用密钥，`ov-search`/`ov-remember` 会返回 401 "Invalid API Key"。沙箱 `secretEnv` 需包含 `OPENVIKING_ROOT_API_KEY`（与 client-bundle `.env` 同值）。
+
 > **红线**：绝不通过 `ov-remember` 存储案件文件或保密案件材料——那些属于 Pacgate 案件存储。OpenViking 记忆仅用于会话上下文：决策、偏好与工作知识。
 
 ---
@@ -147,7 +169,7 @@ pacgate-api 是 Pacgate-ai 的**法律元数据网关**（Rust 实现），管�
 | **案件** | `GET /api/matters` | 列出案件 |
 | **文档** | `GET /api/matters/:id/documents` | 某案件的文档 |
 | **工作流** | `GET /api/workflows` | 列出工作流模板 |
-| 工作流分类 | `GET /api/workflow-categories` | 工作流分类 |
+| 工作流分类 | `GET /api/workflows/categories` | 工作流分类 |
 | 工作流详情 | `GET /api/workflows/:id` | 单工作流步骤 |
 | **RAG** | `GET /api/kb/search` | 内部按案件向量检索 |
 | **连接器** | `GET /api/search` | 外部法律数据库检索 |
@@ -177,6 +199,8 @@ pacgate-api 暴露 **10 个法律工作流模板**：
 ### 5.5 pacgate-qm 桥
 
 qm 沙箱中的 `pacgate-qm` CLI 调用 pacgate-api（经 nginx `/pacgate/` 前缀）。它用 `PACGATE_API_EMAIL`/`PACGATE_API_PASSWORD` 认证，支持：
+
+> **⚠️ URL**：`qm.config.jsonc` 沙箱环境中的 `PACGATE_API_URL` **必须**包含 `/pacgate` 前缀（如 `http://host.docker.internal:8089/pacgate`）。若省略该前缀，登录 POST 直达 `/api/auth/login` 会触发 pacgate-api 的 CSRF 校验并返回 403。
 
 - **工作流发现**：`workflow-categories`、`workflows`、`workflow <id>`
 - **案件绑定**：`ensure-matter --org-id <org> --channel-id <channel>`

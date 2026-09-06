@@ -39,6 +39,23 @@
 | **pacgate-db** | 5432 | 元数据数据库（租户、案件、文档、审计、RAG） | `pgvector/pgvector:pg16` |
 | **Ollama** | 11434 | 本地/云路由模型 + embedding | Windows 原生 |
 
+### 2.3 登录与访问（客户交接）
+
+> 以下地址为**本机（localhost）**访问入口。若通过远程访问，将 `localhost` 替换为该 AIPC 的局域网/公网地址。
+
+| 访问入口 | 地址 | 用途 |
+|---|---|---|
+| **研究工作空间** | `http://localhost:8089/research/`（或 `http://localhost:8089/`） | 律师日常研究工作区（deer-flow Web UI） |
+| **pacgate-api 元数据** | `http://localhost:8089/pacgate/` | 机器对机器（案件/文档/工作流/RAG），通常由工具调用，无需人工登录 |
+| **OpenViking 记忆** | `http://localhost:1933` | 长期记忆服务（MCP），通常由 AI 调用，无需人工登录 |
+
+**管理员账号**：
+- 研究工作区的管理员账号为 **`admin@pacgate-law.com`**。密码为安装时生成的 `PACGATE_API_PASSWORD`（见客户 `.env`）。
+- **首次设置**：若访问工作区显示 `/setup` 页面，说明尚未创建管理员账号，按页面提示填写邮箱与密码（与上面相同）完成创建。
+- **密码来源**：密码存放在客户 AIPC 的 `deploy/client-bundle/.env`（`PACGATE_API_PASSWORD`），**请勿**提交到仓库或在公开渠道传输。
+
+> **⚠️ 安全提示**：`PACGATE_API_PASSWORD`、`OPENVIKING_ROOT_API_KEY` 等为**每台机器独立生成**的密钥，仅保存在该机的 `.env`（gitignored）。交接时请通过安全渠道传递，不要写入本手册。
+
 ---
 
 ## 3. deer-flow：研究工作空间
