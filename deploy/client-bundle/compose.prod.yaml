@@ -61,6 +61,10 @@ services:
       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
       - ./workflows:/app/workflows:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
+      # Persist deer-flow's own SQLite state (threads/runs/admin account) across
+      # container recreation. Without this, every `docker compose up -d` resets
+      # the deer-flow admin account and chat history (first-boot each time).
+      - ./data/deer-flow:/app/backend/.deer-flow
     restart: unless-stopped
 
   # DeerFlow Next.js web UI (the research workspace frontend).

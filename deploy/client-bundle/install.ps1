@@ -134,7 +134,7 @@ Write-Host "`n=== Status ===" -ForegroundColor Cyan
 docker compose -f compose.prod.yaml ps
 
 Write-Host "`n=== Pacgate-ai is running ===" -ForegroundColor Green
-Write-Host "Open browser to: http://localhost:8081" -ForegroundColor White
+Write-Host "Open browser to: http://localhost:8089" -ForegroundColor White
 Write-Host "  /          - Landing page" -ForegroundColor Gray
 Write-Host "  /api/      - Metadata API (internal)" -ForegroundColor Gray
 Write-Host "  /research/  - Legal research (deer-flow)" -ForegroundColor Gray

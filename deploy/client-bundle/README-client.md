@@ -1,4 +1,4 @@
-# Pacgate-ai Client Bundle v0.1.2
+# Pacgate-ai Client Bundle v0.1.3
 
 ## Quick start
 
@@ -12,7 +12,7 @@
    installer stops without them)
 5. Run: `.\install.ps1` (pulls public GHCR images — no docker login — and the
    Ollama models, and renders the OpenViking configs)
-6. Open browser: `http://localhost:8081`
+6. Open browser: `http://localhost:8089`
 
 Full step-by-step (tenant seeding, model overrides, qm, acceptance):
 see `deploy/AIPC-DEPLOYMENT-HANDBOOK.md`.
@@ -21,7 +21,7 @@ see `deploy/AIPC-DEPLOYMENT-HANDBOOK.md`.
 
 | Service | Port | Description |
 |---------|------|-------------|
-| nginx | 8081 (external) | Entry point — routes to API and research |
+| nginx | 8089 (external) | Entry point — routes to API and research |
 | pacgate-api | 8080 (internal) | Metadata API, auth, matters, workflows, documents |
 | deer-flow | 8001 (internal) | Legal research workspace |
 | OpenViking | 1933 | Long-term memory lane (MCP) |
@@ -37,7 +37,7 @@ qm runs separately from the main Docker Compose stack. To set it up:
 2. Register a service account in pacgate-api:
    ```powershell
    $body = @{email="qm-bridge@pacgate.local"; password="<generate-a-strong-password>"} | ConvertTo-Json
-   Invoke-RestMethod -Uri "http://localhost:8081/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+   Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
    ```
    This account is used by the qm sandbox bridge tool to authenticate with pacgate-api.
 3. Copy the `qm-pacgate/` directory next to this bundle
@@ -72,4 +72,4 @@ Quick checks:
 - `docker compose -f compose.prod.yaml ps` — are all services running?
 - `docker compose -f compose.prod.yaml logs <service>` — check logs
 - `ollama list` — are models available?
-- `curl http://localhost:8081/health` — is the API healthy? (returns `ok`)
+- `curl http://localhost:8089/health` — is the API healthy? (returns `ok`)
