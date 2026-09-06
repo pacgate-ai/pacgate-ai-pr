@@ -121,10 +121,17 @@ jobs:
 
       - name: Verify image manifest (anonymous HEAD)
         run: |
+          # GHCR can take a few seconds to propagate a freshly-pushed manifest
+          # across its registry nodes, so retry with backoff instead of racing.
           for img in pacgate-api pacgate-mcp deer-flow-pacgate deer-flow-frontend-pacgate; do
-            tok=$(curl -s "https://ghcr.io/token?scope=repository:${IMAGE_PREFIX#ghcr.io/}/${img}:pull" | jq -r .token)
-            code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $tok" \
-              "https://ghcr.io/v2/${IMAGE_PREFIX#ghcr.io/}/${img}/manifests/${{ steps.tag.outputs.tag }}")
-            echo "$img:${{ steps.tag.outputs.tag }} => HTTP $code"
-            [ "$code" = "200" ] || exit 1
+            ok=0
+            for attempt in 1 2 3 4 5; do
+              tok=$(curl -s "https://ghcr.io/token?scope=repository:${IMAGE_PREFIX#ghcr.io/}/${img}:pull" | jq -r .token)
+              code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $tok" \
+                "https://ghcr.io/v2/${IMAGE_PREFIX#ghcr.io/}/${img}/manifests/${{ steps.tag.outputs.tag }}")
+              echo "attempt $attempt: $img:${{ steps.tag.outputs.tag }} => HTTP $code"
+              if [ "$code" = "200" ]; then ok=1; break; fi
+              sleep 10
+            done
+            [ "$ok" = "1" ] || exit 1
           done
