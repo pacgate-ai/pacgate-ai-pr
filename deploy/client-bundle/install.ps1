@@ -66,7 +66,17 @@ if ((Test-Path $envPath) -and (Test-Path $ovTemplate)) {
         $conf = Get-Content $ovTemplate -Raw
         $conf = $conf.Replace('${OPENVIKING_ROOT_API_KEY}', $envVars['OPENVIKING_ROOT_API_KEY'])
         $minified = ($conf -replace '(?m)^\s*//.*$', '' -replace '\r?\n', '' -replace '\s{2,}', ' ')
-        Add-Content -Path $envPath -Value "OPENVIKING_CONF_CONTENT=$minified"
+        # Append with an explicit leading newline: PowerShell 5.1's Add-Content
+        # glues the new line onto the last line when .env has no trailing
+        # newline, fusing e.g. OPENVIKING_API_KEY=<val> with
+        # OPENVIKING_CONF_CONTENT=<json> on one line (corrupting both).
+        $rawEnv = [System.IO.File]::ReadAllText((Resolve-Path $envPath))
+        $prefix = if ($rawEnv.Length -eq 0 -or $rawEnv.EndsWith("`n")) { '' } else { "`r`n" }
+        [System.IO.File]::AppendAllText(
+            (Resolve-Path $envPath),
+            "$prefix" + "OPENVIKING_CONF_CONTENT=$minified`r`n",
+            [System.Text.UTF8Encoding]::new($false)
+        )
         Write-Host "[OK] Rendered OPENVIKING_CONF_CONTENT into .env" -ForegroundColor Green
     }
 
