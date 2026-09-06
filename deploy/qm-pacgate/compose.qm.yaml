@@ -48,7 +48,7 @@ services:
       PUBLIC_WEB_URL: http://localhost:8181
       WEB_UI_PUBLIC_URL: http://localhost:8181
       # sandbox bridge / connectors
-      FLY_BASE_IMAGE: ${FLY_BASE_IMAGE:-localhost:5000/pacgate-sandboxes}
+      FLY_BASE_IMAGE: ${FLY_BASE_IMAGE:-localhost:5000/pacgate-sandboxes@sha256:207a779d0d40ba0bc46c18a4139b936a5ce00dd825f0d8f389e547d1a9991ffc}
       FLY_SANDBOX_APP_NAME: pacgate-sandboxes
       SANDBOX_BACKEND: local
       DEPLOYMENT_LAYER: /layer
@@ -183,9 +183,12 @@ services:
 volumes:
   qm-pacgate-coredata:
     name: qm-pacgate-coredata
+    external: true
   qm-pacgate-pgdata:
     name: qm-pacgate-pgdata
+    external: true
 
 networks:
   default:
     name: qm-pacgate
+    external: true
