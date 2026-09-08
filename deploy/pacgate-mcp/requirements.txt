@@ -1,2 +1,5 @@
 mcp>=1.27.0,<2.0
 httpx>=0.24
+# Document conversion for pacgate_convert_document (PDF/DOCX/PPTX/XLSX -> Markdown).
+# mammoth/openpyxl/python-pptx/pdfminer come in as markitdown dependencies.
+markitdown>=0.1.5
