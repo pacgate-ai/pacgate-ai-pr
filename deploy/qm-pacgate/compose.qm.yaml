@@ -40,6 +40,8 @@ services:
       PI_TITLE_MODEL: ${PI_TITLE_MODEL:-glm-5.3-flash:cloud}
       PI_JUDGE_MODEL: ${PI_JUDGE_MODEL:-glm-5.3-flash:cloud}
       OPENAI_API_KEY: ${MODEL_API_KEY:-ollama}
+      # admin grants (email:role) -> seeds core's org_admin grant for the sign-in email
+      ADMIN_GRANTS: ${ADMIN_GRANTS}
       # app / data
       ORG_ID: pacgate
       NODE_ENV: development
@@ -73,6 +75,10 @@ services:
     volumes:
       - ./sandbox/skills:/layer/skills:ro
       - ./sandbox/tools:/layer/tools:ro
+      # Pacgate: override the pi model registry so the pi harness points the
+      # configured Ollama model (glm-5.3-flash:cloud) at MODEL_BASE_URL instead
+      # of the hardcoded api.openai.com catalog entry. Durable across recreation.
+      - ./patch/pi-models.ts:/app/src/model/pi-models.ts:ro
       - qm-pacgate-coredata:/data
     ports:
       - "${QM_CORE_PORT:-8180}:8080"
@@ -118,7 +124,8 @@ services:
       OIDC_JWKS_URI: http://auth:8080/.well-known/jwks.json
       OIDC_PRINCIPAL_CLAIM: email
       OIDC_SCOPES: openid email
-      OIDC_ALLOWED_EMAILS: ${ADMIN_GRANTS}
+      # plain email list (NO :role suffix) - the portal does an exact match against the OIDC email
+      OIDC_ALLOWED_EMAILS: ${AUTH_ALLOWED_EMAILS}
       CORE_API_URL: http://core:8080
       CORE_ORG_ID: pacgate
       ADMIN_UPSTREAM: http://admin:8080
@@ -142,7 +149,8 @@ services:
       AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET}
       AUTH_CLIENT_SECRET: ${AUTH_CLIENT_SECRET}
       AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM}
-      AUTH_ALLOWED_EMAILS: ${ADMIN_GRANTS}
+      # plain email list (NO :role suffix) - the auth broker does an exact match before sending the link
+      AUTH_ALLOWED_EMAILS: ${AUTH_ALLOWED_EMAILS}
       AUTH_EMAIL_TRANSPORT: smtp
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
