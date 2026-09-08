@@ -76,6 +76,10 @@ services:
       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
       - ./workflows:/app/workflows:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
+      # Pacgate: add a unified generated-outputs listing endpoint
+      # (GET /api/threads/{id}/outputs). Mounted so it survives container
+      # recreation without rebuilding the image.
+      - ./patches/deer-flow-artifacts.py:/app/backend/app/gateway/routers/artifacts.py:ro
       # Persist deer-flow's own SQLite state (threads/runs/admin account) across
       # container recreation. Without this, every `docker compose up -d` resets
       # the deer-flow admin account and chat history (first-boot each time).
