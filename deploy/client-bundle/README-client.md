@@ -56,6 +56,42 @@ qm runs separately from the main Docker Compose stack. To set it up:
 1. Edit `qm-pacgate/qm.config.jsonc` — change `MODEL_NAME`
 2. Restart: `cd qm-pacgate && npm exec qm -- down && npm exec qm -- up`
 
+## Smoke testing the deer-flow outputs listing
+
+The deer-flow workspace surfaces every file the agent wrote to
+`/mnt/user-data/outputs` (docx, pdf, md, csv, …) via
+`GET /api/threads/{id}/outputs`, and lets users download each one via
+`GET /api/threads/{id}/artifacts/mnt/user-data/outputs/<file>`.
+
+To confirm these are reachable **and** downloadable for a logged-in admin
+through the real access path (frontend proxy `:8090` or nginx `:8089`), run:
+
+```powershell
+# From deploy/client-bundle/ (defaults to http://localhost:8090)
+.\smoke-deer-flow-outputs.ps1
+
+# Against the nginx entry point instead
+.\smoke-deer-flow-outputs.ps1 -BaseUrl "http://localhost:8089"
+
+# Pin a specific thread (skips auto-discovery)
+.\smoke-deer-flow-outputs.ps1 -ThreadId <thread-uuid>
+```
+
+The script:
+
+1. Logs in as the admin (reads `PACGATE_API_EMAIL` / `PACGATE_API_PASSWORD`
+   from `.env`, or override with `-Email` / `-Password`).
+2. Discovers a thread the admin owns (or uses `-ThreadId`).
+3. Creates a temporary `smoke-test-output.md` in that thread's outputs dir.
+4. Calls the listing endpoint and verifies each file is enriched with
+   `virtual_path` + `artifact_url`.
+5. Downloads the file through the artifact route and checks it returns 200
+   with content.
+6. Removes the temporary file.
+
+Exit code `0` = pass, `1` = fail. Use `-KeepTestFile` to leave the temp file
+in place for manual inspection.
+
 ## Updating
 
 Run: `.\install.ps1 -Update`
