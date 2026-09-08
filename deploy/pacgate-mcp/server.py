@@ -22,6 +22,8 @@ Exposed tools:
                                (GET /api/matters/:id/documents)
     pacgate_read_document     — read/download a document's bytes
                                (GET /api/documents/:id/download)
+    pacgate_convert_document  — convert a stored document to Markdown
+                               (GET /api/documents/:id/download + markitdown)
     pacgate_upload_document   — upload a generated artifact back to a matter
                                (POST /api/documents)
     pacgate_list_workflows    — list workflow templates
@@ -395,6 +397,72 @@ def pacgate_execute_workflow(
     _handle_error(resp)
     results = resp.json()
     return json.dumps(results, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def pacgate_convert_document(
+    document_id: str,
+    version: int | None = None,
+) -> str:
+    """Convert a stored document to Markdown using markitdown.
+
+    Downloads the document bytes from pacgate-api and converts them locally
+    (PDF, DOCX, PPTX, XLSX, HTML, CSV and more). Use this when a document is
+    binary and pacgate_read_document would only return base64 — the Markdown
+    output is directly readable and searchable.
+
+    Args:
+        document_id: The UUID of the document to convert.
+        version: Optional specific version to convert (defaults to latest).
+
+    Returns JSON with the converted Markdown text plus size metadata.
+    """
+    from markitdown import MarkItDown
+
+    client = get_client()
+    path = f"/api/documents/{document_id}/download"
+    if version is not None:
+        path += f"?version={version}"
+    resp = client.get(path)
+    _handle_error(resp)
+    data = resp.content
+    content_type = resp.headers.get("content-type", "")
+
+    converter = MarkItDown()
+    import tempfile
+
+    suffix = ""
+    if "pdf" in content_type:
+        suffix = ".pdf"
+    elif "wordprocessing" in content_type or "docx" in content_type:
+        suffix = ".docx"
+    elif "presentation" in content_type or "pptx" in content_type:
+        suffix = ".pptx"
+    elif "sheet" in content_type or "xlsx" in content_type:
+        suffix = ".xlsx"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(data)
+        tmp_path = tmp.name
+    try:
+        result = converter.convert(tmp_path)
+        markdown = result.text_content or ""
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    return json.dumps(
+        {
+            "document_id": document_id,
+            "content_type": content_type,
+            "size_bytes": len(data),
+            "markdown_chars": len(markdown),
+            "markdown": markdown,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 def main() -> None:

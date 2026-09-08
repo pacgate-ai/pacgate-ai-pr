@@ -56,6 +56,39 @@ models:
 
 sandbox:
   use: deerflow.sandbox.local:LocalSandboxProvider
+  # Pacgate: opt in to host bash for the LocalSandboxProvider (trusted local
+  # deployment). Without it the bash tool is hard-gated off.
+  allow_host_bash: true
+
+# Pacgate: expose the sandbox file/shell tools to the agent (names must match
+# the @tool() names in deerflow/sandbox/tools.py).
+tools:
+  - name: bash
+    group: sandbox
+    use: deerflow.sandbox.tools:bash_tool
+  - name: ls
+    group: sandbox
+    use: deerflow.sandbox.tools:ls_tool
+  - name: read_file
+    group: sandbox
+    use: deerflow.sandbox.tools:read_file_tool
+  - name: write_file
+    group: sandbox
+    use: deerflow.sandbox.tools:write_file_tool
+  - name: str_replace
+    group: sandbox
+    use: deerflow.sandbox.tools:str_replace_tool
+  - name: glob
+    group: sandbox
+    use: deerflow.sandbox.tools:glob_tool
+  - name: grep
+    group: sandbox
+    use: deerflow.sandbox.tools:grep_tool
+
+# Pacgate: auto-convert uploaded PDF/DOCX/PPTX/XLSX to Markdown on upload
+# (markitdown is preinstalled in the image venv).
+uploads:
+  auto_convert_documents: true
 
 memory:
   storage_class: pacgate_deerflow_adapter.storage.PacgateMemoryStorage
