@@ -69,6 +69,10 @@ services:
       # (GET /api/threads/{id}/outputs). Mounted so it survives container
       # recreation without rebuilding the image.
       - ./patches/deer-flow-artifacts.py:/app/backend/app/gateway/routers/artifacts.py:ro
+      # Pacgate: default multitask_strategy to "interrupt" so a new message
+      # during a long agent run cancels the stale run instead of returning
+      # 409 Conflict to the user.
+      - ./patches/deer-flow-thread-runs.py:/app/backend/app/gateway/routers/thread_runs.py:ro
       # Persist deer-flow's own SQLite state (threads/runs/admin account) across
       # container recreation. Without this, every `docker compose up -d` resets
       # the deer-flow admin account and chat history (first-boot each time).
