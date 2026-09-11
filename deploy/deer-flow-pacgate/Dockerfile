@@ -11,6 +11,25 @@ COPY pacgate-adapters/python/pacgate_deerflow_adapter /app/adapters/pacgate_deer
 # PYTHONPATH, because DeerFlow itself runs from /app/backend via `uv run --no-sync`.
 RUN pip install --no-cache-dir /app/adapters/pacgate_deerflow_adapter
 
+# Pacgate: bake the document-conversion CLI so the agent's sandbox bash tool can
+# convert generated markdown to docx/pdf/html/txt (the MD->docx/pdf direction).
+# pandoc is the office-cli (MD->docx/html/txt); weasyprint is its PDF engine
+# (MD->pdf). Both land in /usr/bin, which is on the agent's bash PATH and in the
+# sandbox system-path allowlist, so the agent can call them directly. markitdown
+# (PDF/DOCX/PPTX/XLSX -> MD) is already in the image venv at
+# /app/backend/.venv/bin and is reachable via the pacgate_convert_document MCP
+# tool. apt-get update is required because the base image's package lists are
+# not refreshed at build time.
+RUN apt-get update && apt-get install -y --no-install-recommends pandoc weasyprint \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pacgate: expose markitdown on the agent's PATH. markitdown lives in the image
+# venv (/app/backend/.venv/bin) which is NOT on the agent's bash PATH and whose
+# absolute path is blocked by the sandbox path-validation allowlist. Symlinking
+# it into /usr/local/bin (on PATH + in the allowlist) lets the agent run
+# `markitdown <file>` directly for PDF/DOCX/PPTX/XLSX -> MD on demand.
+RUN ln -sf /app/backend/.venv/bin/markitdown /usr/local/bin/markitdown
+
 # Ship a minimal startup-safe DeerFlow config. This keeps the wrapper bootable
 # on a clean machine; runtime env can still override the memory backend inputs.
 COPY deploy/deer-flow-pacgate/config.yaml /app/backend/config.yaml

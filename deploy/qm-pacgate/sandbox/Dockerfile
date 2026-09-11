@@ -16,6 +16,15 @@ FROM ghcr.io/yc-software/qm/sandbox-base@sha256:52cb44a6e9d166da20638c8ce55e3f42
 # `markitdown` is on PATH for sandbox scripts and `python3 -c` one-liners.
 RUN /opt/agent-venv/bin/pip install --no-cache-dir markitdown
 
+# Pacgate: bake the document-conversion CLI so the QM agent can convert
+# generated markdown to docx/pdf/html/txt (the MD->docx/pdf direction).
+# pandoc is the office-cli (MD->docx/html/txt); weasyprint is its PDF engine
+# (MD->pdf). python-docx + markdown give a pure-Python fallback for docx
+# generation. markitdown (PDF/DOCX/PPTX/XLSX -> MD) is already installed above.
+RUN apt-get update && apt-get install -y --no-install-recommends pandoc weasyprint \
+    && rm -rf /var/lib/apt/lists/* \
+    && /opt/agent-venv/bin/pip install --no-cache-dir python-docx markdown
+
 # Deployment-layer tool binaries (qm CLI only auto-COPYs these when there is no
 # custom Dockerfile — see qm dist/src/commands/sandbox.js prepare()).
 COPY tools/pacgate-qm/pacgate-qm /usr/local/bin/pacgate-qm
