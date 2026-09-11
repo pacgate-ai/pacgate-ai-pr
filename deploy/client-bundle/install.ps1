@@ -135,6 +135,20 @@ Write-Host "`nStarting Pacgate-ai..." -ForegroundColor Cyan
 docker compose -f compose.prod.yaml up -d
 Write-Host "[OK] Stack running" -ForegroundColor Green
 
+# 7b. Reload nginx config if it changed. The nginx service uses the stock
+# nginx:1.27-alpine image with a BIND-MOUNTED ./nginx/default.conf, so `git
+# pull` brings in a new config but `up -d` does NOT recreate the container or
+# reload the file. Reloading makes AIPC2 pick up ingress/proxy changes (e.g.
+# the resolver + variable proxy_pass fix) without a full recreate.
+Write-Host "`nReloading nginx config..." -ForegroundColor Cyan
+docker exec pacgate-nginx nginx -t *>$null
+if ($LASTEXITCODE -eq 0) {
+    docker exec pacgate-nginx nginx -s reload
+    Write-Host "[OK] nginx config reloaded" -ForegroundColor Green
+} else {
+    Write-Host "[WARN] nginx config test failed; leaving running config unchanged" -ForegroundColor Yellow
+}
+
 # 8. Wait for health
 Write-Host "`nWaiting for services to start..." -ForegroundColor Cyan
 Start-Sleep -Seconds 10
