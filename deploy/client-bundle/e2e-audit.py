@@ -15,6 +15,14 @@ import http.cookiejar
 BASE = os.environ.get("E2E_BASE", "http://localhost:8090")
 EMAIL = os.environ.get("PACGATE_API_EMAIL", "admin@pacgate-law.com")
 PASSWORD = os.environ.get("PACGATE_API_PASSWORD", "")
+if not PASSWORD:
+    envp = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if os.path.exists(envp):
+        for line in open(envp, encoding="utf-8"):
+            line = line.strip()
+            if line.startswith("PACGATE_API_PASSWORD="):
+                PASSWORD = line.split("=", 1)[1].strip()
+                break
 
 cj = http.cookiejar.CookieJar()
 opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
