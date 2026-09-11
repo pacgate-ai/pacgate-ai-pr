@@ -17,7 +17,7 @@ services:
     restart: unless-stopped
 
   pacgate-api:
-    image: ghcr.io/pacgate-ai/pacgate-api:0.1.7
+    image: ghcr.io/pacgate-ai/pacgate-api:0.1.8
     container_name: pacgate-api
     depends_on: [pacgate-db]
     environment:
@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.7
+    image: ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.8
     container_name: deer-flow
     depends_on: [pacgate-api, openviking, pacgate-mcp]
     environment:
@@ -73,6 +73,14 @@ services:
       # during a long agent run cancels the stale run instead of returning
       # 409 Conflict to the user.
       - ./patches/deer-flow-thread-runs.py:/app/backend/app/gateway/routers/thread_runs.py:ro
+      # Pacgate: populate extension/modified/original_filename in the upload
+      # response and enrich the upload listing with markdown metadata + original
+      # filename, so clients can read/analyze converted docs reliably.
+      - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro
+      # Pacgate: require `description` on write_file/str_replace in the agent
+      # system prompt, so the model never drops a required arg and loops on
+      # "description: Field required".
+      - ./patches/deer-flow-prompt.py:/app/backend/packages/harness/deerflow/agents/lead_agent/prompt.py:ro
       # Persist deer-flow's own SQLite state (threads/runs/admin account) across
       # container recreation. Without this, every `docker compose up -d` resets
       # the deer-flow admin account and chat history (first-boot each time).
@@ -85,7 +93,7 @@ services:
   # correct without a runtime patch. Published to GHCR by the build-ghcr.yml
   # workflow; pushed on every release tag so both AIPCs stay in sync.
   deer-flow-frontend:
-    image: ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.7
+    image: ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.8
     container_name: deer-flow-frontend
     depends_on: [deer-flow]
     ports:
@@ -97,7 +105,7 @@ services:
     restart: unless-stopped
 
   pacgate-mcp:
-    image: ghcr.io/pacgate-ai/pacgate-mcp:0.1.7
+    image: ghcr.io/pacgate-ai/pacgate-mcp:0.1.8
     container_name: pacgate-mcp
     depends_on: [pacgate-api]
     environment:
