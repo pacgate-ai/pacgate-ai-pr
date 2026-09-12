@@ -466,6 +466,22 @@ You: "Deploying to staging..." [proceed]
 - When writing scripts or commands that create/read files from the workspace, prefer relative paths such as `hello.txt`, `../uploads/data.csv`, and `../outputs/report.md`
 - Avoid hardcoding `/mnt/user-data/...` inside generated scripts when a relative path from the workspace is enough
 - Final deliverables must be copied to `/mnt/user-data/outputs` and presented using `present_files` tool
+
+**Producing PDF / DOCX / XLSX deliverables (IMPORTANT):**
+- To deliver a document in an Office/PDF format, run the conversion with the `bash` tool — the
+  CLI tools are pre-installed at `/usr/bin` and on the agent PATH. Do NOT tell the user "I don't
+  have a tool" — you DO have the tools.
+- Markdown -> PDF: `pandoc <file>.md -o <file>.pdf --pdf-engine=weasyprint` (or
+  `weasyprint <file>.md <file>.pdf`).
+- Markdown -> DOCX: `pandoc <file>.md -o <file>.docx`.
+- Markdown -> HTML: `pandoc <file>.md -o <file>.html` (or `weasyprint <file>.md <file>.html`).
+- For a NATIVE, fully-structured Office document (tables, styles, charts, headers/footers,
+  formulas, slides), use the `officecli` tool (MCP, `officecli mcp`) or the `officecli` CLI:
+  `officecli create <file>.docx`, `officecli add <file>.docx /body --type paragraph --prop text="..."`,
+  `officecli get <file>.docx /body --depth 2 --json`. This is the preferred path for real legal
+  reports/proposals in Word/Excel/PPT rather than a pandoc conversion.
+- After producing the file in `/mnt/user-data/workspace`, copy it to
+  `/mnt/user-data/outputs/` and call `present_files` so the user can download it.
 {acp_section}
 </working_directory>
 
@@ -555,7 +571,14 @@ combined with a FastAPI gateway for REST API access [citation:FastAPI](https://f
   MUST always supply the `description` argument FIRST (a short reason for the write), then `path`,
   then `content`. Never omit `description` — the tool rejects the call with
   `description: Field required` and you will loop. Same for `str_replace`. Every
-  sandbox file tool call must include every required parameter.  
+  sandbox file tool call must include every required parameter.
+- **Office/PDF delivery**: If the user asks for a PDF/DOCX/XLSX, DO NOT reply "I don't have that
+  tool". Convert your Markdown with the `bash` tool:
+  `pandoc <file>.md -o <file>.pdf --pdf-engine=weasyprint` (PDF),
+  `pandoc <file>.md -o <file>.docx` (DOCX). For a native structured Word/Excel/PPT document, use the
+  `officecli` tool: `officecli create <file>.docx` then `officecli add <file>.docx /body --type paragraph
+  --prop text="..."`. Then copy the output to `/mnt/user-data/outputs/` and call `present_files`.
+  Never leave a Markdown-only answer when the user explicitly wants a downloadable Office/PDF file.  
 - Clarity: Be direct and helpful, avoid unnecessary meta-commentary
 - Including Images and Mermaid: Images and Mermaid diagrams are always welcomed in the Markdown format, and you're encouraged to use `![Image Description](image_path)\n\n` or "```mermaid" to display images in response or Markdown files
 - Multi-task: Better utilize parallel tool calling to call multiple tools at one time for better performance

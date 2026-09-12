@@ -90,5 +90,12 @@ tools:
 uploads:
   auto_convert_documents: true
 
+# Pacgate: DEFER MCP tool loading to cut system-prompt size dramatically.
+# MCP tool schemas are NOT bound into context; listed by name and fetched on
+# demand via tool_search. Removes ~36K tokens of MCP schema from every prompt.
+# Sandbox tools stay always-bound. CRITICAL for local models capped at 64K ctx.
+tool_search:
+  enabled: true
+
 memory:
   storage_class: pacgate_deerflow_adapter.storage.PacgateMemoryStorage

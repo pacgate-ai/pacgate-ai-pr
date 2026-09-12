@@ -13,6 +13,16 @@
       "type": "http",
       "url": "http://pacgate-mcp:8000/mcp",
       "description": "Query pacgate's legal RAG knowledge base and external legal database connectors."
+    },
+    "officecli": {
+      "enabled": true,
+      "type": "stdio",
+      "command": "officecli",
+      "args": ["mcp"],
+      "env": {
+        "OFFICECLI_SKIP_UPDATE": "1"
+      },
+      "description": "OfficeCLI — Word/Excel/PPT 文档自动化 (create/read/edit/render docx/xlsx/pptx)"
     }
   }
 }

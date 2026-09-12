@@ -147,6 +147,18 @@ tools:
 uploads:
   auto_convert_documents: true
 
+# Pacgate: DEFER MCP tool loading to cut system-prompt size dramatically.
+# When tool_search is enabled, MCP tool schemas are NOT bound directly into the
+# model's context. Instead they are listed by NAME in <available-deferred-tools>
+# and the agent fetches full schemas on demand via the tool_search tool. This
+# removes ~36K tokens of MCP tool-schema text from every prompt (measured: 142
+# MCP tools = 144,845 chars). CRITICAL for local models (gemma4-12b) whose
+# context is capped at 64K — it is the single biggest lever for prompt size.
+# The sandbox tools (bash/ls/read_file/etc.) are NOT MCP tools, so they remain
+# always-bound; only the MCP servers (pacgate/firecrawl/officecli/legal) defer.
+tool_search:
+  enabled: true
+
 # Persist LangGraph thread state + thread list to SQLite. Without a
 # 'checkpointer' section deer-flow falls back to InMemoryStore, so the thread
 # list + admin session reset on every restart. 'connection_string' is resolved

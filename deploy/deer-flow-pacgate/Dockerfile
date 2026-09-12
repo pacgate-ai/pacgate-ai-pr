@@ -30,6 +30,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends pandoc weasypri
 # `markitdown <file>` directly for PDF/DOCX/PPTX/XLSX -> MD on demand.
 RUN ln -sf /app/backend/.venv/bin/markitdown /usr/local/bin/markitdown
 
+# Pacgate: bake OfficeCLI so the agent can create/read/modify real Office
+# documents (.docx/.xlsx/.pptx) via its `officecli mcp` stdio MCP server AND via
+# the `officecli` CLI on PATH. OfficeCLI is a single self-contained .NET binary
+# (no Office, no runtime deps). Pinned to a specific release tag for a
+# deterministic build; the binary is fetched at build time (not runtime) so it
+# survives container recreation. The URL below is the GitHub release asset
+# `officecli-linux-x64` (glibc, matches Debian 12). We use python (already in
+# the image) as the downloader because the base image has no curl/wget.
+ARG OFFICECLI_VERSION=v1.0.149
+RUN python3 -c "import urllib.request,os,sys; \
+    v=sys.argv[1]; \
+    url='https://github.com/iOfficeAI/OfficeCLI/releases/download/'+v+'/officecli-linux-x64'; \
+    print('fetching officecli', url); \
+    d=urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent':'pacgate-build'}), timeout=180).read(); \
+    open('/usr/local/bin/officecli','wb').write(d)" "$OFFICECLI_VERSION" \
+    && chmod +x /usr/local/bin/officecli \
+    && OFFICECLI_SKIP_UPDATE=1 officecli --version \
+    && rm -rf /tmp/*
+
 # Ship a minimal startup-safe DeerFlow config. This keeps the wrapper bootable
 # on a clean machine; runtime env can still override the memory backend inputs.
 COPY deploy/deer-flow-pacgate/config.yaml /app/backend/config.yaml
