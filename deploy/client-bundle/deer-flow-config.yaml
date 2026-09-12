@@ -104,6 +104,18 @@ models:
     supports_thinking: true
     stream_chunk_timeout: 120
 
+  - name: glm-5.3-flash-cloud
+    display_name: GLM 5.3 Flash (Cloud)
+    description: Fast cloud model for research and drafting. Cloud-tagged via Ollama.
+    use: langchain_openai:ChatOpenAI
+    model: glm-5.3-flash:cloud
+    api_key: ollama
+    base_url: http://host.docker.internal:11434/v1
+    max_tokens: 8192
+    temperature: 0.1
+    supports_thinking: true
+    stream_chunk_timeout: 120
+
 sandbox:
   use: deerflow.sandbox.local:LocalSandboxProvider
   # Pacgate: opt in to host bash for the LocalSandboxProvider. This is the
