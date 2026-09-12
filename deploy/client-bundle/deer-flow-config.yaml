@@ -169,7 +169,7 @@ uploads:
 # The sandbox tools (bash/ls/read_file/etc.) are NOT MCP tools, so they remain
 # always-bound; only the MCP servers (pacgate/firecrawl/officecli/legal) defer.
 tool_search:
-  enabled: true
+  enabled: false  # EVIDENCE (2026-09-12): deferral makes ALL models call MCP tools without promoting first -> "deferred, not promoted" loop, never reaching write_file. With tool names normalized to underscores, tools are now bound directly so the agent can use them reliably.
 
 # Persist LangGraph thread state + thread list to SQLite. Without a
 # 'checkpointer' section deer-flow falls back to InMemoryStore, so the thread
