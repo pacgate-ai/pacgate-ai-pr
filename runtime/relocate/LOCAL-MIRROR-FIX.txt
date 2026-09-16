@@ -1,0 +1,48 @@
+MIRROR FIX: --bare does not track refs; --mirror does
+==============================================================================
+
+BUG FOUND: the first mirror was created with `git clone --bare`. A bare
+clone does NOT set the mirror refspec, so `git fetch --all` updated only
+FETCH_HEAD and left refs/heads/main stale. The mirror silently fell behind
+the source - which defeats the entire purpose of a backup.
+
+Demonstrated: source HEAD fccebb0 vs mirror HEAD a556ae2 (MISMATCH).
+
+FIX: recreate with `git clone --mirror`, which sets
+  fetch = +refs/*:refs/*
+so every fetch updates all refs.
+
+=== 1. The broken refspec (proof of the bug) ===
+  remote.origin.fetch = ''
+  (empty = no refspec = fetch does not update refs)
+
+=== 2. Recreate with --mirror ===
+  removed the stale mirror
+    Cloning into bare repository 'C:\backup-pacgate-law-mirror.git'...
+    done.
+  exit: 0
+  remote.origin.fetch = '+refs/*:refs/*'
+
+=== 3. Verify it matches the source ===
+  source HEAD : fccebb0263797e62ad5af571175f30d91021a743
+  mirror HEAD : fccebb0263797e62ad5af571175f30d91021a743
+  match       : True
+  commits     : source=15 mirror=15 match=True
+
+=== 4. Prove fetch now updates refs (the actual fix) ===
+  Making a throwaway commit in the source, then fetching...
+  source HEAD now: 96621e1c09734d85c602cd1a543fdb0669272187
+  mirror HEAD now: 96621e1c09734d85c602cd1a543fdb0669272187
+  mirror followed the new commit: True
+
+=== 5. Remove the probe commit ===
+  source HEAD restored: fccebb0263797e62ad5af571175f30d91021a743
+  mirror HEAD         : fccebb0263797e62ad5af571175f30d91021a743
+  in sync again       : True
+
+=== 6. Restore test ===
+  restored files: 624
+  Cargo.toml    : True
+
+=== VERDICT ===
+  FIXED - the mirror now tracks the source. Fetch updates refs correctly.
