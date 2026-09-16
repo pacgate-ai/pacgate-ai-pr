@@ -1,0 +1,53 @@
+DELETE-IMPACT VERDICT: can C:\pacgate-ai-pr be deleted safely?
+=============================================================
+
+--- Named volumes: where do they physically live? ---
+  pacgate-ai-bundle_pacgate-db-data
+      mountpoint: /var/lib/docker/volumes/pacgate-ai-bundle_pacgate-db-data/_data
+  qm-pacgate-pgdata
+      mountpoint: /var/lib/docker/volumes/qm-pacgate-pgdata/_data
+  qm-pacgate-coredata
+      mountpoint: /var/lib/docker/volumes/qm-pacgate-coredata/_data
+
+  => Named volumes live inside the Docker VM, NOT under C:\pacgate-ai-pr.
+     So the DATABASES themselves survive a directory deletion.
+
+--- But the CONTAINERS would lose their data anyway, because: ---
+  1. deer-flow bind-mounts ./data -> C:\pacgate-ai-pr\deploy\client-bundle\data
+     Its live SQLite (deerflow.db, checkpoints.db) lives THERE, not in a volume.
+     1,635 MB of conversation checkpoints would be gone.
+  2. pacgate-api bind-mounts ./data -> same directory.
+  3. BOTH compose projects record config paths under pacgate-ai-pr, so
+     `docker compose down/up/config` from the repo would FAIL to find its files.
+
+--- containers affected: 14 ---
+  - deer-flow
+  - deer-flow-frontend
+  - openviking
+  - pacgate-api
+  - pacgate-db
+  - pacgate-mcp
+  - pacgate-nginx
+  - qm-pacgate-admin-1
+  - qm-pacgate-auth-1
+  - qm-pacgate-core-1
+  - qm-pacgate-mailpit-1
+  - qm-pacgate-pg-1
+  - qm-pacgate-portal-1
+  - qm-pacgate-web-ui-1
+
+--- FINAL VERDICT ---
+
+  NO. Deleting C:\pacgate-ai-pr would NOT leave everything running perfectly.
+
+  It would:
+    - dangle 19 bind mounts across 6 containers
+    - destroy 1,635 MB of live deer-flow checkpoints (untracked, only copy)
+    - lose the live deerflow.db (admin credentials, threads, users)
+    - break `docker compose` for 2 projects (recorded config paths)
+
+  It would NOT destroy:
+    - the named Postgres volumes (they live in the Docker VM)
+    - the 23.8 MB tracked source (recoverable from GitHub remotes)
+
+  => The correct order is MIGRATE, then delete. Never delete first.

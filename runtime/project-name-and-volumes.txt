@@ -1,0 +1,58 @@
+=== 1. Explicit project name / top-level name: key ===
+  compose.bundle.yaml                name: pacgate-ai-bundle
+  compose.qm.yaml                    name: qm-pacgate
+  compose.prod.yaml                  name: (NONE - derived from dir)
+  docker-compose.yml                 name: (NONE - derived from dir)
+  docker-compose.upstream.yml        name: (NONE - derived from dir)
+  docker-compose.yml                 name: ironclawai-survey
+  docker-compose.yaml                name: dockhand
+
+=== 2. Named volumes actually present in Docker ===
+  a604df063cb0e47dc5822915d93ea71aaad7fa9f56947010e60902136e51a902
+  client-bundle_pacgate-db-data
+  deer-flow_redis-data
+  dockhand_dockhand_data
+  hermes-agent_hermes_web_gateway_default_log
+  hermes-agent_postgres_data
+  ironclaw-pgdata
+  odysseus_chromadb-data
+  odysseus_ntfy-cache
+  odysseus_searxng-data
+  open-webui
+  pacgate-ai-bundle_pacgate-db-data
+  pacgate-cargo-cache
+  qm-pacgate-coredata
+  qm-pacgate-pgdata
+  (total: 15)
+
+=== 3. Container -> volume bindings (what would look wiped on rename) ===
+  qm-pacgate-core-1
+      qm-pacgate-coredata                        -> /data
+  hermes-web
+      hermes-agent_hermes_web_gateway_default_log -> /opt/data/logs/gateways/default
+  open-webui
+      open-webui                                 -> /app/backend/data
+  qm-pacgate-pg-1
+      qm-pacgate-pgdata                          -> /var/lib/postgresql/data
+  pacgate-db
+      pacgate-ai-bundle_pacgate-db-data          -> /var/lib/postgresql/data
+  odysseus-ntfy-1
+      odysseus_ntfy-cache                        -> /var/cache/ntfy
+  hermes-postgres
+      hermes-agent_postgres_data                 -> /var/lib/postgresql/data
+  odysseus-searxng-1
+      odysseus_searxng-data                      -> /etc/searxng
+      a604df063cb0e47dc5822915d93ea71aaad7fa9f56947010e60902136e51a902 -> /var/cache/searxng
+  odysseus-chromadb-1
+      odysseus_chromadb-data                     -> /chroma/chroma
+  dockhand
+      dockhand_dockhand_data                     -> /app/data
+
+=== 4. Bind mount source style (relative = relocation-safe if moved as a unit) ===
+  compose.bundle.yaml                relative=16   absolute=0   
+  compose.qm.yaml                    relative=3    absolute=0   
+  compose.prod.yaml                  relative=16   absolute=0   
+  docker-compose.yml                 relative=1    absolute=0   
+  docker-compose.upstream.yml        relative=4    absolute=0   
+  docker-compose.yml                 relative=0    absolute=0   
+  docker-compose.yaml                relative=0    absolute=0   

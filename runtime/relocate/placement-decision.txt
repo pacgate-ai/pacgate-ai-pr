@@ -1,0 +1,61 @@
+PLACEMENT DECISION: root vs pacgate-ai/ subfolder
+==================================================================
+
+=== Does the placement change the history cost? ===
+
+  History can only be carried if tracked paths keep their EXACT relative
+  layout. Landing at the repo root preserves it; nesting under pacgate-ai/
+  shifts every path and would need a filter-repo rewrite.
+
+  BUT: the source history contains 4 publicly-exposed credential files
+  (commit 01a4644 among others). Carrying the history would re-import them.
+  The recommended import is therefore a SQUASH -> no history is carried.
+
+  => If we squash, the placement choice costs NOTHING for history,
+     because there is no history to misalign.
+
+=== The nesting problem (and the fix) ===
+
+  Source layout:
+      C:\pacgate-ai-pr\Cargo.toml            <-- NO (Cargo.toml is inside pacgate-ai\)
+      C:\pacgate-ai-pr\pacgate-ai\Cargo.toml <-- the Rust workspace
+      C:\pacgate-ai-pr\deploy\
+
+  Naive copy to pacgate-ai\ would produce:
+      pacgate-law\pacgate-ai\pacgate-ai\Cargo.toml     <-- double nest
+
+  FIX: promote the Rust workspace contents up one level and merge:
+      move pacgate-ai\pacgate-ai\*  ->  pacgate-ai\*
+
+  Collision check for that promotion (does anything at pacgate-ai\
+  already use these names?):
+
+      inner (Rust workspace): 10 entries
+      outer (platform root) : 38 entries
+      COLLISIONS           : 0
+          none -> promotion is a clean move
+
+=== Resulting tree (flattened, content under pacgate-ai/) ===
+
+  pacgate-law\
+  |- pacgate-ai\
+  |    |- Cargo.toml  crates\  wasm-crates\  migrations\  workflows\
+  |    |- Dockerfile  Cargo.lock
+  |    |- deploy\           (compose, client-bundle, qm-pacgate, handbooks)
+  |    |- pacgate-adapters\  scope-assets\  patches\  plans\
+  |    |- nginx\  auth-gate\  scripts\  docs\
+  |    |- pacgate-ai-assets\   (or assets\, per the keep-one decision)
+  |- deer-flow\        (submodule, unchanged)
+  |- runtime\          (inventory + tooling)
+  |- docs\             (specs, plans)
+  |- AGENTS.md  README.md
+
+=== What this means operationally ===
+
+  The bind mounts change from:
+      C:\pacgate-ai-pr\deploy\client-bundle\...
+  to:
+      C:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\...
+
+  So there is exactly ONE path substitution to make in the compose/scripts,
+  and the stack must be recreated (bind mounts resolve at container start).

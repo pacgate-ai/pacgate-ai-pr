@@ -1,0 +1,16 @@
+CONTAINER DEPENDENCY CHECK before moving pacgate-ai -> pacgate-ai-assets
+======================================================================
+
+Phase 1 relocates the submodule directory inside pacgate-law. If any RUNNING
+container bind-mounts a path under pacgate-law, moving it would break that
+container the same way deleting would.
+
+
+total mounts examined : 42
+dependencies on pacgate-law : 0
+
+VERDICT: SAFE. No running container depends on any path under pacgate-law,
+so relocating the submodule directory inside it cannot break a container.
+
+--- is the submodule path itself referenced by any container? ---
+  (none) - the submodule path is not a mount source

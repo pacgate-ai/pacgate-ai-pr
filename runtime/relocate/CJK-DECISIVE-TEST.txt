@@ -1,0 +1,47 @@
+DECISIVE CJK TEST: tar.exe vs checkout-index (filesystem diff)
+==================================================================
+
+files via tar.exe         : 478
+files via checkout-index  : 515
+
+DROPPED by tar.exe (present in checkout-index, missing from tar): 59
+    docs\assets\q&a\Pacgate_AI_Phase1_技术方书面澄清问题清单.docx
+    docs\progress-reportcard\项目时间线与关键节点.pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\方案_模板类文件\01_总路线图_系统架构与落地.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\方案_模板类文件\01_总路线图_系统架构与落地.md.pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\方案_模板类文件\Step5_本地复杂推理_评测方案模板.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\方案_模板类文件\Step5_本地复杂推理_评测方案模板.md.pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\架构改造类文件\corporate-legal_13skill改造优先级评估.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\架构改造类文件\corporate-legal_13skill改造优先级评估.md(1).pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\架构改造类文件\百宸NDA审查Skill_三层混合云架构改造.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\架构改造类文件\百宸NDA审查Skill_三层混合云架构改造.md.pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\架构改造类文件\百宸NDA审查Skill_双模型架构改造示范.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\架构改造类文件\百宸NDA审查Skill_双模型架构改造示范.md.pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\架构改造类文件\尽调报告系统改造方案_corporate-legal_与_dd-agents_组合_.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\架构改造类文件\尽调报告系统改造方案_corporate-legal_与_dd-agents_组合_.md.pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\清单类文件\Awesome-Legaltech-资源清单.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\清单类文件\Awesome-Legaltech-资源清单.md.pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\清单类文件\Awesome-Legaltech-资源清单_converted.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\清单类文件\dd-agents 中国法智能体改写清单.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\清单类文件\dd-agents_中国法智能体改写清单.md.pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\百宸初建方案文件\清单类文件\dd-agents_中国法智能体改写清单_converted.md
+    ... and 39 more
+
+EXTRA in tar (should be none): 22
+    docs\assets\q&a\Pacgate_AI_Phase1_鎶€鏈柟涔﹂潰婢勬竻闂娓呭崟.docx
+    docs\progress-reportcard\椤圭洰鏃堕棿绾夸笌鍏抽敭鑺傜偣.pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\鐧惧鍒濆缓鏂规鏂囦欢\鏋舵瀯鏀归€犵被鏂囦欢\corporate-legal_13skill鏀归€犱紭鍏堢骇璇勪及.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\鐧惧鍒濆缓鏂规鏂囦欢\鏋舵瀯鏀归€犵被鏂囦欢\corporate-legal_13skill鏀归€犱紭鍏堢骇璇勪及.md(1).pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\鐧惧鍒濆缓鏂规鏂囦欢\鏋舵瀯鏀归€犵被鏂囦欢\灏借皟鎶ュ憡绯荤粺鏀归€犳柟妗坃corporate-legal_涓巁dd-agents_缁勫悎_.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\鐧惧鍒濆缓鏂规鏂囦欢\鏋舵瀯鏀归€犵被鏂囦欢\灏借皟鎶ュ憡绯荤粺鏀归€犳柟妗坃corporate-legal_涓巁dd-agents_缁勫悎_.md.pdf
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\鏅哄簱璧勬枡鏀堕泦\鏅哄簱璧勬枡鏀堕泦\Agent瑙掕壊杈圭晫\SOUL_Justin_v1.0.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\鏅哄簱璧勬枡鏀堕泦\鏅哄簱璧勬枡鏀堕泦\Agent瑙掕壊杈圭晫\SOUL_Sylvie_v1.0.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\鏅哄簱璧勬枡鏀堕泦\鏅哄簱璧勬枡鏀堕泦\Agent瑙掕壊杈圭晫\璧勬枡鏀堕泦鐩綍_鐧惧鍥炲～_绗竴浜岄儴鍒哶v1.1.md
+    pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\鏅哄簱璧勬枡鏀堕泦\鏅哄簱璧勬枡鏀堕泦\Agent瑙掕壊杈圭晫\璧勬枡鏀堕泦鐩綍_闄勫綍A_Agent瑙掕壊缂栨帓_BigLaw妯″紡_v0.2.md
+
+of the dropped files, non-ASCII named: 59 of 59
+
+==================================================================
+VERDICT: CONFIRMED. tar.exe silently drops 59 file(s).
+         checkout-index is the correct extraction method.
+==================================================================

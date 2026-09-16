@@ -1,0 +1,28 @@
+CJK EXTRACTION VERIFICATION (filesystem vs filesystem)
+
+tracked entries (git, may be mojibake): 515
+
+SOURCE working tree, files with non-ASCII names (excluding target/, deer-flow-src/, .git/): 195
+STAGE, files with non-ASCII names: 54
+
+of those, actually TRACKED by git: 0
+stage non-ASCII count            : 54
+
+=> If these two match, extraction is complete and the earlier 54-vs-59
+   mismatch was purely a git-output decoding artifact, not data loss.
+
+sample CJK files present in stage:
+    Pacgate_AI_Phase1_技术方书面澄清问题清单.docx
+    项目时间线与关键节点.pdf
+    资料收集目录_百宸回填_第一二部分_v1.1.md
+    资料收集目录_附录A_Agent角色编排_BigLaw模式_v0.2.md
+    境外法律数据库和网站.md
+    法律数据库MCP.md
+    百宸AI系统资源接入清单V2.docx
+    20201215_货拉拉项目法律尽职调查报告_Haiwen_扫描件.pdf
+
+sample TRACKED CJK files from source:
+
+==========================================================
+VERDICT: MISMATCH - investigate
+==========================================================

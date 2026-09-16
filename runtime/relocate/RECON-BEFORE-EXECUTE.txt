@@ -1,0 +1,52 @@
+RECON BEFORE PHASE 1 EXECUTE
+==============================================================
+
+=== 1. Backups (rollback anchors) ===
+  OK      C:\backup-pacgate-ai-pr-git  files=327  67.1 MB
+  OK      C:\backup-pacgate-law-git  files=22  0 MB
+
+=== 2. Source state (must be untouched) ===
+  HEAD: 151a383
+  modified tracked files: 0   (MUST be 0)
+
+=== 3. pacgate-law git state ===
+  commits: 
+  branch : main
+  index entries (ls-files --stage):
+    100644 9cb28f459c7a8b823f201e3cebaba593aca1c50b 0	.gitignore
+    100644 809ce20237261814a92b73325c57099f4ea66c7c 0	AGENTS.md
+    100644 d1ec063c721dfb5f6a1732d17cf73dc9b797ad1b 0	DEER-FLOW-INTEGRATION.md
+    160000 f712ec2dc20fc91b3ce97b2aa08764b721d4dd37 0	pacgate-ai
+
+=== 4. .gitmodules ===
+    [submodule "pacgate-ai"]
+    	path = pacgate-ai
+    	url = https://github.com/JZKK720/pacgate-ai.git
+
+=== 5. Is pacgate-ai a real submodule? ===
+  dir exists      : True
+  .git present    : True
+  .git is a dir   : True
+  .git is a file  : False
+  top-level entries:
+    .git
+    assets
+    pacgate-ai
+    .gitignore
+    AGENTS.md
+    DEER-FLOW-INTEGRATION.md
+
+=== 6. deer-flow: submodule or embedded repo? ===
+  .git type       : directory (embedded repo)
+  branch          : pacgate-layer
+  commits         : 3144
+
+=== 7. Sizing (what must NOT be committed) ===
+  deer-flow          files=122116   1728.4 MB
+  pacgate-ai         files=262      85.4 MB
+  docs               files=5        0.1 MB
+  runtime            files=79       0.3 MB
+  pacgate-ai-assets  (absent)
+
+=== 8. Free space ===
+  C: free = 394.5 GB

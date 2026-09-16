@@ -1,0 +1,72 @@
+RELOCATION REHEARSAL (isolated to C:\temp; repo untouched)
+run at: 2026-09-16 13:48:15
+
+=== 1. Extract the tracked content (git checkout-index, NOT tar) ===
+[PASS] extracted count matches tracked count
+        extracted=515 tracked=515
+[PASS] CJK-named files extracted (>=50)
+        stage CJK files=54 (source tree has 195)
+[PASS] specific CJK filenames intact (not mojibake)
+        probed 2 known CJK paths
+[PASS] index vs disk: nothing missing
+        missing=0 (index=515 disk=515)
+[PASS] index vs disk: nothing extra
+        extra=0
+[PASS] no mojibake filenames
+        suspicious names: 0
+
+=== 2. Flatten the Rust workspace (avoid pacgate-ai\pacgate-ai\) ===
+[PASS] inner pacgate-ai dir exists in archive
+        C:\temp\rehearsal\stage\pacgate-ai
+[PASS] no name collisions when promoting
+        collisions: 0 
+[PASS] Cargo.toml now at stage root
+[PASS] no nested pacgate-ai\pacgate-ai remains
+
+=== 3. Exclusions (the 6.4 GB that must NOT move) ===
+[PASS] no rust target/ directory
+[PASS] no target/ dir anywhere in stage
+        found: 0
+[PASS] no client-bundle\data (client history) in stage
+[PASS] no deer-flow-src (31 MB vendored clone) in stage
+[PASS] staged size is tens of MB (not GB)
+        75.3 MB
+
+=== 5. Required content present ===
+[PASS] Cargo.toml
+[PASS] crates
+[PASS] wasm-crates
+[PASS] deploy\client-bundle\compose.bundle.yaml
+[PASS] deploy\client-bundle\compose.prod.yaml
+[PASS] deploy\client-bundle\install.ps1
+[PASS] deploy\client-bundle\deer-flow-config.yaml
+[PASS] deploy\client-bundle\deer-flow-extensions-config.template.json
+[PASS] deploy\qm-pacgate\compose.qm.yaml
+[PASS] deploy\build-images.ps1
+[PASS] pacgate-adapters
+[PASS] scope-assets
+[PASS] patches
+[PASS] plans
+[PASS] docs
+[PASS] nginx
+[PASS] auth-gate
+[PASS] scripts
+
+=== 4. Credential removal (MANDATORY step) ===
+  credential carriers present BEFORE removal: 4
+[PASS] credential carriers are present (so removal is needed)
+[PASS] all credential carriers removed
+        remaining: 0
+[PASS] vendored assets duplicate gone
+
+=== 7. Hardcoded old paths that still need rewriting ===
+  files still referencing C:\pacgate-ai-pr: 8
+  (expected ~23; Task 2 of the plan rewrites these)
+
+==============================================================
+REHEARSAL SUMMARY: 36 PASS, 0 FAIL
+==============================================================
+
+The mechanics are sound. The real migration can proceed once:
+  1. compose.prod.yaml gets its `name:` key (the dry-run FAIL)
+  2. a maintenance window is chosen (the stack must restart)

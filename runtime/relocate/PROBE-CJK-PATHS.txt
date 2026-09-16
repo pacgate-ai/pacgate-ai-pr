@@ -1,0 +1,26 @@
+PROBE: are the two CJK test paths actually extracted?
+
+path: docs\progress-reportcard\项目时间线与关键节点.pdf
+   in source : True
+   in stage  : False
+
+path: docs\assets\q&a\Pacgate_AI_Phase1_技术方书面澄清问题清单.docx
+   in source : True
+   in stage  : False
+
+--- filesystem search for the leaf names in the stage ---
+  '项目时间线与关键节点.pdf' -> 0 hit(s)
+  'Pacgate_AI_Phase1_技术方书面澄清问题清单.docx' -> 0 hit(s)
+
+--- docs\progress-reportcard in the STAGE ---
+    (directory missing)
+
+--- docs\progress-reportcard in the SOURCE ---
+    index.html
+    prerequisites-checklist-en.pdf
+    prerequisites-checklist-zh.pdf
+    prerequisites-checklist.html
+    项目时间线与关键节点.pdf
+
+--- any mojibake-named files in the stage? ---
+  count: 0

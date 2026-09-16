@@ -1,0 +1,18 @@
+SELF-CHECK: do our authored documents leak any credential value?
+
+secret values extracted from source file: 7
+public identifiers excluded (not secrets): 1
+    excluded by label: **GitHub ID**
+
+files checked: 9
+  2026-09-16-credential-exposure-incident.md           leaks=0
+  2026-09-16-repo-consolidation-and-runtime-pinning-design.md leaks=0
+  README.md                                            leaks=0
+  credential-scan-results.txt                          leaks=0
+  exposure-control-results.txt                         leaks=0
+  AGENTS.md                                            leaks=0
+  capture-runtime.ps1                                  leaks=0
+  scan-credential-history.ps1                          leaks=0
+  check-exposure-control.ps1                           leaks=0
+
+VERDICT: PASS - no credential value appears in any authored file.

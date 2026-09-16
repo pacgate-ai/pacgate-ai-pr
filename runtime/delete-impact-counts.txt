@@ -1,0 +1,13 @@
+PRECISE MOUNT COUNTS (verifying the analysis document)
+
+  deer-flow                13 mount(s)
+  qm-pacgate-core-1        3 mount(s)
+  pacgate-api              1 mount(s)
+  openviking               1 mount(s)
+  pacgate-nginx            1 mount(s)
+
+  containers with host-path deps : 5
+  total dependent bind mounts    : 19
+
+--- breakdown for deer-flow ---
+  deer-flow : 3 directory mount(s), 10 file mount(s)

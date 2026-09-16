@@ -1,0 +1,63 @@
+TRACKED FILES: 515
+
+--- tracked, grouped by deploy subdir ---
+  client-bundle                      39
+  qm-pacgate                         31
+  handbooks                          9
+  client-delivery                    9
+  frontend-patches                   5
+  pacgate-mcp                        3
+  deer-flow-pacgate                  2
+  USER-MANUAL.pdf                    1
+  AIPC-DEPLOYMENT-HANDBOOK-ZH.md     1
+  build-frontend.ps1                 1
+  build-images.ps1                   1
+  graph.html                         1
+  graphify-graph.json                1
+  deer-flow-frontend-pacgate         1
+  knowledge-graph.json               1
+  USER-MANUAL.md                     1
+  ARCHITECTURE-DIAGRAMS.md           1
+  COPILOT_CONTEXT.md                 1
+  DEPLOYMENT-GUIDE.md                1
+  AIPC2-HANDOFF-PROMPT.md            1
+  AIPC-DEPLOYMENT-HANDBOOK-ZH.pdf    1
+  AIPC-DEPLOYMENT-HANDBOOK.md        1
+  AIPC2-HANDOFF-PROMPT-v2.md         1
+  SETUP-AND-OPERATIONS.md            1
+  USER-MANUAL-ZH.md                  1
+  USER-MANUAL-ZH.pdf                 1
+  SETUP-AND-OPERATIONS-ZH.md         1
+  GRAPH_REPORT.md                    1
+  PLANS.md                           1
+  README-BUILD.md                    1
+
+--- on-disk but IGNORED (cannot ship via git as-is) ---
+  deploy\client-bundle
+      on-disk=429  ignored=390  not-ignored=39
+      ignored bytes = 1924.8 MB
+      e.g. deploy/client-bundle/.env  (2.8 KB)
+      e.g. deploy/client-bundle/deer-flow-extensions-config.json  (10.4 KB)
+      e.g. deploy/client-bundle/data/df_logs.txt  (0.2 KB)
+      e.g. deploy/client-bundle/data/mcp_final.txt  (0.8 KB)
+
+  deploy\qm-pacgate
+      on-disk=162  ignored=131  not-ignored=31
+      ignored bytes = 1.2 MB
+      e.g. deploy/qm-pacgate/.env  (2.3 KB)
+      e.g. deploy/qm-pacgate/node_modules/.package-lock.json  (0.5 KB)
+      e.g. deploy/qm-pacgate/node_modules/.bin/qm  (0.4 KB)
+      e.g. deploy/qm-pacgate/node_modules/.bin/qm.cmd  (0.3 KB)
+
+  deploy\deer-flow-src
+      on-disk=574  ignored=574  not-ignored=0
+      ignored bytes = 31.3 MB
+      e.g. deploy/deer-flow-src/.dockerignore  (0.7 KB)
+      e.g. deploy/deer-flow-src/.env.example  (3.9 KB)
+      e.g. deploy/deer-flow-src/.gitattributes  (0.7 KB)
+      e.g. deploy/deer-flow-src/.gitignore  (0.8 KB)
+
+  deploy\client-delivery
+      on-disk=10  ignored=1  not-ignored=9
+      ignored bytes = 0.6 MB
+      e.g. deploy/client-delivery/pacgate-startup-docs.zip  (634.2 KB)

@@ -1,0 +1,68 @@
+RELOCATION DRY RUN
+run at: 2026-09-16 13:27:33
+
+=== A. SOURCE INTEGRITY ===
+[PASS] source exists
+        C:\pacgate-ai-pr
+[PASS] source is a git repo
+[PASS] source HEAD resolvable
+        HEAD=151a3832f9015595b6e01c133ff38bbb30ec902e
+[PASS] no modified tracked files
+        modified tracked: 0
+
+=== B. EXPORT FEASIBILITY ===
+[PASS] git archive produces output
+        tar size: 75.77 MB
+  (listing archive to verify exclusions)
+[PASS] archive excludes build output
+        target/ entries tracked: 0
+[PASS] archive excludes client data
+        client data entries tracked: 0
+        tracked file count: 515
+
+=== C. TARGET READINESS ===
+[PASS] target repo exists
+        c:\Users\pacga\github-pr\pacgate-law
+[WARN] target pacgate-ai is a SUBMODULE gitlink
+        must be removed before real files can land there
+        gitlink: 160000 f712ec2dc20fc91b3ce97b2aa08764b721d4dd37 0	pacgate-ai
+[WARN] .gitmodules points at the ASSETS repo
+        	url = https://github.com/JZKK720/pacgate-ai.git -- not the Rust workspace; resolve before import
+[WARN] asset tree exists in BOTH places
+        vendored=59 files, submodule=60 files -- keep ONE
+
+=== D. DATA SAFETY ===
+[PASS] deerflow.db present in source
+        0.81 MB
+[PASS] checkpoints.db present in source
+        1635.66 MB
+
+=== E. DOCKER STATE ===
+[PASS] expected container count
+        running: 25
+[PASS] both pacgate-db-data generations still present
+        volumes: 15
+[PASS] live DB volume identified
+        pacgate-db -> pacgate-ai-bundle_pacgate-db-data
+[WARN] running containers bind-mount 19 path(s) under the source
+        these MUST be re-pointed; the stack must be stopped and restarted
+
+=== F. COMPOSE PROJECT-NAME TRAP ===
+[FAIL] compose.prod.yaml declares name:
+        found: ''  (empty = derives from DIR NAME -> new empty volume risk)
+
+=== G. CAPACITY ===
+[PASS] enough free space for copy-then-cutover
+        free=395 GB, source=6578.4 MB
+
+=== H. BACKUPS PRESENT ===
+[PASS] backup backup-pacgate-ai-pr-git
+        C:\backup-pacgate-ai-pr-git
+[PASS] backup backup-pacgate-law-git
+        C:\backup-pacgate-law-git
+
+============================================================
+SUMMARY: 1 FAIL, 4 WARN
+============================================================
+
+DO NOT PROCEED until every FAIL is resolved.

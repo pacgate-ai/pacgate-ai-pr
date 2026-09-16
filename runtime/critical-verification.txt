@@ -1,0 +1,22 @@
+=== A. Project-name derivation for each compose file ===
+  compose.prod.yaml        dir="client-bundle"  name: <none -> derived from dir>
+  compose.bundle.yaml      dir="client-bundle"  name: pacgate-ai-bundle
+  compose.qm.yaml          dir="qm-pacgate"  name: qm-pacgate
+
+  => A file WITHOUT `name:` derives its project name from the directory,
+     so moving/renaming that directory silently changes the project name.
+
+=== B. Duplicate / generational named volumes ===
+  single: odysseus_chromadb-data
+  single: hermes-agent_postgres_data
+  DUPLICATE volume 'pacgate-db-data' exists under 2 project prefixes:
+      client-bundle_pacgate-db-data
+      pacgate-ai-bundle_pacgate-db-data
+
+  duplicate groups detected: 1
+
+=== C. Which volume is live, and how large is each? ===
+  client-bundle_pacgate-db-data                  attached-to=(none)                 size=n/a
+  ironclaw-pgdata                                attached-to=(none)                 size=n/a
+  pacgate-ai-bundle_pacgate-db-data              attached-to=pacgate-db             size=n/a
+  qm-pacgate-pgdata                              attached-to=qm-pacgate-pg-1        size=n/a

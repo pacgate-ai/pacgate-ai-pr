@@ -1,0 +1,32 @@
+DEFINITIVE EXTRACTION AUDIT
+============================================================
+
+index entries (git ls-files -z) : 515
+files actually on disk         : 515
+
+IN INDEX BUT NOT ON DISK : 0
+
+ON DISK BUT NOT IN INDEX : 0
+
+--- directory existence check ---
+  docs                             exists=True
+  docs/progress-reportcard         exists=True
+  docs/assets                      exists=True
+  docs/assets/q&a                  exists=True
+
+--- contents of stage\docs (first 15) ---
+    [dir]  assets
+    [dir]  diagrams
+    [dir]  plans
+    [dir]  progress-reportcard
+    [dir]  prompt-templates
+    [dir]  qa
+    [dir]  superpowers
+    [file] index.html
+    [file] PACGATE-AI-BUILD-PLAN-PHASE1.md
+    [file] PACGATE-AI-BUILD-PLANS.html
+    [file] PACGATE-AI-COMMERCIAL-APPENDIX.html
+    [file] PACGATE-AI-FULL-STACK-REPORT-ZH.html
+    [file] PACGATE-AI-FULL-STACK-REPORT-ZH.md
+    [file] PACGATE-AI-FULL-STACK-REPORT-ZH.pdf
+    [file] PACGATE-AI-QUOTE-SUMMARY.html

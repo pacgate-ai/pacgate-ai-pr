@@ -1,0 +1,33 @@
+EXPERIMENT: what actually happens to a CONTAINER when its bind-mount source
+is deleted? (tested with a THROWAWAY container + THROWAWAY directory --
+no real data involved)
+
+--- phase 1: mount source exists ---
+  container running      : true
+  read /data/marker.txt  : hello
+
+--- phase 2: DELETE the host source directory while container runs ---
+  host dir exists now    : False
+  container still running: true   <-- key finding
+
+--- phase 3: can the container still read the mount? ---
+    ls: /data: No such file or directory
+    ---
+    cat: can't open '/data/marker.txt': No such file or directory
+
+--- phase 4: does the app see an empty/stale mount? ---
+    ls: /data: No such file or directory
+
+--- phase 5: what did the loop observe? ---
+    OK
+    OK
+    FAIL
+    FAIL
+
+  (throwaway container and sandbox directory cleaned up)
+
+INTERPRETATION:
+  If the container STAYS RUNNING but the mount becomes empty/unreadable,
+  then deleting C:\pacgate-ai-pr does NOT crash the stack instantly --
+  it silently strips data and config from running services, which is
+  arguably WORSE (silent, not loud) and certainly not "running perfectly".

@@ -1,0 +1,41 @@
+HARDCODED PATH REFERENCES (what breaks when the tree moves)
+
+text files scanned: 389
+files referencing the old path: 23
+
+--- by reference count (highest coupling first) ---
+   602 refs  .vscode\tasks.json
+    20 refs  deploy\AIPC-DEPLOYMENT-HANDBOOK-ZH.md
+    20 refs  deploy\AIPC-DEPLOYMENT-HANDBOOK.md
+    19 refs  deploy\AIPC2-HANDOFF-PROMPT-v2.md
+    12 refs  deploy\AIPC2-HANDOFF-PROMPT.md
+     7 refs  docs\plans\2026-08-16-qm-core-ollama-adaptation-plan.md
+     6 refs  plans\007-aipc1-kickoff-prompt.md
+     3 refs  plans\007-aipc-full-installation-handoff.md
+     3 refs  CONTINUE-FROM-OTHER-MACHINE.md
+     2 refs  deploy\DEPLOYMENT-GUIDE.md
+     2 refs  deploy\README-BUILD.md
+     2 refs  deploy\client-bundle\README-client.md
+     2 refs  README.md
+     2 refs  tmp-drift-check.ps1
+     2 refs  README-ZH.md
+     2 refs  deploy\build-images.ps1
+     2 refs  deploy\build-frontend.ps1
+     1 refs  extract_pdfs.py
+     1 refs  scope-assets\contracts\preapproval-contract-draft\bundle_addon_docs.py
+     1 refs  deploy\SETUP-AND-OPERATIONS.md
+     1 refs  deploy\SETUP-AND-OPERATIONS-ZH.md
+     1 refs  docs\PACGATE-AI-FULL-STACK-REPORT-ZH.md
+     1 refs  deploy\client-delivery\README.md
+
+--- grouped by top-level area ---
+  deploy                     12 file(s)
+  docs                       2 file(s)
+  plans                      2 file(s)
+  .vscode                    1 file(s)
+  scope-assets               1 file(s)
+  extract_pdfs.py            1 file(s)
+  CONTINUE-FROM-OTHER-MACHINE.md 1 file(s)
+  README-ZH.md               1 file(s)
+  tmp-drift-check.ps1        1 file(s)
+  README.md                  1 file(s)

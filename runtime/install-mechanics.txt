@@ -1,0 +1,78 @@
+INSTALL / FIRST-RUN MECHANICS (what a complete deliverable must contain)
+
+=== 1. Compose invocations found in scripts ===
+  --- install.ps1 ---
+      L130  docker compose -f compose.prod.yaml pull
+      L135  docker compose -f compose.prod.yaml up -d
+      L158  docker compose -f compose.prod.yaml ps
+      L168  Write-Host "  2. Then: cd qm-pacgate && npm exec qm -- up" -ForegroundColor Gray
+      L172  Write-Host "  docker compose -f compose.prod.yaml logs -f    (view logs)" -ForegroundColor Gray
+      L173  Write-Host "  docker compose -f compose.prod.yaml down       (stop)" -ForegroundColor Gray
+
+  --- setup-qm.ps1 ---
+      L2    # Run this AFTER install.ps1 has started the main Docker Compose stack.
+      L58   Push-Location $QmDir
+
+  --- smoke-deer-flow-outputs.ps1 ---
+
+  --- build-images.ps1 ---
+
+=== 2. Does install create state dirs (or does the repo ship them)? ===
+  --- install.ps1 ---
+      L31   # 3. Check .env
+      L32   if (-not (Test-Path .env)) {
+      L33   if (Test-Path .env.example) {
+      L34   Write-Host "ERROR: .env not found. Copy .env.example to .env and fill in passwords." -ForegroundColor Red
+      L35   Write-Host "  copy .env.example .env" -ForegroundColor Yellow
+      L36   Write-Host "  # then edit .env with your values" -ForegroundColor Yellow
+      L43   New-Item -ItemType Directory -Path $DataDir -Force | Out-Null
+      L48   New-Item -ItemType Directory -Path $OvDir -Force | Out-Null
+      L52   # 4b. Render OpenViking config (OPENVIKING_CONF_CONTENT) from template + secrets
+      L53   $envPath = ".\.env"
+      L54   $ovTemplate = ".\openviking\ov.conf.template"
+      L55   if ((Test-Path $envPath) -and (Test-Path $ovTemplate)) {
+      L66   $conf = Get-Content $ovTemplate -Raw
+      L70   # glues the new line onto the last line when .env has no trailing
+      L80   Write-Host "[OK] Rendered OPENVIKING_CONF_CONTENT into .env" -ForegroundColor Green
+      L86   $dfTemplate = ".\deer-flow-extensions-config.template.json"
+      L88   if ((Test-Path $dfTemplate) -and -not (Test-Path $dfRendered)) {
+      L89   # The template's openviking entry uses ${OPENVIKING_ROOT_API_KEY} (the
+      L95   $df = Get-Content $dfTemplate -Raw
+      L106  Write-Host "[OK] Rendered $dfRendered from template" -ForegroundColor Green
+      L109  Write-Host "  Set OPENVIKING_ROOT_API_KEY in .env, then re-run. compose.prod.yaml mounts this" -ForegroundColor Yellow
+
+  --- setup-qm.ps1 ---
+      L8    #   4. Creates .env from .env.example with generated secrets
+      L113  # 6. Create .env
+      L114  Write-Host "`nCreating .env..." -ForegroundColor Cyan
+      L130  $envContent | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
+      L134  chmod 600 .env
+      L137  Write-Host "[OK] .env created (secrets generated, NOT printed)" -ForegroundColor Green
+
+  --- smoke-deer-flow-outputs.ps1 ---
+      L14   #   DEER_FLOW_EMAIL     default from .env PACGATE_API_EMAIL
+      L15   #   DEER_FLOW_PASSWORD  default from .env PACGATE_API_PASSWORD
+      L33   # Resolve credentials from the bundle .env if not passed explicitly.
+      L35   # The .env file lives in the same directory as this script (deploy/client-bundle/).
+      L37   $envFile = Join-Path $bundleDir ".env"
+      L47   if (-not $Password) { throw "No deer-flow password provided. Set -Password or PACGATE_API_PASSWORD in .env." }
+
+  --- build-images.ps1 ---
+      L10   #   ghcr.io/pacgate-ai/pacgate-mcp:<Tag>              — pacgate-api MCP bridge (documents/templates/workflows)
+
+=== 3. Template vs live config in client-bundle ===
+  IGNORED   .env                                           2898 bytes
+  TRACKED   .env.example                                   2453 bytes
+  TRACKED   compose.bundle.yaml                            8220 bytes
+  TRACKED   compose.e2e-override.yaml                      716 bytes
+  TRACKED   compose.prod.yaml                              7566 bytes
+  TRACKED   deer-flow-config.yaml                          10366 bytes
+  IGNORED   deer-flow-extensions-config.json               10610 bytes
+  TRACKED   deer-flow-extensions-config.template.json      846 bytes
+  TRACKED   e2e-audit.py                                   6346 bytes
+  TRACKED   install.ps1                                    8464 bytes
+  TRACKED   ollama-models.txt                              1559 bytes
+  TRACKED   README-client.md                               4527 bytes
+  TRACKED   setup-qm.ps1                                   6267 bytes
+  TRACKED   smoke-deer-flow-outputs.ps1                    12173 bytes
+  TRACKED   strength-doc-loop.py                           9517 bytes

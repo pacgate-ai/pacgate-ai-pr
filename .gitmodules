@@ -1,0 +1,3 @@
+[submodule "pacgate-ai"]
+	path = pacgate-ai
+	url = https://github.com/JZKK720/pacgate-ai.git

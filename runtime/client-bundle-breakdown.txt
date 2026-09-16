@@ -1,0 +1,58 @@
+CLIENT-BUNDLE BREAKDOWN (what makes up the 1,924 MB of excluded content)
+
+--- subdirectories by size ---
+  data                       files=244       1915.72 MB
+  openviking                 files=145          9.04 MB
+  workflows                  files=15           0.52 MB
+  patches                    files=8            0.17 MB
+  nginx                      files=1               0 MB
+  personas                   files=1               0 MB
+
+--- tracked vs ignored inside each subdirectory ---
+  data                       tracked=0      ignored=244   
+  nginx                      tracked=1      ignored=0     
+  openviking                 tracked=1      ignored=144   
+  patches                    tracked=8      ignored=0     
+  personas                   tracked=1      ignored=0     
+  workflows                  tracked=15     ignored=0     
+
+--- TRACKED files in client-bundle (the shippable payload) ---
+  deploy/client-bundle/.env.example
+  deploy/client-bundle/README-client.md
+  deploy/client-bundle/compose.bundle.yaml
+  deploy/client-bundle/compose.e2e-override.yaml
+  deploy/client-bundle/compose.prod.yaml
+  deploy/client-bundle/deer-flow-config.yaml
+  deploy/client-bundle/deer-flow-extensions-config.template.json
+  deploy/client-bundle/e2e-audit.py
+  deploy/client-bundle/install.ps1
+  deploy/client-bundle/nginx/default.conf
+  deploy/client-bundle/ollama-models.txt
+  deploy/client-bundle/openviking/ov.conf.template
+  deploy/client-bundle/patches/deer-flow-agent.py
+  deploy/client-bundle/patches/deer-flow-artifacts.py
+  deploy/client-bundle/patches/deer-flow-prompt.py
+  deploy/client-bundle/patches/deer-flow-sync.py
+  deploy/client-bundle/patches/deer-flow-thread-runs.py
+  deploy/client-bundle/patches/deer-flow-uploads.py
+  deploy/client-bundle/patches/deer-flow-worker.py
+  deploy/client-bundle/patches/langchain-mcp-tools.py
+  deploy/client-bundle/personas/README.md
+  deploy/client-bundle/setup-qm.ps1
+  deploy/client-bundle/smoke-deer-flow-outputs.ps1
+  deploy/client-bundle/strength-doc-loop.py
+  deploy/client-bundle/workflows/archive_collection.yaml
+  deploy/client-bundle/workflows/banking_general.yaml
+  deploy/client-bundle/workflows/capital_markets.yaml
+  deploy/client-bundle/workflows/compliance_corporate.yaml
+  deploy/client-bundle/workflows/compliance_extra.yaml
+  deploy/client-bundle/workflows/compliance_specialized.yaml
+  deploy/client-bundle/workflows/contract_review.yaml
+  deploy/client-bundle/workflows/daily_general.yaml
+  deploy/client-bundle/workflows/fund_extra.yaml
+  deploy/client-bundle/workflows/fund_lawyer.yaml
+  deploy/client-bundle/workflows/investment_financing.yaml
+  deploy/client-bundle/workflows/litigation.yaml
+  deploy/client-bundle/workflows/litigation_extra.yaml
+  deploy/client-bundle/workflows/ma_due_diligence.yaml
+  deploy/client-bundle/workflows/nonlitigation_extra.yaml

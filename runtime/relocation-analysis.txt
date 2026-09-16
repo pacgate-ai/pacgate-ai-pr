@@ -1,0 +1,99 @@
+RELOCATION ANALYSIS: C:\pacgate-ai-pr  ->  pacgate-law\pacgate-ai
+======================================================================
+
+=== 1. Same volume? (fast rename vs full copy) ===
+  source root: C:\
+  target root: c:\
+  same volume: True
+
+=== 2. Top-level name collisions (SOURCE vs TARGET) ===
+  source top-level (38):
+      .github
+      .vscode
+      auth-gate
+      deploy
+      docs
+      graphify-out
+      nginx
+      pacgate-adapters
+      pacgate-ai
+      patches
+      plans
+      scope-assets
+      scripts
+      .env.example
+      .gitattributes
+      .gitignore
+      compose.yaml
+      CONTINUE-FROM-OTHER-MACHINE.md
+      extract_pdfs.py
+      probe_ckpt.py
+      probe_ckpt2.py
+      probe_repro.py
+      probe_timing.py
+      pull.log
+      pull_frontend.log
+      README-ZH.md
+      README.md
+      safe_clarification_board_to_pdf.py
+      safe_clarification_html_to_pdf.py
+      safe_markdown_to_pdf.py
+      tmp-api-err.ps1
+      tmp-drift-check.ps1
+      tmp-exec.json
+      tmp-ghcr-check.ps1
+      tmp-login.json
+      tmp-logs.ps1
+      tmp-tenant.ps1
+      tmp-wf-repro.ps1
+  target top-level (5):
+      assets
+      pacgate-ai
+      .gitignore
+      AGENTS.md
+      DEER-FLOW-INTEGRATION.md
+
+  COLLIDING names: 2
+      pacgate-ai
+          source: 11889 file(s)
+          target: 1 file(s)
+      .gitignore
+          source: 1 file(s)
+          target: 1 file(s)
+
+=== 3. Nesting: does SOURCE contain its own "pacgate-ai" dir? ===
+  C:\pacgate-ai-pr\pacgate-ai exists: True
+      crates
+      migrations
+      pacgate-ai-assets
+      target
+      wasm-crates
+      workflows
+      Cargo.lock
+      Cargo.toml
+      Dockerfile
+      v17.log
+
+  => Resulting path if contents are merged into the target:
+       pacgate-ai\pacgate-ai\...        (Rust workspace)
+  => The target tree is ALSO the old submodule, so:
+       pacgate-ai\assets\...            (submodule assets)
+
+=== 4. Are the assets duplicated between source and target? ===
+  vendored (source)               59 files      43.4 MB
+  submodule assets (target)       60 files      43.4 MB
+
+  SOUL_Sylvie_v1.0.md        vendored=1  submodule=1
+  OPERATOR.md                vendored=1  submodule=1
+  render.py                  vendored=1  submodule=1
+
+=== 5. Size to move ===
+  total: 13710 files, 6578.4 MB
+
+=== 6. Submodule state (must be resolved before merging) ===
+  .gitmodules: [submodule "pacgate-ai"]
+  .gitmodules: 	path = pacgate-ai
+  .gitmodules: 	url = https://github.com/JZKK720/pacgate-ai.git
+
+  target is a gitlink (mode 160000) -> it is a SUBMODULE, not plain files.
+  Merging real files into it requires removing the gitlink first.

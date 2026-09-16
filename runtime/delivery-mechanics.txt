@@ -1,0 +1,105 @@
+=== 1. Largest files under pacgate-ai-pr (excluding build output / vendored src) ===
+   1635.66 MB  deploy\client-bundle\data\deer-flow\checkpoints.db
+    123.58 MB  deploy\client-bundle\data\deer-flow\checkpoints.db-wal
+     64.35 MB  .git\objects\pack\pack-c9bd6bbace0b99a0318d09db9689ccdf1934e666.pack
+     37.66 MB  deploy\client-bundle\data\assets\智库资料收集\智库资料收集\律师角色提示指南\20201215_货拉拉项目法律尽职调查报告_Haiwen_扫描件.pdf
+     37.66 MB  pacgate-ai\pacgate-ai-assets\pacgate-ai\assets\assets\智库资料收集\智库资料收集\律师角色提示指南\20201215_货拉拉项目法律尽职调查报告_Haiwen_扫描件.pdf
+     16.21 MB  deploy\client-bundle\data\deer-flow\users\0f5f5a9c-3b22-49dd-9a6b-71ab545d539e\threads\d9d0fe54-f184-4ba7-8ffa-3a7f9882daa3\user-data\workspace\.fonts\NotoSansCJKsc-Bold.otf
+     16.21 MB  deploy\client-bundle\data\deer-flow\users\0f5f5a9c-3b22-49dd-9a6b-71ab545d539e\threads\d9d0fe54-f184-4ba7-8ffa-3a7f9882daa3\user-data\workspace\fonts\NotoSansCJKsc-Bold.otf
+     16.21 MB  deploy\client-bundle\data\deer-flow\users\0f5f5a9c-3b22-49dd-9a6b-71ab545d539e\threads\d9d0fe54-f184-4ba7-8ffa-3a7f9882daa3\user-data\workspace\.xdg\fonts\NotoSansCJKsc-Bold.otf
+     15.68 MB  deploy\client-bundle\data\deer-flow\users\0f5f5a9c-3b22-49dd-9a6b-71ab545d539e\threads\d9d0fe54-f184-4ba7-8ffa-3a7f9882daa3\user-data\workspace\.fonts\NotoSansCJKsc-Regular.otf
+     15.68 MB  deploy\client-bundle\data\deer-flow\users\0f5f5a9c-3b22-49dd-9a6b-71ab545d539e\threads\d9d0fe54-f184-4ba7-8ffa-3a7f9882daa3\user-data\workspace\fonts\NotoSansCJKsc-Regular.otf
+     15.68 MB  deploy\client-bundle\data\deer-flow\users\0f5f5a9c-3b22-49dd-9a6b-71ab545d539e\threads\d9d0fe54-f184-4ba7-8ffa-3a7f9882daa3\user-data\workspace\.xdg\fonts\NotoSansCJKsc-Regular.otf
+      5.15 MB  deploy\client-bundle\data\deer-flow\users\0f5f5a9c-3b22-49dd-9a6b-71ab545d539e\threads\d9d0fe54-f184-4ba7-8ffa-3a7f9882daa3\user-data\workspace\pkgtest_dir\fonttools-4.65.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+      4.87 MB  scope-assets\original-concept\Pacgate AI Law Firm 浅色科技版.pdf
+      3.95 MB  deploy\client-bundle\openviking\workspace\_system\usage_audit\usage_audit.sqlite3-wal
+      3.93 MB  deploy\client-bundle\data\deer-flow\data\deerflow.db-wal
+      3.93 MB  deploy\client-bundle\openviking\workspace\_system\queue\queue.db-wal
+      1.51 MB  .git\objects\pack\pack-cf5b1be654647f3896f54c590e48285d0613b14b.pack
+      1.41 MB  scope-assets\contracts\preapproval-contract-draft\out\pdf-bundle.zip
+  (>300KB files: 65, total 2048.4 MB)
+
+=== 2. Delivery archives (how the stack reaches a client machine) ===
+  client-delivery.zip  1370 KB
+    entries: 11   uncompressed: 1.87 MB
+          613675 B  client-delivery/docs/deer-flow-openviking-pacgate-handbook.zh.pdf
+          604106 B  client-delivery/docs/qm-openviking-pacgate-handbook.zh.pdf
+          185718 B  client-delivery/docs/USER-MANUAL.pdf
+          183311 B  client-delivery/docs/USER-MANUAL-ZH.pdf
+          152744 B  client-delivery/docs/PACGATE-LAW-STAFF-HANDBOOK.pdf
+          151502 B  client-delivery/docs/PACGATE-LAW-STAFF-HANDBOOK-ZH.pdf
+           34643 B  client-delivery/docs/AIPC-DEPLOYMENT-HANDBOOK.pdf
+           33311 B  client-delivery/docs/AIPC-DEPLOYMENT-HANDBOOK-ZH.pdf
+
+  pacgate-startup-docs.zip  634 KB
+    entries: 9   uncompressed: 0.86 MB
+          185718 B  docs/USER-MANUAL.pdf
+          183311 B  docs/USER-MANUAL-ZH.pdf
+          152744 B  docs/PACGATE-LAW-STAFF-HANDBOOK.pdf
+          151502 B  docs/PACGATE-LAW-STAFF-HANDBOOK-ZH.pdf
+           85028 B  docs/deer-flow-openviking-pacgate-handbook.zh.pdf
+           71352 B  docs/qm-openviking-pacgate-handbook.zh.pdf
+           34643 B  docs/AIPC-DEPLOYMENT-HANDBOOK.pdf
+           33311 B  docs/AIPC-DEPLOYMENT-HANDBOOK-ZH.pdf
+
+=== 3. Services defined across the compose projects ===
+  [pacgate-ai-bundle]  compose.bundle.yaml
+      - pacgate-db
+      - pacgate-api
+      - deer-flow
+      - deer-flow-frontend
+      - pacgate-mcp
+      - openviking
+      - nginx
+      (total: 7)
+
+  [qm-pacgate]  compose.qm.yaml
+      - core
+      - web-ui
+      - portal
+      - auth
+      - admin
+      - mailpit
+      - pg
+      (total: 7)
+
+  [bundle prod override]  compose.prod.yaml
+      - pacgate-db
+      - pacgate-api
+      - deer-flow
+      - deer-flow-frontend
+      - pacgate-mcp
+      - openviking
+      - nginx
+      (total: 7)
+
+  [bundle e2e override]  compose.e2e-override.yaml
+      - pacgate-db
+      - pacgate-api
+      - deer-flow
+      - nginx
+      (total: 4)
+
+=== 4. Path references that break when the tree is relocated ===
+  compose.bundle.yaml:
+      L26   volumes:
+      L48   volumes:
+      L74   volumes:
+      L154  volumes:
+      L166  volumes:
+      L170  volumes:
+
+  compose.qm.yaml:
+      L75   volumes:
+      L203  volumes:
+      L207  volumes:
+
+  compose.prod.yaml:
+      L15   volumes:
+      L37   volumes:
+      L63   volumes:
+      L140  volumes:
+      L152  volumes:
+      L156  volumes:
+
+  compose.e2e-override.yaml:

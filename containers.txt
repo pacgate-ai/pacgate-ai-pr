@@ -1,0 +1,21 @@
+﻿qm-pacgate-web-ui|Up 3 hours
+qm-pacgate-core|Up 3 hours
+pacgate-api|Up 18 hours
+deer-flow|Up About an hour
+pacgate-mcp|Up 20 hours
+pacgate-nginx|Up 20 hours
+deer-flow-frontend|Up 20 hours
+pacgate-db|Up 20 hours
+openviking|Up 20 hours (healthy)
+qm-pacgate-pg|Up 20 hours
+open-webui|Up 20 hours (healthy)
+odysseus-ntfy-1|Up 20 hours
+cloudflare|Up 20 hours
+hermes-web|Up 20 hours (healthy)
+hermes-gateway|Up 20 hours (healthy)
+hermes-postgres|Up 20 hours (healthy)
+ironclawai-survey|Up 20 hours
+odysseus-odysseus-1|Up 20 hours
+odysseus-searxng-1|Up 20 hours (healthy)
+odysseus-chromadb-1|Up 20 hours
+dockhand|Up 20 hours (healthy)

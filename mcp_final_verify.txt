@@ -1,0 +1,33 @@
+﻿docker : /app/backend/.venv/lib/python3.12/site-packages/langgraph/checkpoint/s
+erde/encrypted.py:5: LangChainPendingDeprecationWarning: The default value of `
+allowed_objects` will change in a future version. Pass an explicit value (e.g.,
+ allowed_objects='messages' or allowed_objects='core') to suppress this warning
+.
+所在位置 行:1 字符: 1
++ docker exec deer-flow /app/backend/.venv/bin/python /tmp/check_mcp_fi ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (/app/backend/.v...s this warning. 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+INITIALIZED: 134 MCP tools
+CORE TOOLS (18):
+  - openviking_add_resource
+  - openviking_cancel_watch
+  - openviking_edit
+  - openviking_find
+  - openviking_forget
+  - openviking_glob
+  - openviking_grep
+  - openviking_health
+  - openviking_list
+  - openviking_list_watches
+  - openviking_read
+  - openviking_remember
+  - openviking_search
+  - openviking_tree
+  - openviking_write
+  - pacgate_pacgate_connector_search
+  - pacgate_pacgate_kb_search
+  - pacgate_pacgate_list_connectors

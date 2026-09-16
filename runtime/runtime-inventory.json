@@ -1,0 +1,558 @@
+{
+    "generatedAt":  "2026-09-16T02:50:19Z",
+    "dockerVersion":  "29.8.0",
+    "containerCount":  25,
+    "containers":  [
+                       {
+                           "container":  "cloudflare",
+                           "state":  "running",
+                           "imageRef":  "cloudflare/cloudflared:latest",
+                           "imageId":  "sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339",
+                           "digest":  "sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339",
+                           "refPinned":  false,
+                           "floatingTag":  true,
+                           "floatingReason":  "moving tag :latest",
+                           "composeProject":  null,
+                           "composeService":  null,
+                           "composeWorkingDir":  null,
+                           "composeConfigFile":  null,
+                           "restartPolicy":  "always",
+                           "networks":  [
+                                            "bridge"
+                                        ],
+                           "ports":  [
+
+                                     ],
+                           "created":  "2026-09-01T14:57:03.830459321Z"
+                       },
+                       {
+                           "container":  "open-webui",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/open-webui/open-webui:main",
+                           "imageId":  "sha256:1a6399d237dc392a2313e0ca826020b3fd5d22536357840eb63393d18dc8b924",
+                           "digest":  "sha256:1a6399d237dc392a2313e0ca826020b3fd5d22536357840eb63393d18dc8b924",
+                           "refPinned":  false,
+                           "floatingTag":  true,
+                           "floatingReason":  "moving tag :main",
+                           "composeProject":  null,
+                           "composeService":  null,
+                           "composeWorkingDir":  null,
+                           "composeConfigFile":  null,
+                           "restartPolicy":  "always",
+                           "networks":  [
+                                            "bridge"
+                                        ],
+                           "ports":  [
+                                         "8080/tcp -\u003e host 3000"
+                                     ],
+                           "created":  "2026-09-07T02:41:30.851663429Z"
+                       },
+                       {
+                           "container":  "dockhand",
+                           "state":  "running",
+                           "imageRef":  "fnsys/dockhand:latest",
+                           "imageId":  "sha256:1b9473bd11cb60fed23bad8d335acb03f032b369230cd0a3dc3c0a1cbb8cb47c",
+                           "digest":  "sha256:1b9473bd11cb60fed23bad8d335acb03f032b369230cd0a3dc3c0a1cbb8cb47c",
+                           "refPinned":  false,
+                           "floatingTag":  true,
+                           "floatingReason":  "moving tag :latest",
+                           "composeProject":  "dockhand",
+                           "composeService":  "dockhand",
+                           "composeWorkingDir":  "C:\\Users\\pacga\\github-pr\\dockhand-dash",
+                           "composeConfigFile":  "C:\\Users\\pacga\\github-pr\\dockhand-dash\\docker-compose.yaml",
+                           "restartPolicy":  "always",
+                           "networks":  [
+                                            "dockhand_default"
+                                        ],
+                           "ports":  [
+                                         "3000/tcp -\u003e host 4131"
+                                     ],
+                           "created":  "2026-06-23T06:30:58.814741512Z"
+                       },
+                       {
+                           "container":  "hermes-gateway",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/jzkk720/hermes-agent:latest",
+                           "imageId":  "sha256:23622c74369f45a194584b59eda7923ea40ad2bfd390e8a967b3c6b256d1f0ed",
+                           "digest":  "sha256:23622c74369f45a194584b59eda7923ea40ad2bfd390e8a967b3c6b256d1f0ed",
+                           "refPinned":  false,
+                           "floatingTag":  true,
+                           "floatingReason":  "moving tag :latest",
+                           "composeProject":  "hermes-agent",
+                           "composeService":  "hermes-gateway",
+                           "composeWorkingDir":  "C:\\Users\\pacga\\github-pr\\hermes-agent",
+                           "composeConfigFile":  "C:\\Users\\pacga\\github-pr\\hermes-agent\\docker-compose.upstream.yml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "hermes-agent_default"
+                                        ],
+                           "ports":  [
+                                         "8644/tcp -\u003e host 8644",
+                                         "8789/tcp -\u003e host 8789"
+                                     ],
+                           "created":  "2026-09-07T03:02:55.233174297Z"
+                       },
+                       {
+                           "container":  "hermes-postgres",
+                           "state":  "running",
+                           "imageRef":  "postgres:16-alpine",
+                           "imageId":  "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+                           "digest":  "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+                           "refPinned":  false,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "hermes-agent",
+                           "composeService":  "postgres",
+                           "composeWorkingDir":  "C:\\Users\\pacga\\github-pr\\hermes-agent",
+                           "composeConfigFile":  "C:\\Users\\pacga\\github-pr\\hermes-agent\\docker-compose.upstream.yml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "hermes-agent_default"
+                                        ],
+                           "ports":  [
+                                         "5432/tcp -\u003e host 5433"
+                                     ],
+                           "created":  "2026-08-19T07:21:08.305521245Z"
+                       },
+                       {
+                           "container":  "hermes-web",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/jzkk720/hermes-agent:latest",
+                           "imageId":  "sha256:23622c74369f45a194584b59eda7923ea40ad2bfd390e8a967b3c6b256d1f0ed",
+                           "digest":  "sha256:23622c74369f45a194584b59eda7923ea40ad2bfd390e8a967b3c6b256d1f0ed",
+                           "refPinned":  false,
+                           "floatingTag":  true,
+                           "floatingReason":  "moving tag :latest",
+                           "composeProject":  "hermes-agent",
+                           "composeService":  "hermes-web",
+                           "composeWorkingDir":  "C:\\Users\\pacga\\github-pr\\hermes-agent",
+                           "composeConfigFile":  "C:\\Users\\pacga\\github-pr\\hermes-agent\\docker-compose.upstream.yml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "hermes-agent_default"
+                                        ],
+                           "ports":  [
+                                         "9119/tcp -\u003e host 9119"
+                                     ],
+                           "created":  "2026-09-07T03:02:48.508358191Z"
+                       },
+                       {
+                           "container":  "ironclawai-survey",
+                           "state":  "running",
+                           "imageRef":  "ironclawai-survey-ironclawai-survey",
+                           "imageId":  "sha256:739f62adf19b7b55e99430cd0869b08104e41c2bf0170af3993facd08f83b495",
+                           "digest":  "sha256:739f62adf19b7b55e99430cd0869b08104e41c2bf0170af3993facd08f83b495",
+                           "refPinned":  false,
+                           "floatingTag":  true,
+                           "floatingReason":  "no tag (implicit :latest)",
+                           "composeProject":  "ironclawai-survey",
+                           "composeService":  "ironclawai-survey",
+                           "composeWorkingDir":  "C:\\Users\\pacga\\github-pr\\ironclawai-survey",
+                           "composeConfigFile":  "C:\\Users\\pacga\\github-pr\\ironclawai-survey\\docker-compose.yml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "ironclawai-survey_default"
+                                        ],
+                           "ports":  [
+                                         "80/tcp -\u003e host 8081"
+                                     ],
+                           "created":  "2026-07-09T04:34:50.087516877Z"
+                       },
+                       {
+                           "container":  "odysseus-chromadb-1",
+                           "state":  "running",
+                           "imageRef":  "docker.io/chromadb/chroma:latest",
+                           "imageId":  "sha256:1e0b73a187a28757c572acba508c46f48c9e8b0acaf5c20e6d95cdedce1acdf6",
+                           "digest":  "sha256:1e0b73a187a28757c572acba508c46f48c9e8b0acaf5c20e6d95cdedce1acdf6",
+                           "refPinned":  false,
+                           "floatingTag":  true,
+                           "floatingReason":  "moving tag :latest",
+                           "composeProject":  "odysseus",
+                           "composeService":  "chromadb",
+                           "composeWorkingDir":  "C:\\Users\\pacga\\github-pr\\odysseus",
+                           "composeConfigFile":  "C:\\Users\\pacga\\github-pr\\odysseus\\docker-compose.yml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "odysseus_default"
+                                        ],
+                           "ports":  [
+                                         "8000/tcp -\u003e host 8100"
+                                     ],
+                           "created":  "2026-06-27T05:49:27.464727701Z"
+                       },
+                       {
+                           "container":  "odysseus-ntfy-1",
+                           "state":  "running",
+                           "imageRef":  "docker.io/binwiederhier/ntfy",
+                           "imageId":  "sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da",
+                           "digest":  "sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da",
+                           "refPinned":  false,
+                           "floatingTag":  true,
+                           "floatingReason":  "no tag (implicit :latest)",
+                           "composeProject":  "odysseus",
+                           "composeService":  "ntfy",
+                           "composeWorkingDir":  "C:\\Users\\pacga\\github-pr\\odysseus",
+                           "composeConfigFile":  "C:\\Users\\pacga\\github-pr\\odysseus\\docker-compose.yml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "odysseus_default"
+                                        ],
+                           "ports":  [
+                                         "80/tcp -\u003e host 8091"
+                                     ],
+                           "created":  "2026-09-01T14:57:33.848977315Z"
+                       },
+                       {
+                           "container":  "odysseus-odysseus-1",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/jzkk720/odysseus:main",
+                           "imageId":  "sha256:9c22f86478505311805cec06bbb8fc65c506e8747fc3b201e0d716d5eed366f5",
+                           "digest":  "sha256:9c22f86478505311805cec06bbb8fc65c506e8747fc3b201e0d716d5eed366f5",
+                           "refPinned":  false,
+                           "floatingTag":  true,
+                           "floatingReason":  "moving tag :main",
+                           "composeProject":  "odysseus",
+                           "composeService":  "odysseus",
+                           "composeWorkingDir":  "C:\\Users\\pacga\\github-pr\\odysseus",
+                           "composeConfigFile":  "C:\\Users\\pacga\\github-pr\\odysseus\\docker-compose.yml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "odysseus_default"
+                                        ],
+                           "ports":  [
+                                         "7000/tcp -\u003e host 7000"
+                                     ],
+                           "created":  "2026-06-27T05:59:47.829660755Z"
+                       },
+                       {
+                           "container":  "odysseus-searxng-1",
+                           "state":  "running",
+                           "imageRef":  "docker.io/searxng/searxng:2026.5.31-7159b8aed",
+                           "imageId":  "sha256:35b089054ac9b4257976107e71673d9e30ac17c9b50bbf8b4783f2f6d1d1981f",
+                           "digest":  "sha256:35b089054ac9b4257976107e71673d9e30ac17c9b50bbf8b4783f2f6d1d1981f",
+                           "refPinned":  false,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "odysseus",
+                           "composeService":  "searxng",
+                           "composeWorkingDir":  "C:\\Users\\pacga\\github-pr\\odysseus",
+                           "composeConfigFile":  "C:\\Users\\pacga\\github-pr\\odysseus\\docker-compose.yml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "odysseus_default"
+                                        ],
+                           "ports":  [
+                                         "8080/tcp -\u003e host 18080"
+                                     ],
+                           "created":  "2026-06-27T05:49:27.465394226Z"
+                       },
+                       {
+                           "container":  "deer-flow",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.10",
+                           "imageId":  "sha256:860ed66423cf0b0dab8a714ce61216e608a93f57e178db7b9e7477fb1f3372ef",
+                           "digest":  "sha256:860ed66423cf0b0dab8a714ce61216e608a93f57e178db7b9e7477fb1f3372ef",
+                           "refPinned":  false,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "pacgate-ai-bundle",
+                           "composeService":  "deer-flow",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\client-bundle",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\client-bundle\\compose.bundle.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "pacgate-ai-bundle_default"
+                                        ],
+                           "ports":  [
+                                         "8001/tcp (internal only)"
+                                     ],
+                           "created":  "2026-09-13T06:44:06.414120262Z"
+                       },
+                       {
+                           "container":  "deer-flow-frontend",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.11",
+                           "imageId":  "sha256:9cfa6692be76db48985a0a39c49dc4209a898dd6f228e5b9f0801a42557e5ead",
+                           "digest":  "sha256:9cfa6692be76db48985a0a39c49dc4209a898dd6f228e5b9f0801a42557e5ead",
+                           "refPinned":  false,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "pacgate-ai-bundle",
+                           "composeService":  "deer-flow-frontend",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\client-bundle",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\client-bundle\\compose.bundle.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "pacgate-ai-bundle_default"
+                                        ],
+                           "ports":  [
+                                         "3000/tcp -\u003e host 8090"
+                                     ],
+                           "created":  "2026-09-13T04:02:45.237404477Z"
+                       },
+                       {
+                           "container":  "openviking",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/volcengine/openviking@sha256:46f9e34cd37238c28cbd9535033773d179006bdf7f3e528dd1c46567abce7701",
+                           "imageId":  "sha256:46f9e34cd37238c28cbd9535033773d179006bdf7f3e528dd1c46567abce7701",
+                           "digest":  "sha256:46f9e34cd37238c28cbd9535033773d179006bdf7f3e528dd1c46567abce7701",
+                           "refPinned":  true,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "pacgate-ai-bundle",
+                           "composeService":  "openviking",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\client-bundle",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\client-bundle\\compose.bundle.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "pacgate-ai-bundle_default"
+                                        ],
+                           "ports":  [
+                                         "1933/tcp -\u003e host 1933"
+                                     ],
+                           "created":  "2026-09-06T12:47:08.563528312Z"
+                       },
+                       {
+                           "container":  "pacgate-api",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/pacgate-ai/pacgate-api:0.1.9",
+                           "imageId":  "sha256:5825fb7a56abd9e9ac3ac053d56c56d2431c2de1a14d01730cbaaeee8666a7b9",
+                           "digest":  "sha256:5825fb7a56abd9e9ac3ac053d56c56d2431c2de1a14d01730cbaaeee8666a7b9",
+                           "refPinned":  false,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "pacgate-ai-bundle",
+                           "composeService":  "pacgate-api",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\client-bundle",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\client-bundle\\compose.bundle.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "pacgate-ai-bundle_default"
+                                        ],
+                           "ports":  [
+                                         "8080/tcp (internal only)"
+                                     ],
+                           "created":  "2026-09-11T10:37:19.687975378Z"
+                       },
+                       {
+                           "container":  "pacgate-db",
+                           "state":  "running",
+                           "imageRef":  "pgvector/pgvector:pg16",
+                           "imageId":  "sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b",
+                           "digest":  "sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b",
+                           "refPinned":  false,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "pacgate-ai-bundle",
+                           "composeService":  "pacgate-db",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\client-bundle",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\client-bundle\\compose.bundle.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "pacgate-ai-bundle_default"
+                                        ],
+                           "ports":  [
+                                         "5432/tcp (internal only)"
+                                     ],
+                           "created":  "2026-09-06T07:26:42.227100899Z"
+                       },
+                       {
+                           "container":  "pacgate-mcp",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/pacgate-ai/pacgate-mcp:0.1.9",
+                           "imageId":  "sha256:8b43b6feb413b78fb33b41a439b1b9697f950600c8be6af9a733a1ee875893f4",
+                           "digest":  "sha256:8b43b6feb413b78fb33b41a439b1b9697f950600c8be6af9a733a1ee875893f4",
+                           "refPinned":  false,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "pacgate-ai-bundle",
+                           "composeService":  "pacgate-mcp",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\client-bundle",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\client-bundle\\compose.bundle.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "pacgate-ai-bundle_default"
+                                        ],
+                           "ports":  [
+                                         "8000/tcp (internal only)"
+                                     ],
+                           "created":  "2026-09-11T21:32:28.924518202Z"
+                       },
+                       {
+                           "container":  "pacgate-nginx",
+                           "state":  "running",
+                           "imageRef":  "nginx:1.27-alpine",
+                           "imageId":  "sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10",
+                           "digest":  "sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10",
+                           "refPinned":  false,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "pacgate-ai-bundle",
+                           "composeService":  "nginx",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\client-bundle",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\client-bundle\\compose.bundle.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "pacgate-ai-bundle_default"
+                                        ],
+                           "ports":  [
+                                         "80/tcp -\u003e host 8089"
+                                     ],
+                           "created":  "2026-09-06T03:38:04.544071778Z"
+                       },
+                       {
+                           "container":  "qm-pacgate-admin-1",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/yc-software/qm/admin@sha256:ec071338547e17d44337441d3144a068e6f3119fc377b2d9dd5c75d5b210c604",
+                           "imageId":  "sha256:ec071338547e17d44337441d3144a068e6f3119fc377b2d9dd5c75d5b210c604",
+                           "digest":  "sha256:ec071338547e17d44337441d3144a068e6f3119fc377b2d9dd5c75d5b210c604",
+                           "refPinned":  true,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "qm-pacgate",
+                           "composeService":  "admin",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate\\compose.qm.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "qm-pacgate"
+                                        ],
+                           "ports":  [
+                                         "8080/tcp -\u003e host 8183"
+                                     ],
+                           "created":  "2026-09-06T12:07:13.729172543Z"
+                       },
+                       {
+                           "container":  "qm-pacgate-auth-1",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/yc-software/qm/auth@sha256:27f2e1467adca3d5dc6fb75f2d624a514d113a437893cc75d1eb54ebf365639b",
+                           "imageId":  "sha256:27f2e1467adca3d5dc6fb75f2d624a514d113a437893cc75d1eb54ebf365639b",
+                           "digest":  "sha256:27f2e1467adca3d5dc6fb75f2d624a514d113a437893cc75d1eb54ebf365639b",
+                           "refPinned":  true,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "qm-pacgate",
+                           "composeService":  "auth",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate\\compose.qm.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "qm-pacgate"
+                                        ],
+                           "ports":  [
+                                         "8080/tcp (internal only)"
+                                     ],
+                           "created":  "2026-09-07T07:54:27.914170934Z"
+                       },
+                       {
+                           "container":  "qm-pacgate-core-1",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/yc-software/qm/core@sha256:bee03e7f22719dfe76ea2c83bb65db2bdefd55b714eae4014007033800bdb5ab",
+                           "imageId":  "sha256:bee03e7f22719dfe76ea2c83bb65db2bdefd55b714eae4014007033800bdb5ab",
+                           "digest":  "sha256:bee03e7f22719dfe76ea2c83bb65db2bdefd55b714eae4014007033800bdb5ab",
+                           "refPinned":  true,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "qm-pacgate",
+                           "composeService":  "core",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate\\compose.qm.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "qm-pacgate"
+                                        ],
+                           "ports":  [
+                                         "8080/tcp -\u003e host 8180"
+                                     ],
+                           "created":  "2026-09-07T10:45:50.83001196Z"
+                       },
+                       {
+                           "container":  "qm-pacgate-mailpit-1",
+                           "state":  "running",
+                           "imageRef":  "axllent/mailpit:v1.24",
+                           "imageId":  "sha256:3ad9483ac2dea937ae402b95435ab12c3355d2373a1002a49491db0be536d8fa",
+                           "digest":  "sha256:3ad9483ac2dea937ae402b95435ab12c3355d2373a1002a49491db0be536d8fa",
+                           "refPinned":  false,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "qm-pacgate",
+                           "composeService":  "mailpit",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate\\compose.qm.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "qm-pacgate"
+                                        ],
+                           "ports":  [
+                                         "8025/tcp -\u003e host 8025"
+                                     ],
+                           "created":  "2026-09-06T12:07:13.530397051Z"
+                       },
+                       {
+                           "container":  "qm-pacgate-pg-1",
+                           "state":  "running",
+                           "imageRef":  "postgres:16",
+                           "imageId":  "sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94",
+                           "digest":  "sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94",
+                           "refPinned":  false,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "qm-pacgate",
+                           "composeService":  "pg",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate\\compose.qm.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "qm-pacgate"
+                                        ],
+                           "ports":  [
+                                         "5432/tcp (internal only)"
+                                     ],
+                           "created":  "2026-09-06T12:07:13.548351222Z"
+                       },
+                       {
+                           "container":  "qm-pacgate-portal-1",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/yc-software/qm/portal@sha256:e245dfc2c12a47f18f0bb367622538b30e9b89e890a145dcfd5abefe342d0e98",
+                           "imageId":  "sha256:e245dfc2c12a47f18f0bb367622538b30e9b89e890a145dcfd5abefe342d0e98",
+                           "digest":  "sha256:e245dfc2c12a47f18f0bb367622538b30e9b89e890a145dcfd5abefe342d0e98",
+                           "refPinned":  true,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "qm-pacgate",
+                           "composeService":  "portal",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate\\compose.qm.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "qm-pacgate"
+                                        ],
+                           "ports":  [
+                                         "8080/tcp -\u003e host 8181"
+                                     ],
+                           "created":  "2026-09-07T07:54:31.315125999Z"
+                       },
+                       {
+                           "container":  "qm-pacgate-web-ui-1",
+                           "state":  "running",
+                           "imageRef":  "ghcr.io/yc-software/qm/web-ui@sha256:f037834fd726bcff220245665ef46accb10b476331006a85c59defbde1635e52",
+                           "imageId":  "sha256:f037834fd726bcff220245665ef46accb10b476331006a85c59defbde1635e52",
+                           "digest":  "sha256:f037834fd726bcff220245665ef46accb10b476331006a85c59defbde1635e52",
+                           "refPinned":  true,
+                           "floatingTag":  false,
+                           "floatingReason":  "",
+                           "composeProject":  "qm-pacgate",
+                           "composeService":  "web-ui",
+                           "composeWorkingDir":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate",
+                           "composeConfigFile":  "C:\\pacgate-ai-pr\\deploy\\qm-pacgate\\compose.qm.yaml",
+                           "restartPolicy":  "unless-stopped",
+                           "networks":  [
+                                            "qm-pacgate"
+                                        ],
+                           "ports":  [
+                                         "8080/tcp -\u003e host 8182"
+                                     ],
+                           "created":  "2026-09-06T12:07:13.728544528Z"
+                       }
+                   ]
+}

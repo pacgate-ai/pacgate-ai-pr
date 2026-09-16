@@ -1,0 +1,13 @@
+FINAL ENCODING VERDICT (byte-level, no CJK literals in this script)
+
+2026-09-16-credential-exposure-incident.md     utf8=True   FFFD=0   BOM=False  pairs=2   UNPAIRED=0   => CLEAN
+2026-09-16-mono-repo-consolidation-plan.md     utf8=True   FFFD=0   BOM=False  pairs=3   UNPAIRED=0   => CLEAN
+2026-09-16-mono-stack-delivery-plan.md         utf8=True   FFFD=0   BOM=False  pairs=3   UNPAIRED=0   => CLEAN
+2026-09-16-repo-consolidation-and-runtime-pinning-design.md utf8=True   FFFD=0   BOM=False  pairs=0   UNPAIRED=0   => CLEAN
+AGENTS.md                                      utf8=True   FFFD=0   BOM=False  pairs=2   UNPAIRED=0   => CLEAN
+README.md                                      utf8=True   FFFD=0   BOM=False  pairs=0   UNPAIRED=0   => CLEAN
+
+Note: an earlier "mojibake: True" reading came from a check whose own
+CJK search pattern was corrupted by PowerShell's GBK read of the BOM-less
+script -- i.e. the test was broken, not the document. Encoding checks must
+compare bytes, never CJK literals.

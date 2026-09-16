@@ -1,0 +1,88 @@
+RELOCATION PREFLIGHT
+run at: 2026-09-16 13:26:03
+
+=== 1. ROLLBACK ANCHOR ===
+  source repo    : C:\pacgate-ai-pr
+  HEAD           : 151a3832f9015595b6e01c133ff38bbb30ec902e
+  branch         : feat/agent-capability-enablement
+  commit count   : 158
+  untracked/modified:
+      ?? .vscode/
+      ?? probe_ckpt.py
+      ?? probe_ckpt2.py
+      ?? probe_repro.py
+      ?? probe_timing.py
+      ?? tmp-api-err.ps1
+      ?? tmp-drift-check.ps1
+      ?? tmp-exec.json
+      ?? tmp-ghcr-check.ps1
+      ?? tmp-login.json
+      ?? tmp-logs.ps1
+      ?? tmp-tenant.ps1
+      ?? tmp-wf-repro.ps1
+  (total dirty: 13)
+
+  target repo    : c:\Users\pacga\github-pr\pacgate-law
+  has commits    : False
+
+=== 2. .git BACKUPS ===
+  C:\pacgate-ai-pr\.git              -> C:\backup-pacgate-ai-pr-git
+      exists=True  files=327  size=67.1 MB
+  c:\Users\pacga\github-pr\pacgate-law\.git -> C:\backup-pacgate-law-git
+      exists=True  files=22  size=0 MB
+
+=== 3. RUNTIME INVENTORY (before) ===
+  running containers : 25
+  volumes            : 15
+  images             : 31
+
+  --- containers ---
+      deer-flow|Up 27 hours
+      deer-flow-frontend|Up 27 hours
+      pacgate-mcp|Up 27 hours
+      pacgate-api|Up 27 hours
+      qm-pacgate-core-1|Up 27 hours
+      qm-pacgate-portal-1|Up 27 hours
+      qm-pacgate-auth-1|Up 27 hours
+      hermes-gateway|Up 27 hours (healthy)
+      hermes-web|Up 2 seconds (health: starting)
+      open-webui|Up 27 hours (healthy)
+      openviking|Up 27 hours (healthy)
+      qm-pacgate-admin-1|Up 27 hours
+      qm-pacgate-web-ui-1|Up 27 hours
+      qm-pacgate-pg-1|Up 27 hours
+      qm-pacgate-mailpit-1|Up 27 hours (healthy)
+      pacgate-db|Up 27 hours
+      pacgate-nginx|Up 27 hours
+      odysseus-ntfy-1|Up 27 hours
+      cloudflare|Up 27 hours
+      hermes-postgres|Up 27 hours (healthy)
+      ironclawai-survey|Up 27 hours
+      odysseus-odysseus-1|Up 27 hours
+      odysseus-searxng-1|Up 27 hours (healthy)
+      odysseus-chromadb-1|Up 27 hours
+      dockhand|Up 27 hours (healthy)
+
+  --- volumes ---
+      a604df063cb0e47dc5822915d93ea71aaad7fa9f56947010e60902136e51a902
+      client-bundle_pacgate-db-data
+      deer-flow_redis-data
+      dockhand_dockhand_data
+      hermes-agent_hermes_web_gateway_default_log
+      hermes-agent_postgres_data
+      ironclaw-pgdata
+      odysseus_chromadb-data
+      odysseus_ntfy-cache
+      odysseus_searxng-data
+      open-webui
+      pacgate-ai-bundle_pacgate-db-data
+      pacgate-cargo-cache
+      qm-pacgate-coredata
+      qm-pacgate-pgdata
+
+  wrote: c:\Users\pacga\github-pr\pacgate-law\runtime\relocate\inventory-BEFORE.json
+
+=== 4. CAPACITY CHECK ===
+  free space   : 395 GB
+  source size  : 6578.4 MB
+  need (copy)  : ~6.4 GB  -> True

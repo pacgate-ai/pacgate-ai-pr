@@ -1,0 +1,36 @@
+WHY ARE THESE TWO FILES MISSING FROM checkout-index?
+==============================================================
+
+=== progress-reportcard pdf ===
+  path: docs/progress-reportcard/项目时间线与关键节点.pdf
+  tracked in git index : True
+  present on disk      : True
+  index status flag    : H "docs/progress-reportcard/\351\241\271\347\233\256\346\227\266\351\227\264\347\272\277\344\270\216\345\205\263\351\224\256\350\212\202\347\202\271.pdf"   (h=normal, S=skip-worktree, h+ assume-unchanged)
+  ignored              : no
+
+=== q&a docx ===
+  path: docs/assets/q&a/Pacgate_AI_Phase1_技术方书面澄清问题清单.docx
+  tracked in git index : True
+  present on disk      : True
+  index status flag    : H "docs/assets/q&a/Pacgate_AI_Phase1_\346\212\200\346\234\257\346\226\271\344\271\246\351\235\242\346\276\204\346\270\205\351\227\256\351\242\230\346\270\205\345\215\225.docx"   (h=normal, S=skip-worktree, h+ assume-unchanged)
+  ignored              : no
+
+=== tracked file counts under the two directories ===
+  docs/progress-reportcard : 5 tracked
+  docs/assets : 2 tracked
+
+=== index vs working tree ===
+  files in index        : 515
+  files extracted by CI : 515 (measured earlier)
+
+  If these differ, some files are in the working tree but NOT tracked,
+  which explains missing files without any extraction bug.
+
+=== are they untracked local files? ===
+  progress-reportcard pdf: status=''  ('??' = untracked)
+  q&a docx: status=''  ('??' = untracked)
+
+  NOTE: `git archive HEAD` and `checkout-index` both reflect the INDEX.
+  Untracked working-tree files are NOT included by either method.
+  => Files that exist on disk but were never committed simply do not move,
+     with either method. That is correct behaviour, not a bug.

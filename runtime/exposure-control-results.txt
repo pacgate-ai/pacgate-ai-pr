@@ -1,0 +1,12 @@
+EXPOSURE CHECK WITH NEGATIVE CONTROLS
+
+CONTROL: bogus path (must 404)     HTTP 404
+CONTROL: bogus repo (must 404)     HTTP 404
+TARGET: fork raw                   HTTP 200  bytes=1731
+TARGET: origin raw                 HTTP 200  bytes=2250
+
+Interpretation:
+  If the CONTROL rows return 404 and the TARGET rows return 200, the
+  200 responses are genuine and the file is publicly readable.
+  If the CONTROL rows also return 200, the responses are being
+  intercepted (proxy) and this test proves nothing.

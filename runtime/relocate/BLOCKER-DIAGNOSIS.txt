@@ -1,0 +1,50 @@
+BLOCKER DIAGNOSIS
+run at: 2026-09-16 13:39:30
+
+=== A. How many tracked files have non-ASCII (CJK) names? ===
+  total tracked : 515
+  non-ASCII     : 59
+
+  examples:
+      Pacgate_AI_Phase1_鎶€鏈柟涔﹂潰婢勬竻闂娓呭崟.docx
+      椤圭洰鏃堕棿绾夸笌鍏抽敭鑺傜偣.pdf
+      SOUL_Justin_v1.0.md
+      SOUL_Sylvie_v1.0.md
+      璧勬枡鏀堕泦鐩綍_鐧惧鍥炲～_绗竴浜岄儴鍒哶v1.1.md
+
+=== B. Extraction method comparison ===
+
+  --- B1. tar.exe (system bsdtar) ---
+      extracted: 478 / 515   INCOMPLETE
+
+  --- B2. git checkout-index (writes tracked files directly) ---
+      extracted: 515 / 515   OK
+
+  --- B3. Python tarfile ---
+      C:\temp\blkdiag\extract.py:8: DeprecationWarning: Python 3.14 will, by default, filter extracted tar archives and reject files or modify their metadata. Use the filter argument to control this behavior.
+        t.extract(m, dst)
+      EXTRACTED 515
+      extracted: 515 / 515   OK
+
+  --- B4. robocopy from working tree (copying only tracked paths) ---
+      copied: 456   failed: 59   INCOMPLETE
+
+=== C. Which credential files does the archive actually carry? ===
+
+  tracked OPERATOR.md entries: 1
+      pacgate-ai/pacgate-ai-assets/pacgate-ai/assets/assets/pacgate-ai-remote-handbook/OPERATOR.md
+
+  tracked files under MCP授权: 0
+
+  => These ARE in the archive, because they are git-tracked in pacgate-ai-pr.
+     The migration MUST exclude them explicitly, not rely on absence.
+
+=== D. Verdict ===
+
+  python tarfile     515 / 515
+  checkout-index     515 / 515
+  tar.exe            478 / 515
+  robocopy           456 / 515
+
+  BEST METHOD: python tarfile (515 of 515)
+  => Use this method for the real migration.

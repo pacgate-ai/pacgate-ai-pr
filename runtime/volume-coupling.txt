@@ -1,0 +1,84 @@
+VOLUME / BIND-MOUNT DEFINITIONS (relocation risk assessment)
+
+================ compose.bundle.yaml ================
+  L26       volumes:
+  L27         - pacgate-db-data:/var/lib/postgresql/data
+  L48       volumes:
+  L49         - ./data:/data
+  L74       volumes:
+  L75         - ./data:/data
+  L76         - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
+  L77         - ./workflows:/app/workflows:ro
+  L78         - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
+  L82         - ./patches/deer-flow-artifacts.py:/app/backend/app/gateway/routers/artifacts.py:ro
+  L86         - ./patches/deer-flow-thread-runs.py:/app/backend/app/gateway/routers/thread_runs.py:ro
+  L90         - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro
+  L94         - ./patches/deer-flow-prompt.py:/app/backend/packages/harness/deerflow/agents/lead_agent/prompt.py:ro
+  L100        - ./patches/deer-flow-agent.py:/app/backend/packages/harness/deerflow/agents/lead_agent/agent.py:ro
+  L105        - ./patches/deer-flow-worker.py:/app/backend/packages/harness/deerflow/runtime/runs/worker.py:ro
+  L111        - ./patches/deer-flow-sync.py:/app/backend/packages/harness/deerflow/tools/sync.py:ro
+  L117        - ./patches/langchain-mcp-tools.py:/app/backend/.venv/lib/python3.12/site-packages/langchain_mcp_adapters/tools.py:ro
+  L121        - ./data/deer-flow:/app/backend/.deer-flow
+  L154      volumes:
+  L155        - ./openviking:/app/.openviking
+  L166      volumes:
+  L167        - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+  L170  volumes:
+
+================ compose.qm.yaml ================
+  L75       volumes:
+  L76         - ./sandbox/skills:/layer/skills:ro
+  L77         - ./sandbox/tools:/layer/tools:ro
+  L81         - ./patch/pi-models.ts:/app/src/model/pi-models.ts:ro
+  L82         - qm-pacgate-coredata:/data
+  L84         - "${QM_CORE_PORT:-8180}:8080"
+  L101        - "${QM_WEBUI_PORT:-8182}:8080"
+  L137        - "${QM_PORTAL_PORT:-8181}:8080"
+  L184        - "${QM_ADMIN_PORT:-8183}:8080"
+  L194        - "${QM_MAILPIT_PORT:-8025}:8025"
+  L203      volumes:
+  L204        - qm-pacgate-pgdata:/var/lib/postgresql/data
+  L207  volumes:
+
+================ compose.prod.yaml ================
+  L15       volumes:
+  L16         - pacgate-db-data:/var/lib/postgresql/data
+  L37       volumes:
+  L38         - ./data:/data
+  L63       volumes:
+  L64         - ./data:/data
+  L65         - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
+  L66         - ./workflows:/app/workflows:ro
+  L67         - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
+  L71         - ./patches/deer-flow-artifacts.py:/app/backend/app/gateway/routers/artifacts.py:ro
+  L75         - ./patches/deer-flow-thread-runs.py:/app/backend/app/gateway/routers/thread_runs.py:ro
+  L79         - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro
+  L83         - ./patches/deer-flow-prompt.py:/app/backend/packages/harness/deerflow/agents/lead_agent/prompt.py:ro
+  L86         - ./patches/deer-flow-agent.py:/app/backend/packages/harness/deerflow/agents/lead_agent/agent.py:ro
+  L89         - ./patches/deer-flow-worker.py:/app/backend/packages/harness/deerflow/runtime/runs/worker.py:ro
+  L95         - ./patches/deer-flow-sync.py:/app/backend/packages/harness/deerflow/tools/sync.py:ro
+  L98         - ./patches/langchain-mcp-tools.py:/app/backend/.venv/lib/python3.12/site-packages/langchain_mcp_adapters/tools.py:ro
+  L102        - ./data/deer-flow:/app/backend/.deer-flow
+  L140      volumes:
+  L141        - ./openviking:/app/.openviking
+  L152      volumes:
+  L153        - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+  L156  volumes:
+
+================ top-level named volume declarations ================
+-- compose.bundle.yaml
+   L170: volumes:
+        pacgate-db-data:
+
+-- compose.qm.yaml
+   L207: volumes:
+        qm-pacgate-coredata:
+          name: qm-pacgate-coredata
+          external: true
+        qm-pacgate-pgdata:
+          name: qm-pacgate-pgdata
+          external: true
+
+-- compose.prod.yaml
+   L156: volumes:
+        pacgate-db-data:

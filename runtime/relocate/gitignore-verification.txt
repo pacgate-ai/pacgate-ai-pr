@@ -1,0 +1,52 @@
+GITIGNORE RULE VERIFICATION
+============================================================
+
+Two separate questions:
+  (a) Do the RULES themselves work?
+  (b) Why did check-ignore report "NOT IGNORED" for pacgate-ai/... ?
+
+=== (b) Why the earlier check reported NOT IGNORED ===
+
+  git ls-files -s pacgate-ai :
+      160000 f712ec2dc20fc91b3ce97b2aa08764b721d4dd37 0	pacgate-ai
+
+  git check-ignore on a path inside it:
+      fatal: Pathspec 'pacgate-ai/deploy/client-bundle/data/deer-flow/checkpoints.db' is in submodule 'pacgate-ai'
+
+  => "fatal: Pathspec ... is in submodule" -- git never evaluated the rules.
+     The earlier NOT IGNORED result was a FALSE ALARM caused by the
+     submodule boundary, NOT by a missing rule.
+     Once the gitlink is removed (Task 1.0), paths become evaluable.
+
+=== (a) Do the rule patterns actually work? (tested outside the submodule) ===
+
+  [PASS] client data dir
+          pacgate-ai/deploy/client-bundle/data/deer-flow/checkpoints.db
+          -> .gitignore:40:pacgate-ai/deploy/client-bundle/data/	pacgate-ai/deploy/client-bundle/data/deer-flow/checkpoints.db
+  [PASS] rendered .env
+          pacgate-ai/deploy/client-bundle/.env
+          -> pacgate-ai/.gitignore:1:.env	pacgate-ai/deploy/client-bundle/.env
+  [PASS] rendered config w/ keys
+          pacgate-ai/deploy/client-bundle/deer-flow-extensions-config.json
+          -> .gitignore:45:pacgate-ai/deploy/client-bundle/deer-flow-extensions-config.json	pacgate-ai/deploy/client-bundle/deer-flow-extensions-config.json
+  [PASS] qm runtime
+          pacgate-ai/deploy/qm-pacgate/tasks/x
+          -> .gitignore:54:pacgate-ai/deploy/qm-pacgate/tasks/	pacgate-ai/deploy/qm-pacgate/tasks/x
+  [PASS] graphify output
+          pacgate-ai/graphify-out/x
+          -> .gitignore:65:pacgate-ai/graphify-out/	pacgate-ai/graphify-out/x
+  [PASS] openviking state
+          pacgate-ai/deploy/client-bundle/openviking/workspace/x
+          -> .gitignore:51:pacgate-ai/deploy/client-bundle/openviking/workspace/	pacgate-ai/deploy/client-bundle/openviking/workspace/x
+
+  patterns working: 6   failing: 0
+
+  NOTE: --no-index makes check-ignore evaluate the path even though the
+  file does not exist, which is what we want for a pre-move test.
+
+=== VERDICT ===
+
+  The .gitignore rules are correct.
+  The remaining blocker is purely the SUBMODULE GITLINK.
+  => Task 1.0 (git rm --cached pacgate-ai) MUST run before staging,
+     otherwise git cannot see the nested files at all.

@@ -1,0 +1,66 @@
+READ-ONLY INVESTIGATION OF THE TWO pacgate-db-data VOLUMES
+
+Method: mount each volume READ-ONLY (:ro) into a throwaway container and
+inspect it. Nothing is written, moved, or deleted.
+
+image used for inspection: nginx:1.27-alpine
+
+================ pacgate-ai-bundle_pacgate-db-data ================
+  95.5M	/v
+  ---top-level---
+  PG_VERSION
+  base
+  global
+  pg_commit_ts
+  pg_dynshmem
+  pg_hba.conf
+  pg_ident.conf
+  pg_logical
+  pg_multixact
+  pg_notify
+  pg_replslot
+  pg_serial
+  pg_snapshots
+  pg_stat
+  pg_stat_tmp
+  pg_subtrans
+  pg_tblspc
+  pg_twophase
+  pg_wal
+  pg_xact
+  postgresql.auto.conf
+  postgresql.conf
+  postmaster.opts
+  postmaster.pid
+  ---version
+
+================ client-bundle_pacgate-db-data ================
+  46.6M	/v
+  ---top-level---
+  PG_VERSION
+  base
+  global
+  pg_commit_ts
+  pg_dynshmem
+  pg_hba.conf
+  pg_ident.conf
+  pg_logical
+  pg_multixact
+  pg_notify
+  pg_replslot
+  pg_serial
+  pg_snapshots
+  pg_stat
+  pg_stat_tmp
+  pg_subtrans
+  pg_tblspc
+  pg_twophase
+  pg_wal
+  pg_xact
+  postgresql.auto.conf
+  postgresql.conf
+  postmaster.opts
+  ---version
+
+================ live attachment ================
+  pacgate-db     -> pacgate-ai-bundle_pacgate-db-data  (/var/lib/postgresql/data)

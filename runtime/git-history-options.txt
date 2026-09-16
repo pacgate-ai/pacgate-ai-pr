@@ -1,0 +1,46 @@
+GIT HISTORY: what happens to the 158 commits on relocation?
+======================================================================
+
+=== SOURCE repo (C:\pacgate-ai-pr) ===
+  commits    : 158
+  branch     : feat/agent-capability-enablement
+  HEAD       : 151a383
+  .git size  : 67.1 MB
+  remotes:
+      fork	https://github.com/pacgate-ai/pacgate-ai-pr.git (fetch)
+      fork	https://github.com/pacgate-ai/pacgate-ai-pr.git (push)
+      origin	https://github.com/JZKK720/pacgate-ai-pr.git (fetch)
+      origin	https://github.com/JZKK720/pacgate-ai-pr.git (push)
+  dirty files: 13
+
+=== TARGET repo (c:\Users\pacga\github-pr\pacgate-law) ===
+  has commits : False  (known: 0 commits, git init only)
+  .git size   : 0 MB
+  remotes:
+      (none)
+  staged files: 12
+
+=== KEY QUESTION: if source CONTENT lands at the target ROOT, do tracked paths stay valid? ===
+  source tracks 515 files, all relative to the source root.
+  If those files land at pacgate-law\ with the SAME relative layout,
+  then every tracked path stays identical and history applies cleanly.
+
+  If they land at pacgate-law\pacgate-ai\ instead, EVERY tracked path
+  gains a 'pacgate-ai/' prefix -> requires a history rewrite to stay
+  consistent, or the history must be abandoned.
+
+=== Overlap between source tracked files and target staged files ===
+  target staged entries: 10
+      .gitignore
+      AGENTS.md
+      pacgate-ai
+      .gitmodules
+      containers.txt
+      docs/
+      mcp_final_verify.txt
+      mcp_verify.txt
+      runtime/
+      verify_mcp.txt
+
+  Note: target stages "pacgate-ai" as a SUBMODULE gitlink, which will
+  conflict with real files placed at that path.

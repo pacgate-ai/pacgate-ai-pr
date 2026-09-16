@@ -1,0 +1,34 @@
+VOLUME GENERATIONS + PROJECT-NAME CONFLICT
+
+=== client-bundle_pacgate-db-data ===
+  CreatedAt : 2026-09-01T07:34:25Z
+  Driver    : local
+  Compose labels: com.docker.compose.config-hash=cb62e935c16503ee325f2372309a2a470bbe878d91ac02ab38c6c899ee61b409 com.docker.compose.project=client-bundle com.docker.compose.version=5.4.0 com.docker.compose.volume=pacgate-db-data 
+
+=== pacgate-ai-bundle_pacgate-db-data ===
+  CreatedAt : 2026-09-02T05:03:44Z
+  Driver    : local
+  Compose labels: com.docker.compose.config-hash=29d99af5880fd23d4cb207607b8526477df2ad8621bd64011caa5b8001271410 com.docker.compose.project=pacgate-ai-bundle com.docker.compose.version=5.4.0 com.docker.compose.volume=pacgate-db-data 
+
+=== qm-pacgate-pgdata ===
+  CreatedAt : 2026-09-01T08:07:40Z
+  Driver    : local
+  Compose labels: (none)
+
+=== qm-pacgate-coredata ===
+  CreatedAt : 2026-09-01T08:09:42Z
+  Driver    : local
+  Compose labels: (none)
+
+=== container -> volume (live attachment) ===
+  qm-pacgate-core-1      -> qm-pacgate-coredata
+  hermes-web             -> hermes-agent_hermes_web_gateway_default_log
+  open-webui             -> open-webui
+  qm-pacgate-pg-1        -> qm-pacgate-pgdata
+  pacgate-db             -> pacgate-ai-bundle_pacgate-db-data
+  odysseus-ntfy-1        -> odysseus_ntfy-cache
+  hermes-postgres        -> hermes-agent_postgres_data
+  odysseus-searxng-1     -> odysseus_searxng-data
+  odysseus-searxng-1     -> a604df063cb0e47dc5822915d93ea71aaad7fa9f56947010e60902136e51a902
+  odysseus-chromadb-1    -> odysseus_chromadb-data
+  dockhand               -> dockhand_dockhand_data

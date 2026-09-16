@@ -1,0 +1,39 @@
+VOLUME MTIME COMPARISON (read-only)
+
+=== pacgate-ai-bundle_pacgate-db-data ===
+  [size]
+    95.5M	/v
+  [PG_VERSION]
+    16
+  [pg_wal entry count]
+    entries: 4
+  [newest 4 in pg_wal, by mtime]
+    total 49156
+    -rw-------    1 999      70        16777216 Sep 15 02:49 000000010000000000000004
+    -rw-------    1 999      ping      16777216 Sep 11 20:36 000000010000000000000006
+    -rw-------    1 999      ping      16777216 Sep  6 07:30 000000010000000000000005
+    drwx------    2 999      70            4096 Sep  2 05:04 archive_status
+  [newest 4 in base, by mtime]
+    total 24
+    drwx------    2 999      70           12288 Sep 15 02:44 16384
+    drwx------    2 999      70            4096 Sep  3 03:18 1
+    drwx------    2 999      70            4096 Sep  3 03:18 5
+    drwx------    2 999      70            4096 Sep  2 05:04 4
+
+=== client-bundle_pacgate-db-data ===
+  [size]
+    46.6M	/v
+  [PG_VERSION]
+    16
+  [pg_wal entry count]
+    entries: 2
+  [newest 4 in pg_wal, by mtime]
+    total 16388
+    -rw-------    1 70       70        16777216 Sep  2 05:04 000000010000000000000001
+    drwx------    2 70       70            4096 Sep  1 07:34 archive_status
+  [newest 4 in base, by mtime]
+    total 24
+    drwx------    2 70       70            4096 Sep  1 07:37 1
+    drwx------    2 70       70            4096 Sep  1 07:36 5
+    drwx------    2 70       70           12288 Sep  1 07:35 16384
+    drwx------    2 70       70            4096 Sep  1 07:34 4

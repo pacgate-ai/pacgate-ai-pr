@@ -1,0 +1,31 @@
+STAGE PREVIEW -- what would `git add -A` actually stage?
+==============================================================
+
+Concern: deer-flow/ is an EMBEDDED repo (122,116 files, 1,728 MB).
+         If git tried to stage its contents the repo would blow up.
+         Git normally records an embedded repo as a single gitlink.
+
+=== Total stageable paths: 101 ===
+
+=== By top-level entry ===
+  .gitignore                      1
+  .gitmodules                     1
+  AGENTS.md                       1
+  containers.txt                  1
+  docs                            5
+  mcp_final_verify.txt            1
+  mcp_verify.txt                  1
+  pacgate-ai                      1
+  runtime                        88
+  verify_mcp.txt                  1
+
+=== Any deer-flow CONTENT staged? (must be none) ===
+  matches: 0
+
+=== Embedded-repo gitlinks git would create ===
+  (none reported)
+
+=== Sanity: would anything huge be staged? ===
+  docs                            5 files         0.1 MB
+  pacgate-ai                    262 files        85.4 MB
+  runtime                        88 files         0.3 MB
