@@ -1,0 +1,38 @@
+RELOCATION TASK 3 - CUTOVER (mode: DRY-RUN)
+==============================================================
+
+This is the DOWNTIME step. It stops the stack, copies the runtime state
+that git does not carry, and restarts from the new location.
+
+Rollback: the old location is untouched. If anything fails, start the stack
+again from C:\pacgate-ai-pr\deploy\client-bundle with the same command.
+
+>>> 1. Preflight
+    compose names agree: name: pacgate-ai-bundle
+    authoritative volume present: pacgate-ai-bundle_pacgate-db-data
+    free space: 394.4 GB
+    preflight OK
+
+>>> 2. Stop the stack FROM THE OLD LOCATION (files still exist there)
+    [DRY-RUN] cd C:\pacgate-ai-pr\deploy\client-bundle ; docker compose -f compose.bundle.yaml down
+    [DRY-RUN] cd C:\pacgate-ai-pr\deploy\qm-pacgate ; docker compose -f compose.qm.yaml down
+
+>>> 3. Copy the runtime state git does not carry (~1.9 GB)
+    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\client-bundle\data -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\data
+    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\client-bundle\openviking -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\openviking
+    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\client-bundle\.env -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\.env
+    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\client-bundle\deer-flow-extensions-config.json -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\deer-flow-extensions-config.json
+    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\qm-pacgate\node_modules -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\qm-pacgate\node_modules
+    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\qm-pacgate\.env -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\qm-pacgate\.env
+
+>>> 4. Verify the copy is complete
+    [DRY-RUN] compare file counts old vs new
+
+>>> 5. Start the stack FROM THE NEW LOCATION
+    [DRY-RUN] cd c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle ; docker compose -f compose.bundle.yaml up -d
+    [DRY-RUN] cd c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\qm-pacgate ; docker compose -f compose.qm.yaml up -d
+
+>>> 6. Verify the cutover
+    [DRY-RUN] check container count, pacgate-db volume, mount sources, and a DB query
+
+DRY-RUN complete. Re-run with -Execute during the maintenance window.

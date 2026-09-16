@@ -2,11 +2,14 @@ PHASE 1 VERIFICATION (post-commit)
 ==============================================================
 
 === Commits ===
+  cde68a2 docs(relocate): correct the plan's central premise after Phase 1
+  66051ec refactor(relocate): make the platform location-independent
+  8bf3fee chore: phase 1 relocation tooling, evidence and recovery notes
   9d8fc3b feat(monorepo): import PacGate platform from C:\pacgate-ai-pr
   c4ba8b0 chore: baseline local monorepo before pacgate-ai-pr relocation
 
 === Tracked files in HEAD ===
-  total            : 547
+  total            : 566
   under pacgate-ai/: 438
 
 === Non-ASCII names committed: 13 ===
@@ -38,15 +41,7 @@ PHASE 1 VERIFICATION (post-commit)
   remote-handbook                              0  OK
 
 === Working tree status ===
-  entries: 8
-    ?? runtime/relocate/PHASE1-COMMIT.txt
-    ?? runtime/relocate/PHASE1-RESUME.txt
-    ?? runtime/relocate/RECONCILE-VERIFIED.txt
-    ?? runtime/relocate/RECONCILE.txt
-    ?? runtime/relocate/phase1-commit.ps1
-    ?? runtime/relocate/phase1-verify.ps1
-    ?? runtime/relocate/reconcile-verified.ps1
-    ?? runtime/relocate/reconcile.ps1
+  entries: 0
 
 === Source repo (rollback) intact ===
   exists : True

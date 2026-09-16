@@ -1,0 +1,26 @@
+COMPOSE PROJECT-NAME VERIFICATION
+==============================================================
+
+Both compose files must resolve to the SAME project name, otherwise they
+prefix named volumes differently and one of them attaches to an empty DB.
+
+=== compose.bundle.yaml ===
+  declared : name: pacgate-ai-bundle
+  resolved : (could not resolve)
+
+=== compose.prod.yaml ===
+  declared : name: pacgate-ai-bundle
+  resolved : (could not resolve)
+
+=== Live stack (what is actually running) ===
+  "com.docker.compose.project": "pacgate-ai-bundle",
+  "com.docker.compose.project.config_files": "C:\\pacgate-ai-pr\\deploy\\client-bundle\\compose.bundle.yaml",
+
+=== Volumes present ===
+  client-bundle_pacgate-db-data
+  pacgate-ai-bundle_pacgate-db-data
+
+=== VERDICT ===
+  bundle -> 'pacgate-ai-bundle'
+  prod   -> 'pacgate-ai-bundle'
+  MATCH -- both resolve to the same project. Safe.

@@ -1,0 +1,29 @@
+RUNTIME STATE GAP -- untracked files the stack needs but git does not carry
+==============================================================
+
+Phase 1 imported only git-TRACKED content. The stack also needs per-machine
+runtime state that is gitignored. Compare old vs new for each.
+
+{0,-38} {1,-26} {2}
+----------------------------------------------------------------------------------------------------
+data                                   files=244 MB=1915.7        ABSENT  <-- MISSING AT NEW
+openviking                             files=145 MB=9             files=1 MB=0
+.env                                   files=1 MB=0               ABSENT  <-- MISSING AT NEW
+deer-flow-extensions-config.json       files=1 MB=0               ABSENT  <-- MISSING AT NEW
+deer-flow-config.yaml                  files=1 MB=0               files=1 MB=0
+workflows                              files=15 MB=0.5            files=15 MB=0.5
+patches                                files=8 MB=0.2             files=8 MB=0.2
+nginx                                  files=1 MB=0               files=1 MB=0
+
+=== qm-pacgate runtime state ===
+tasks                                  files=4 MB=0               files=4 MB=0
+node_modules                           files=130 MB=1.2           ABSENT  <-- MISSING AT NEW
+.env                                   files=1 MB=0               ABSENT  <-- MISSING AT NEW
+qm.config.jsonc                        files=1 MB=0               files=1 MB=0
+
+=== Total size that must be copied ===
+  items missing at new: data, .env, deer-flow-extensions-config.json
+  total to copy: 1915.7 MB
+
+=== Free space ===
+  C: free = 394.4 GB
