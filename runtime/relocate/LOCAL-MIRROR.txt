@@ -1,0 +1,40 @@
+LOCAL BARE MIRROR (immediate insurance while no remote exists)
+==============================================================================
+
+The monorepo has no remote and a squashed history, so it is the only copy.
+A bare mirror protects against accidental deletion or a bad git operation.
+It does NOT protect against disk failure - that needs a real remote.
+
+=== 1. Create the bare mirror ===
+    Cloning into bare repository 'C:\backup-pacgate-law-mirror.git'...
+    done.
+  exit: 0
+
+=== 2. Verify the mirror is complete ===
+  source commits : 14
+  mirror commits : 14
+  match          : True
+  source HEAD    : a556ae2a300aaf34d79771ff49415746a315a8e6
+  mirror HEAD    : a556ae2a300aaf34d79771ff49415746a315a8e6
+  match          : True
+
+=== 3. Restore test (clone the mirror to a temp dir) ===
+    Cloning into 'C:\temp\mirror-restore-test'...
+    done.
+  restored files (excl .git): 619
+  Cargo.toml present        : True
+  compose.bundle.yaml       : True
+  (test clone removed)
+
+=== 4. Mirror size ===
+  C:\backup-pacgate-law-mirror.git  =  18 MB
+
+=== 5. Refreshing the mirror after new commits ===
+  git -C C:\backup-pacgate-law-mirror.git fetch --all --prune
+  (or re-run this script)
+
+=== 6. What this does NOT protect against ===
+  - disk failure (same physical disk)
+  - theft / fire / ransomware
+  A real remote is still required. github.com IS reachable from here, but
+  gh CLI is not logged in and no token is stored, so a push needs auth.

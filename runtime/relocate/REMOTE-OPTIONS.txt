@@ -1,0 +1,66 @@
+REMOTE OPTIONS for the monorepo (the highest-value outstanding gap)
+==============================================================================
+
+Current state: pacgate-law has NO remote. With a squashed history it is the
+ONLY copy of this content and cannot be reconstructed from pacgate-ai-pr.
+Investigate what could serve as a remote.
+
+=== 1. Current remotes ===
+  pacgate-law remotes: NONE
+
+=== 2. Remotes on the sibling repos (candidates to mirror) ===
+
+  --- C:\pacgate-ai-pr ---
+    fork	https://github.com/pacgate-ai/pacgate-ai-pr.git (fetch)
+    fork	https://github.com/pacgate-ai/pacgate-ai-pr.git (push)
+    origin	https://github.com/JZKK720/pacgate-ai-pr.git (fetch)
+    origin	https://github.com/JZKK720/pacgate-ai-pr.git (push)
+
+  --- c:\Users\pacga\github-pr\pacgate-law\deer-flow ---
+    fork	https://github.com/pacgate-ai/deer-flow.git (fetch)
+    fork	https://github.com/pacgate-ai/deer-flow.git (push)
+    origin	https://github.com/JZKK720/deer-flow.git (fetch)
+    origin	https://github.com/JZKK720/deer-flow.git (push)
+    upstream	https://github.com/bytedance/deer-flow.git (fetch)
+    upstream	https://github.com/bytedance/deer-flow.git (push)
+
+  --- c:\Users\pacga\github-pr\pacgate-law\pacgate-ai-assets ---
+    fork	https://github.com/pacgate-ai/pacgate-ai.git (fetch)
+    fork	https://github.com/pacgate-ai/pacgate-ai.git (push)
+    origin	https://github.com/JZKK720/pacgate-ai.git (fetch)
+    origin	https://github.com/JZKK720/pacgate-ai.git (push)
+
+=== 3. Credential availability (names only) ===
+  gh CLI on PATH      : C:\Program Files\GitHub CLI\gh.exe
+    You are not logged into any GitHub hosts. To log in, run: gh auth login
+  GITHUB_TOKEN env    : unset
+  GH_TOKEN env        : unset
+  ~/.git-credentials  : absent
+
+=== 4. Network reachability (VPN-dependent) ===
+  github.com     HTTP 200 in 1.2s
+  ghcr.io        HTTP 200 in 1.3s
+
+=== 5. What a push would transfer ===
+  tracked files : 619
+  .git size     : 18.1 MB  (this is what pushes)
+  commits       : 14
+
+=== 6. Options ===
+
+  A. Push to a NEW private repo (e.g. pacgate-ai/pacgate-law)
+     + clean separation; the monorepo is its own thing
+     + no history conflict (squashed history is fine for a new repo)
+     - needs the repo created first
+
+  B. Push to the EXISTING pacgate-ai-pr fork as a new branch
+     + no new repo needed
+     - mixes two unrelated histories in one repo; confusing
+     - the credential files are still in that repo history
+
+  C. Local bare mirror on another drive
+     + works offline, no VPN, instant
+     - not off-machine; does not survive disk failure
+
+  D. Do nothing yet
+     - the monorepo remains the single point of failure
