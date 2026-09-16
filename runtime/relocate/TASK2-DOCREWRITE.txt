@@ -1,0 +1,30 @@
+TASK 2b -- make documentation layout-agnostic
+==============================================================
+
+The handbooks instruct operators to `cd C:\pacgate-ai-pr\deploy\client-bundle`.
+After the move that path is wrong, but hardcoding THIS machine's path would
+be equally wrong for machine #2 / the developer's clone. So the replacement
+is layout-agnostic: C:\pacgate-ai-pr  ->  <monorepo>\pacgate-ai
+
+SAFETY: only the drive-letter form is replaced. GitHub URLs such as
+        github.com/JZKK720/pacgate-ai-pr contain "/pacgate-ai-pr" and MUST
+        NOT be touched -- they are remote identifiers, not filesystem paths.
+
+=== Files to update: 6 ===
+  [ 5] \deploy\AIPC-DEPLOYMENT-HANDBOOK-ZH.md
+  [ 5] \deploy\AIPC-DEPLOYMENT-HANDBOOK.md
+  [ 5] \deploy\AIPC2-HANDOFF-PROMPT-v2.md
+  [ 3] \deploy\AIPC2-HANDOFF-PROMPT.md
+  [ 1] \plans\007-aipc-full-installation-handoff.md
+  [ 1] \plans\007-aipc1-kickoff-prompt.md
+
+  replacements made: 20
+
+=== Verify no URL was damaged ===
+  damaged URL patterns: 0  (must be 0)
+
+=== Remaining old-path references ===
+  remaining: 0
+
+=== CJK integrity (no double-encoding) ===
+  mojibake-pattern files: 0  (must be 0)

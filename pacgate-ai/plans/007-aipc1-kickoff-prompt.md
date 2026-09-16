@@ -97,7 +97,7 @@ Read FIRST, in this order (the repo — and these files — exist only after Sta
 - Casing is snake_case: tiers `main`/`mid`/`low`, provider `ollama`.
 
 ### Stage 4 — qm
-- `cd C:\pacgate-ai-pr\deploy\client-bundle` (be explicit — do not rely on cwd)
+- `cd <monorepo>\pacgate-ai\deploy\client-bundle` (be explicit — do not rely on cwd)
 - `.\setup-qm.ps1` (prompts: admin email, bridge email `qm-bridge@pacgate.local`,
   bridge password from Stage 3)
 - When prompted for OpenViking secrets (OPENVIKING_API_KEY / ACCOUNT / USER):

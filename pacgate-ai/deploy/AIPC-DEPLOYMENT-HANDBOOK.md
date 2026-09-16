@@ -139,7 +139,7 @@ If the repo is private and GitHub prompts for credentials, use a personal access
 Run these steps on each AIPC. The Docker Compose stack starts pacgate-api, Postgres, nginx, and deer-flow.
 
 ```powershell
-cd C:\pacgate-ai-pr\deploy\client-bundle
+cd <monorepo>\pacgate-ai\deploy\client-bundle
 copy .env.example .env
 notepad .env
 ```
@@ -244,7 +244,7 @@ stay in pacgate-api/pacgate-rag.
 qm runs separately from the Docker Compose stack. Bootstrap it on each machine after the core stack is healthy.
 
 ```powershell
-cd C:\pacgate-ai-pr\deploy\client-bundle
+cd <monorepo>\pacgate-ai\deploy\client-bundle
 .\setup-qm.ps1
 ```
 
@@ -274,7 +274,7 @@ AUTH_EMAIL_FROM="PacGate <onboarding@resend.dev>"
 Start qm:
 
 ```powershell
-cd C:\pacgate-ai-pr\deploy\qm-pacgate
+cd <monorepo>\pacgate-ai\deploy\qm-pacgate
 node_modules\.bin\qm.cmd up
 ```
 
@@ -438,7 +438,7 @@ docker compose -f compose.prod.yaml up -d
 docker compose -f compose.prod.yaml down
 
 # Start qm
-cd C:\pacgate-ai-pr\deploy\qm-pacgate
+cd <monorepo>\pacgate-ai\deploy\qm-pacgate
 npm exec qm -- up
 
 # Stop qm
@@ -448,7 +448,7 @@ npm exec qm -- down
 ### Update to a new version
 
 ```powershell
-cd C:\pacgate-ai-pr
+cd <monorepo>\pacgate-ai
 git pull
 cd deploy\client-bundle
 .\install.ps1 -Update

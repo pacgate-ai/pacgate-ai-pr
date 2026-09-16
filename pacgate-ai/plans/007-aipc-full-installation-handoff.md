@@ -288,7 +288,7 @@ pacgate-api (Rust metadata gateway) + deer-flow (research workspace) + qm
       use the new port in ALL verification URLs)
 
 ## Execution order (handbook stages)
-1. **Stage 1** — clone the repo to `C:\pacgate-ai-pr` (or verify existing
+1. **Stage 1** — clone the repo to `<monorepo>\pacgate-ai` (or verify existing
    clone is on origin/main ≥ commit 836d75e).
 2. **Stage 2** — `cd deploy\client-bundle`; copy `.env.example` to `.env`;
    generate strong `PACGATE_DB_PASSWORD` and `PACGATE_JWT_SECRET` (commands

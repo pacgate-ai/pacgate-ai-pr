@@ -1,0 +1,26 @@
+TASK 2 -- hardcoded C:\pacgate-ai-pr references in the NEW copy
+==============================================================
+
+Scope: files inside pacgate-ai\ only (the old location is left untouched as
+the rollback, and editing it would defeat that purpose).
+
+Includes a live pin that MUST NOT be rewritten to a local path: the compose
+files reference the GHCR image name ghcr.io/pacgate-ai/... which happens to
+contain "pacgate-ai" but is a registry reference, not a filesystem path.
+
+=== Matches: 0 ===
+
+=== Classification ===
+
+=== Functional vs documentation ===
+  Functional (must be rewritten):  compose, scripts, configs
+  Historical (leave as written):    docs/, plans/, handbooks, evidence files
+  A blind find-replace across .md would corrupt historical records.
+
+  functional matches : 0  (in 0 files)
+  documentation hits : 0  (in 0 files)
+
+=== Functional files needing a rewrite ===
+
+=== Registry references that must NOT be rewritten ===
+  lines mentioning ghcr.io: 0

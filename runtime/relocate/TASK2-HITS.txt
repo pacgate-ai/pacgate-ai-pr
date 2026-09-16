@@ -1,0 +1,57 @@
+TASK 2 -- every absolute-path reference in the NEW copy
+==============================================================
+
+NOTE: the first scan reported 0 because it searched for a single-quoted
+      'C:\\pacgate-ai-pr' -- in a single-quoted PowerShell string that is a
+      LITERAL two backslashes, which does not occur in the files. The real
+      pattern is a single backslash.
+
+=== absolute-path hits: 22 ===
+
+[  5] \deploy\AIPC2-HANDOFF-PROMPT-v2.md
+      L23    | `C:\pacgate-ai-pr` | **The REAL implementation/deploy repo** | `JZKK720/pacgate-ai-pr` (push via fork `pacgate-ai/pacgate-ai-pr` ...
+      L26    **Clone from `C:\pacgate-ai-pr` = the `pacgate-ai-pr` repo.** Do **not** create or sync
+      L101   cd C:\pacgate-ai-pr\deploy\client-bundle
+      L125   cd C:\pacgate-ai-pr\deploy\client-bundle
+      L130   cd C:\pacgate-ai-pr\deploy\qm-pacgate
+
+[  5] \deploy\AIPC-DEPLOYMENT-HANDBOOK.md
+      L142   cd C:\pacgate-ai-pr\deploy\client-bundle
+      L247   cd C:\pacgate-ai-pr\deploy\client-bundle
+      L277   cd C:\pacgate-ai-pr\deploy\qm-pacgate
+      L441   cd C:\pacgate-ai-pr\deploy\qm-pacgate
+      L451   cd C:\pacgate-ai-pr
+
+[  5] \deploy\AIPC-DEPLOYMENT-HANDBOOK-ZH.md
+      L148   cd C:\pacgate-ai-pr\deploy\client-bundle
+      L250   cd C:\pacgate-ai-pr\deploy\client-bundle
+      L281   cd C:\pacgate-ai-pr\deploy\qm-pacgate
+      L441   cd C:\pacgate-ai-pr\deploy\qm-pacgate
+      L451   cd C:\pacgate-ai-pr
+
+[  3] \deploy\AIPC2-HANDOFF-PROMPT.md
+      L73    cd C:\pacgate-ai-pr\deploy\client-bundle
+      L97    cd C:\pacgate-ai-pr\deploy\client-bundle
+      L102   cd C:\pacgate-ai-pr\deploy\qm-pacgate
+
+[  1] \plans\007-aipc-full-installation-handoff.md
+      L291   1. **Stage 1** — clone the repo to `C:\pacgate-ai-pr` (or verify existing
+
+[  1] \plans\007-aipc1-kickoff-prompt.md
+      L100   - `cd C:\pacgate-ai-pr\deploy\client-bundle` (be explicit — do not rely on cwd)
+
+[  1] \deploy\build-frontend.ps1
+      L21    # $PSScriptRoot = c:\pacgate-ai-pr\deploy; repo root is one level up.
+
+[  1] \deploy\build-images.ps1
+      L25    # $PSScriptRoot = c:\pacgate-ai-pr\deploy; repo root is one level up.
+
+=== Classification of files ===
+  MD (likely historical) \deploy\AIPC2-HANDOFF-PROMPT-v2.md
+  MD (likely historical) \deploy\AIPC-DEPLOYMENT-HANDBOOK.md
+  MD (likely historical) \deploy\AIPC-DEPLOYMENT-HANDBOOK-ZH.md
+  MD (likely historical) \deploy\AIPC2-HANDOFF-PROMPT.md
+  MD (likely historical) \plans\007-aipc-full-installation-handoff.md
+  MD (likely historical) \plans\007-aipc1-kickoff-prompt.md
+  PS1                    \deploy\build-frontend.ps1
+  PS1                    \deploy\build-images.ps1

@@ -145,7 +145,7 @@ cd pacgate-ai-pr
 在每台 AIPC 上运行这些步骤。Docker Compose 栈会启动 pacgate-api、Postgres、nginx 和 deer-flow。
 
 ```powershell
-cd C:\pacgate-ai-pr\deploy\client-bundle
+cd <monorepo>\pacgate-ai\deploy\client-bundle
 copy .env.example .env
 notepad .env
 ```
@@ -247,7 +247,7 @@ T1-T4 受控内容保留在 pacgate-api/pacgate-rag 中。
 qm 独立于 Docker Compose 栈运行。在核心栈健康后，在每台机器上引导它。
 
 ```powershell
-cd C:\pacgate-ai-pr\deploy\client-bundle
+cd <monorepo>\pacgate-ai\deploy\client-bundle
 .\setup-qm.ps1
 ```
 
@@ -278,7 +278,7 @@ AUTH_EMAIL_FROM="PacGate <onboarding@resend.dev>"
 启动 qm：
 
 ```powershell
-cd C:\pacgate-ai-pr\deploy\qm-pacgate
+cd <monorepo>\pacgate-ai\deploy\qm-pacgate
 node_modules\.bin\qm.cmd up
 ```
 
@@ -438,7 +438,7 @@ docker compose -f compose.prod.yaml up -d
 docker compose -f compose.prod.yaml down
 
 # 启动 qm
-cd C:\pacgate-ai-pr\deploy\qm-pacgate
+cd <monorepo>\pacgate-ai\deploy\qm-pacgate
 npm exec qm -- up
 
 # 停止 qm
@@ -448,7 +448,7 @@ npm exec qm -- down
 ### 更新到新版本
 
 ```powershell
-cd C:\pacgate-ai-pr
+cd <monorepo>\pacgate-ai
 git pull
 cd deploy\client-bundle
 .\install.ps1 -Update

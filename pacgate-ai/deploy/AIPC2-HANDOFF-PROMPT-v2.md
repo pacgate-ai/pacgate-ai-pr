@@ -20,10 +20,10 @@ The repo topology was clarified. There are **two distinct things**:
 
 | Path | What it is | GitHub remote |
 |---|---|---|
-| `C:\pacgate-ai-pr` | **The REAL implementation/deploy repo** | `JZKK720/pacgate-ai-pr` (push via fork `pacgate-ai/pacgate-ai-pr`) |
+| `<monorepo>\pacgate-ai` | **The REAL implementation/deploy repo** | `JZKK720/pacgate-ai-pr` (push via fork `pacgate-ai/pacgate-ai-pr`) |
 | `C:\Users\pacga\github-pr\pacgate-law` | **LOCAL docs wrapper** — NOT a repo, no remote, no commits | none (leave it) |
 
-**Clone from `C:\pacgate-ai-pr` = the `pacgate-ai-pr` repo.** Do **not** create or sync
+**Clone from `<monorepo>\pacgate-ai` = the `pacgate-ai-pr` repo.** Do **not** create or sync
 `pacgate-law` as a GitHub repo. It is a local docs folder only.
 
 ## Critical: clone from the fork, not the old repo
@@ -98,7 +98,7 @@ docker build -f docker/Dockerfile.pacgate -t ghcr.io/jzkk720/deer-flow-pacgate:l
 
 ### Stage 2 — core stack
 ```powershell
-cd C:\pacgate-ai-pr\deploy\client-bundle
+cd <monorepo>\pacgate-ai\deploy\client-bundle
 copy .env.example .env
 notepad .env
 ```
@@ -122,12 +122,12 @@ Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -B
 
 ### Stage 4 — QM (portal topology, Mailpit sign-in)
 ```powershell
-cd C:\pacgate-ai-pr\deploy\client-bundle
+cd <monorepo>\pacgate-ai\deploy\client-bundle
 .\setup-qm.ps1
 ```
 Then start qm:
 ```powershell
-cd C:\pacgate-ai-pr\deploy\qm-pacgate
+cd <monorepo>\pacgate-ai\deploy\qm-pacgate
 node_modules\.bin\qm.cmd up
 ```
 > Use `node_modules\.bin\qm.cmd up` — `npm exec qm -- up` is blocked by the

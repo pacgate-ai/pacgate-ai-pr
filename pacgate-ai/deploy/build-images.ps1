@@ -22,7 +22,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-# $PSScriptRoot = c:\pacgate-ai-pr\deploy; repo root is one level up.
+# $PSScriptRoot = <repo>\deploy; the repo root is one level up. Resolved at run
+# time, so the script works from any checkout location.
 $Root = Split-Path -Parent $PSScriptRoot
 
 function Invoke-Step([string]$Label, [scriptblock]$Cmd) {
