@@ -48,7 +48,10 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 # ── 1. pacgate-api (Rust) ────────────────────────────────────────────────────
 if ($Selected -contains "api") {
     Invoke-Step "pacgate-api" {
-        docker build -f (Join-Path $Root "pacgate-ai/Dockerfile") -t "ghcr.io/pacgate-ai/pacgate-api:$Tag" (Join-Path $Root "pacgate-ai")
+        # NOTE: the Rust workspace was FLATTENED during the monorepo import, so
+        # the Dockerfile sits at $Root\Dockerfile, not $Root\pacgate-ai\Dockerfile.
+        # (In the old standalone repo the layout was <repo>\pacgate-ai\Dockerfile.)
+        docker build -f (Join-Path $Root "Dockerfile") -t "ghcr.io/pacgate-ai/pacgate-api:$Tag" $Root
     }
     if ($Push) { Invoke-Step "push pacgate-api" { docker push "ghcr.io/pacgate-ai/pacgate-api:$Tag" } }
 }

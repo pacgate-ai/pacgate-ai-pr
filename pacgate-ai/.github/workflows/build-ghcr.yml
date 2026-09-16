@@ -69,8 +69,12 @@ jobs:
       - name: Build & push pacgate-api
         uses: docker/build-push-action@v6
         with:
-          context: pacgate-ai
-          file: pacgate-ai/Dockerfile
+          # The Rust workspace was FLATTENED during the monorepo import: the
+          # Dockerfile and Cargo.toml now sit at the repository root, not under
+          # a nested `pacgate-ai/` directory. (In the old standalone repo the
+          # layout was <repo>/pacgate-ai/Dockerfile.)
+          context: .
+          file: Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/pacgate-api:${{ steps.tag.outputs.tag }}

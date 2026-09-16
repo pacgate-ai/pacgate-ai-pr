@@ -1,0 +1,69 @@
+IS pacgate-law FULLY MERGED WITH pacgate-ai-pr?
+==========================================================================
+
+Adversarial test: try to find something in pacgate-ai-pr that is NOT
+represented in pacgate-law. If anything is missing, the answer is NO.
+
+=== 1. Git-TRACKED content ===
+  pacgate-ai-pr tracked files : 515
+  pacgate-law tracked under pacgate-ai/ : 438
+  source files NOT in the monorepo : 77
+    excluded as credential tree : 59
+    excluded by .gitignore      : 18
+    UNEXPLAINED                 : 0
+  reconciliation: 438 imported + 18 ignored + 59 credential = 515  (source 515)
+
+=== 2. UNTRACKED runtime state (gitignored, per-machine) ===
+  data                               src=244      dst=244      OK
+  openviking                         src=145      dst=146      OK
+  .env                               src=1        dst=1        OK
+  deer-flow-extensions-config.json   src=1        dst=1        OK
+  node_modules                       src=130      dst=130      OK
+  .env                               src=1        dst=1        OK
+
+=== 3. Deliberately NOT merged (and why) ===
+  pacgate-ai-assets/         own git repo; committing needs deleting its .git (severs JZKK720/pacgate-ai link). DEFERRED.
+  deer-flow/                 own git repo (122k files); ships via its pacgate-layer branch.
+  pacgate-ai/target/         4.5 GB Rust build output; regenerable.
+  client-bundle/data/        1.9 GB client data; per-machine, never in git.
+  git HISTORY                import was a SQUASH. pacgate-ai-pr has 158 commits; the monorepo has none of them.
+  REMOTES                    pacgate-law has NO remote. pacgate-ai-pr has origin + fork.
+
+=== 4. History and remotes ===
+  pacgate-ai-pr commits : 159
+  pacgate-law commits   : 10
+  pacgate-ai-pr remotes :
+    fork	https://github.com/pacgate-ai/pacgate-ai-pr.git (fetch)
+    fork	https://github.com/pacgate-ai/pacgate-ai-pr.git (push)
+    origin	https://github.com/JZKK720/pacgate-ai-pr.git (fetch)
+    origin	https://github.com/JZKK720/pacgate-ai-pr.git (push)
+  pacgate-law remotes   : NONE
+
+=== 5. Working tree state ===
+  uncommitted entries: 2
+    ?? runtime/relocate/MERGE-COMPLETENESS.txt
+    ?? runtime/relocate/merge-completeness.ps1
+
+=== 6. Untracked scratch files in the source (not migrated) ===
+  count: 13
+    ?? .vscode/
+    ?? probe_ckpt.py
+    ?? probe_ckpt2.py
+    ?? probe_repro.py
+    ?? probe_timing.py
+    ?? tmp-api-err.ps1
+    ?? tmp-drift-check.ps1
+    ?? tmp-exec.json
+    ?? tmp-ghcr-check.ps1
+    ?? tmp-login.json
+    ?? tmp-logs.ps1
+    ?? tmp-tenant.ps1
+    ?? tmp-wf-repro.ps1
+
+=== VERDICT ===
+  CONTENT: yes - every tracked file is either imported or excluded for a
+           documented reason (credential tree / gitignore).
+  HISTORY: no - the import was a squash; the 158 source commits are not here.
+  REMOTE : no - pacgate-law has no remote, so nothing is backed up off-machine.
+
+  => "Fully merged" is TRUE for working content, FALSE for history and remote.

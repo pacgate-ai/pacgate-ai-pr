@@ -1,0 +1,139 @@
+FLATTEN-INDUCED PATH BREAKAGE SCAN
+==========================================================================
+
+The import FLATTENED the Rust workspace: source `pacgate-ai/X` -> monorepo
+`pacgate-ai/X`. So any script/config that referenced the OLD internal layout
+(`<root>/pacgate-ai/...`) now points at a non-existent double-nested path.
+
+Scan for references to the inner `pacgate-ai/` directory from inside the
+platform, then test whether each target actually exists.
+
+=== References to the old inner layout: 70 ===
+
+  \CONTINUE-FROM-OTHER-MACHINE.md
+    L167   [pacgate-ai/Dockerfile] - `pacgate-api:0.1.0` (Rust multi-stage, `pacgate-ai/Dockerfile`, Rust 1.94-bookworm). Digest: `sha256:6505fa78...`
+    L27    [pacgate-ai/crates] python -m graphify pacgate-ai/crates --no-viz --backend ollama
+    L112   [pacgate-ai/workflows] - **220 YAML workflow templates** loaded from `pacgate-ai/workflows/*.yaml` (15 files). Categories: investment_financing ...
+    L160   [pacgate-ai/workflows] 28. ~~Add archive collection workflow templates~~ — DONE. Created `pacgate-ai/workflows/archive_collection.yaml` with 10 ...
+    L180   [pacgate-ai/workflows] - **YAML workflows** — `pacgate-ai/workflows/*.yaml` (15 files, 220 templates). Load with `pacgate_workflow::load_from_y ...
+
+  \.github\workflows\build-ghcr.yml
+    L73    [pacgate-ai/Dockerfile] file: pacgate-ai/Dockerfile
+
+  \deploy\AIPC-DEPLOYMENT-HANDBOOK-ZH.md
+    L114   [pacgate-ai/Dockerfile] docker build -t ghcr.io/jzkk720/pacgate-api:0.1.3 -f pacgate-ai/Dockerfile ./pacgate-ai
+
+  \deploy\AIPC-DEPLOYMENT-HANDBOOK.md
+    L110   [pacgate-ai/Dockerfile] docker build -t ghcr.io/jzkk720/pacgate-api:0.1.3 -f pacgate-ai/Dockerfile ./pacgate-ai
+
+  \deploy\DEPLOYMENT-GUIDE.md
+    L44    [pacgate-ai/Dockerfile] -f pacgate-ai/Dockerfile `
+    L48    [pacgate-ai/Dockerfile] The Dockerfile is at `pacgate-ai/Dockerfile`. It uses `rust:1.94-bookworm`
+    L556   [pacgate-ai/crates] python -m graphify pacgate-ai/crates --no-viz --backend ollama
+    L559   [pacgate-ai/crates] python -m graphify cluster-only pacgate-ai/crates --backend ollama
+    L565   [pacgate-ai/crates] pacgate-ai/crates/graphify-out/
+    L580   [pacgate-ai/crates] python -m graphify pacgate-ai/crates --update --backend ollama
+
+  \deploy\SETUP-AND-OPERATIONS-ZH.md
+    L63    [pacgate-ai/Dockerfile] docker build -t ghcr.io/pacgate-ai/pacgate-api:0.1.3 -f pacgate-ai/Dockerfile ./pacgate-ai
+
+  \deploy\SETUP-AND-OPERATIONS.md
+    L63    [pacgate-ai/Dockerfile] docker build -t ghcr.io/pacgate-ai/pacgate-api:0.1.3 -f pacgate-ai/Dockerfile ./pacgate-ai
+
+  \docs\PACGATE-AI-FULL-STACK-REPORT-ZH.md
+    L91    [pacgate-ai/Dockerfile] docker build -t ghcr.io/jzkk720/pacgate-api:0.1.1 -f pacgate-ai/Dockerfile ./pacgate-ai
+
+  \plans\001-client-bundle.md
+    L34    [pacgate-ai/Dockerfile] - The actual Dockerfile at `pacgate-ai/Dockerfile` uses `rust:1.94-bookworm` and
+
+  \plans\004-fix-deployment-guide.md
+    L41    [pacgate-ai/Dockerfile] - The actual `pacgate-ai/Dockerfile` uses:
+    L51    [pacgate-ai/Dockerfile] - The guide also says "The `pacgate-ai/Dockerfile` (you need to create this)"
+    L68    [pacgate-ai/Dockerfile] - `pacgate-ai/Dockerfile` — already correct
+    L88    [pacgate-ai/Dockerfile] "The Dockerfile is at `pacgate-ai/Dockerfile`. It uses `rust:1.94-bookworm`
+    L92    [pacgate-ai/Dockerfile] path (it's already correct: `-f pacgate-ai/Dockerfile ./pacgate-ai`).
+
+  \README-ZH.md
+    L60    [pacgate-ai/crates] | `pacgate-ai/crates/` | Rust 工作区（12 个 crate） |
+    L61    [pacgate-ai/wasm-crates] | `pacgate-ai/wasm-crates/` | WASM 沙箱 crate（文档校验、规则引擎、引用核对、条款解析） |
+
+  \README.md
+    L59    [pacgate-ai/crates] | `pacgate-ai/crates/` | Rust workspace (12 crates) |
+
+  \deploy\knowledge-graph.json
+    L11    [pacgate-ai/crates] {"id": "file:crates/pacgate-core/src/lib.rs", "type": "file", "name": "pacgate-core/lib.rs", "filePath": "pacgate-ai/cra ...
+    L12    [pacgate-ai/crates] {"id": "file:crates/pacgate-docx/src/lib.rs", "type": "file", "name": "pacgate-docx/lib.rs", "filePath": "pacgate-ai/cra ...
+    L13    [pacgate-ai/crates] {"id": "file:crates/pacgate-docx/src/builder.rs", "type": "file", "name": "pacgate-docx/builder.rs", "filePath": "pacgat ...
+    L14    [pacgate-ai/crates] {"id": "file:crates/pacgate-docx/src/styles.rs", "type": "file", "name": "pacgate-docx/styles.rs", "filePath": "pacgate- ...
+    L15    [pacgate-ai/crates] {"id": "file:crates/pacgate-docx/src/ooxml.rs", "type": "file", "name": "pacgate-docx/ooxml.rs", "filePath": "pacgate-ai ...
+    L16    [pacgate-ai/crates] {"id": "file:crates/pacgate-docx/src/diff.rs", "type": "file", "name": "pacgate-docx/diff.rs", "filePath": "pacgate-ai/c ...
+    L17    [pacgate-ai/crates] {"id": "file:crates/pacgate-api/src/lib.rs", "type": "file", "name": "pacgate-api/lib.rs", "filePath": "pacgate-ai/crate ...
+    L18    [pacgate-ai/crates] {"id": "file:crates/pacgate-api/src/state.rs", "type": "file", "name": "pacgate-api/state.rs", "filePath": "pacgate-ai/c ...
+    L19    [pacgate-ai/crates] {"id": "file:crates/pacgate-api/src/chat.rs", "type": "file", "name": "pacgate-api/chat.rs", "filePath": "pacgate-ai/cra ...
+    L20    [pacgate-ai/crates] {"id": "file:crates/pacgate-api/src/documents.rs", "type": "file", "name": "pacgate-api/documents.rs", "filePath": "pacg ...
+    L21    [pacgate-ai/crates] {"id": "file:crates/pacgate-api/src/matters.rs", "type": "file", "name": "pacgate-api/matters.rs", "filePath": "pacgate- ...
+    L22    [pacgate-ai/crates] {"id": "file:crates/pacgate-api/src/workflows.rs", "type": "file", "name": "pacgate-api/workflows.rs", "filePath": "pacg ...
+    L23    [pacgate-ai/crates] {"id": "file:crates/pacgate-api/src/error.rs", "type": "file", "name": "pacgate-api/error.rs", "filePath": "pacgate-ai/c ...
+    L24    [pacgate-ai/crates] {"id": "file:crates/pacgate-agent/src/lib.rs", "type": "file", "name": "pacgate-agent/lib.rs", "filePath": "pacgate-ai/c ...
+    L25    [pacgate-ai/crates] {"id": "file:crates/pacgate-agent/src/system_prompt_base.txt", "type": "document", "name": "system_prompt_base.txt", "fi ...
+    L26    [pacgate-ai/crates] {"id": "file:crates/pacgate-llm/src/lib.rs", "type": "file", "name": "pacgate-llm/lib.rs", "filePath": "pacgate-ai/crate ...
+
+  \deploy\client-bundle\personas\README.md
+    L76    [pacgate-ai/crates] - `pacgate-ai/crates/pacgate-persona/src/lib.rs` — practice-area personas
+    L77    [pacgate-ai/crates] - `pacgate-ai/crates/pacgate-persona/src/soul.rs` — SOUL personas (Justin, Sylvie, A1-A8)
+    L78    [pacgate-ai/crates] - `pacgate-ai/crates/pacgate-auth/src/middleware.rs` — SOUL resolver middleware
+
+  \pacgate-adapters\typescript\qm_pacgate_contract.ts
+    L5     [pacgate-ai/crates] * - pacgate-ai/crates/pacgate-api/src/lib.rs
+    L6     [pacgate-ai/crates] * - pacgate-ai/crates/pacgate-api/src/workflows.rs
+    L7     [pacgate-ai/crates] * - pacgate-ai/crates/pacgate-api/src/auth.rs
+    L8     [pacgate-ai/crates] * - pacgate-ai/crates/pacgate-api/src/matters.rs
+
+  \pacgate-adapters\typescript\dist\qm_pacgate_contract.js
+    L5     [pacgate-ai/crates] * - pacgate-ai/crates/pacgate-api/src/lib.rs
+    L6     [pacgate-ai/crates] * - pacgate-ai/crates/pacgate-api/src/workflows.rs
+    L7     [pacgate-ai/crates] * - pacgate-ai/crates/pacgate-api/src/auth.rs
+    L8     [pacgate-ai/crates] * - pacgate-ai/crates/pacgate-api/src/matters.rs
+
+  \plans\005-workflow-packaging.md
+    L76    [pacgate-ai/crates] - `pacgate-ai/crates/pacgate-persona/` — Rust persona code, don't modify
+    L110   [pacgate-ai/crates] - `pacgate-ai/crates/pacgate-persona/src/lib.rs` (practice-area personas)
+    L111   [pacgate-ai/crates] - `pacgate-ai/crates/pacgate-persona/src/soul.rs` (SOUL personas)
+    L9     [pacgate-ai/workflows] > **Drift check (run first)**: `git diff --stat 395144f..HEAD -- pacgate-ai/workflows/ deploy/qm-pacgate/sandbox/`
+    L24    [pacgate-ai/workflows] The 220 YAML workflow templates in `pacgate-ai/workflows/*.yaml` are loaded
+    L45    [pacgate-ai/workflows] - `pacgate-ai/workflows/*.yaml` — 15 files, 220 templates. Loaded by
+    L69    [pacgate-ai/workflows] - `deploy/client-bundle/workflows/` (new directory — copy of pacgate-ai/workflows/)
+    L75    [pacgate-ai/workflows] - `pacgate-ai/workflows/*.yaml` — source files, don't modify
+    L90    [pacgate-ai/workflows] Copy all 15 YAML files from `pacgate-ai/workflows/` to
+    L188   [pacgate-ai/workflows] - When new workflow YAMLs are added to `pacgate-ai/workflows/`, re-copy them
+    L191   [pacgate-ai/workflows] authoritative source is `pacgate-ai/workflows/` which gets compiled into
+
+  \plans\007-aipc-full-installation-handoff.md
+    L181   [pacgate-ai/crates] - `pacgate-ai/crates/pacgate-core/src/lib.rs` → `ModelConfig::default_local()` hardcodes `base_url: "http://localhost:11 ...
+    L182   [pacgate-ai/crates] - `pacgate-ai/crates/pacgate-api/src/main.rs:72` builds `LlmRouter` from `default_local()` and **ignores the `OLLAMA_BAS ...
+
+  \plans\009-aipc2-sync-and-upgrade-0.1.7.md
+    L44    [pacgate-ai/crates] `git add pacgate-ai/crates/pacgate-search/src/lib.rs` → commit `fix(search): EUR-Lex SPARQL uses cdm:work_title (verifie ...
+
+  \docs\plans\2026-08-13-session5-implementation-plan.md
+    L80    [pacgate-ai/migrations] - Create: `pacgate-ai/migrations/003_rag_enrichment.sql` — add `jurisdiction` and `source_level` columns to `kb_chunks`
+
+  \deploy\build-images.ps1
+    L52    [pacgate-ai\Dockerfile] # the Dockerfile sits at $Root\Dockerfile, not $Root\pacgate-ai\Dockerfile.
+    L53    [pacgate-ai\Dockerfile] # (In the old standalone repo the layout was <repo>\pacgate-ai\Dockerfile.)
+
+=== Classification ===
+  functional (scripts/configs) : 19
+  documentation                : 43
+
+=== Do the referenced targets exist? ===
+  Dockerfile       at platform root: EXISTS
+  Cargo.toml       at platform root: EXISTS
+  Cargo.lock       at platform root: EXISTS
+  crates           at platform root: EXISTS
+  wasm-crates      at platform root: EXISTS
+  migrations       at platform root: EXISTS
+  workflows        at platform root: EXISTS
+
+=== VERDICT ===
+  3 functional file(s) reference the old inner layout - each needs review.

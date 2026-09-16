@@ -1,0 +1,135 @@
+CODING READINESS at pacgate-law\pacgate-ai
+==========================================================================
+
+=== 1. Toolchain ===
+  cargo    NOT ON PATH
+  rustc    NOT ON PATH
+  node     v24.17.0
+  npm      11.13.0
+  pnpm     NOT ON PATH
+  python   Python 3.13.13
+  docker   Docker version 29.8.0, build 88096ef
+
+=== 2. Rust workspace ===
+  Cargo.toml present : True
+  workspace members declared: 90
+    crates/pacgate-core
+    crates/pacgate-api
+    crates/pacgate-agent
+    crates/pacgate-docx
+    crates/pacgate-llm
+    crates/pacgate-search
+    crates/pacgate-rag
+    crates/pacgate-persona
+    crates/pacgate-workflow
+    crates/pacgate-template
+    crates/pacgate-tenant
+    crates/pacgate-auth
+    wasm-crates/pacgate-doc-validator
+    wasm-crates/pacgate-rule-engine
+    wasm-crates/pacgate-citation-check
+    wasm-crates/pacgate-clause-parser
+    2
+    0.1.9
+    2021
+    Cubecloud Limited / 智方云
+    AGPL-3.0-only
+    https://github.com/pacgate-ai/pacgate-ai
+    1
+    full
+    0.1
+    full
+    0.3
+    0.7
+    ws
+    macros
+    multipart
+    0.9
+    typed-header
+    0.4
+    0.5
+    cors
+    fs
+    trace
+    0.12
+    json
+    stream
+    1
+    full
+    2
+    1
+    derive
+    1
+    0.9
+    0.8
+    0.7
+    postgres
+    runtime-tokio
+    chrono
+    uuid
+    json
+    1
+    v4
+    serde
+    0.4
+    serde
+    1
+    1
+    1
+    0.1
+    0.3
+    env-filter
+    json
+    0.5
+    password-hash
+    9
+    0.8
+    2
+    0.36
+    serialize
+    2
+    0.2
+    0.6
+    0.3
+    0.3
+    Window
+    0.3
+    0.14
+    0.15
+    0.22
+    0.4
+    0.10
+    1
+    1
+    0.1
+    1
+  crates/ dirs      : 12
+  wasm-crates/ dirs : 4
+  Cargo.lock present: True
+  target/ present   : False  (absent = clean build needed)
+
+=== 3. Absolute paths in build config (would break from a new location) ===
+  Cargo.toml               clean
+  Cargo.lock               clean
+  absolute path = deps anywhere : 0
+
+=== 4. cargo metadata (validates the workspace resolves) ===
+  cargo not available - cannot validate
+
+=== 5. Other build entry points ===
+  Dockerfile                               present
+  compose.yaml                             present
+  .github\workflows\build-ghcr.yml         present
+  Makefile                                 -
+  package.json                             -
+
+=== 6. Git state of the monorepo ===
+  branch : main
+  commits: 10
+  uncommitted: 3
+
+=== VERDICT ===
+  Content complete, workspace intact, no absolute build paths.
+  You can code here. Two caveats:
+    - no target/ dir, so the first `cargo build` is a full cold build
+    - the monorepo has NO remote, so commits are local-only until one is added
