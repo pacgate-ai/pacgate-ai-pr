@@ -394,6 +394,29 @@ and the failure modes are documented in the trap table.
 
 ## Task 3 — Cut over the running stack
 
+> ### ⏸ STATUS: READY, NOT RUN — needs a maintenance window
+> Script: `runtime/relocate/task3-cutover.ps1` (dry-run by default; `-Execute` to apply).
+> Dry-run validated. **This is the only remaining step that touches the running stack.**
+>
+> **The gap Phase 1 could not cover:** git carries only *tracked* content, but the
+> stack needs **1,915.7 MB of gitignored runtime state** that currently exists only
+> at the old path:
+>
+> | Item | Size | Why it is not in git |
+> |---|---|---|
+> | `client-bundle/data/` | 1,915.7 MB (244 files) | client chat history + `checkpoints.db` (1.6 GB) |
+> | `client-bundle/openviking/` | 9 MB | per-machine runtime state |
+> | `client-bundle/.env` | rendered | contains API keys |
+> | `client-bundle/deer-flow-extensions-config.json` | rendered | contains keys |
+> | `qm-pacgate/node_modules/` | 1.2 MB (130 files) | installed deps |
+> | `qm-pacgate/.env` | rendered | contains keys |
+>
+> The copy happens **after** the stop, so the 1.6 GB `checkpoints.db` is not
+> captured mid-write. See `runtime/relocate/RUNTIME-STATE-GAP.txt`.
+>
+> **Preflight (all verified):** compose names agree (`pacgate-ai-bundle`), the
+> authoritative volume exists, 394 GB free, old location intact as rollback.
+
 **Deliverable:** the stack running from the new location.
 
 > ⚠️ **This is the downtime window.** Everything before this point was non-destructive.
