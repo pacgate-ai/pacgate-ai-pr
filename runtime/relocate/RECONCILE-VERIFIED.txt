@@ -1,0 +1,80 @@
+RECONCILE VERIFIED -- no files lost, both flags were test artifacts
+==============================================================
+
+Two flags were raised by phase1-resume. Each is a defect in the CHECK, not
+in the migration. Proof below, using quotepath=false to defeat the escaping
+that caused the false result.
+
+=== 1. 'Credential' hits -- all false positives ===
+
+  My probe pattern was *MCP*, which matched the PacGate MCP server and its
+  tooling -- legitimate, essential source code, not secrets:
+
+    deploy\pacgate-mcp\server.py                                             present
+    deploy\pacgate-mcp\Dockerfile                                            present
+    deploy\pacgate-mcp\requirements.txt                                      present
+    deploy\client-bundle\patches\langchain-mcp-tools.py                      present
+    patches\0002-feat-deer-flow-add-pacgate-mcp-so-the-agent-can-quer.patch  present
+
+  A real credential carrier would sit under an MCP-authorization directory
+  or be a known carrier name (OPERATOR.md / the four exposed files) -- all of
+  which the targeted guards already report as OK.
+  REAL credential carriers present: 0  (must be 0)
+
+=== 2. Staged vs expected, decoded properly ===
+
+  Earlier check compared raw `ls-files -z` names against
+  `diff --cached --name-only` output. The latter OCTAL-ESCAPES and
+  DOUBLE-QUOTES non-ASCII paths, so `^pacgate-ai/` never matched them and
+  13 CJK-named files looked "missing". Re-running with quotepath=false:
+  expected at target : 456
+  staged under pacgate-ai/ : 438
+  tracked but NOT staged  : 18
+
+  --- the genuine remainder, each with its reason ---
+    IGNORED  deploy/qm-pacgate/tasks/get_signin_link.ps1
+             .gitignore:54:pacgate-ai/deploy/qm-pacgate/tasks/	pacgate-ai/deploy/qm-pacgate/tasks/get_signin_link.ps1
+    IGNORED  deploy/qm-pacgate/tasks/patch-pi-models.sh
+             .gitignore:54:pacgate-ai/deploy/qm-pacgate/tasks/	pacgate-ai/deploy/qm-pacgate/tasks/patch-pi-models.sh
+    IGNORED  deploy/qm-pacgate/tasks/plan.md
+             .gitignore:54:pacgate-ai/deploy/qm-pacgate/tasks/	pacgate-ai/deploy/qm-pacgate/tasks/plan.md
+    IGNORED  deploy/qm-pacgate/tasks/seed-base-model.sql
+             .gitignore:54:pacgate-ai/deploy/qm-pacgate/tasks/	pacgate-ai/deploy/qm-pacgate/tasks/seed-base-model.sql
+    IGNORED  pacgate-adapters/typescript/dist/index.d.ts
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/index.d.ts
+    IGNORED  pacgate-adapters/typescript/dist/index.js
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/index.js
+    IGNORED  pacgate-adapters/typescript/dist/qm_pacgate_contract.d.ts
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/qm_pacgate_contract.d.ts
+    IGNORED  pacgate-adapters/typescript/dist/qm_pacgate_contract.js
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/qm_pacgate_contract.js
+    IGNORED  pacgate-adapters/typescript/dist/qm_pacgate_runtime.d.ts
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/qm_pacgate_runtime.d.ts
+    IGNORED  pacgate-adapters/typescript/dist/qm_pacgate_runtime.js
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/qm_pacgate_runtime.js
+    IGNORED  pacgate-adapters/typescript/dist/qm_pacgate_runtime.test.d.ts
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/qm_pacgate_runtime.test.d.ts
+    IGNORED  pacgate-adapters/typescript/dist/qm_pacgate_runtime.test.js
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/qm_pacgate_runtime.test.js
+    IGNORED  pacgate-adapters/typescript/dist/qm_pacgate_wrapper.d.ts
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/qm_pacgate_wrapper.d.ts
+    IGNORED  pacgate-adapters/typescript/dist/qm_pacgate_wrapper.js
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/qm_pacgate_wrapper.js
+    IGNORED  pacgate-adapters/typescript/dist/qm_pacgate_wrapper.test.d.ts
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/qm_pacgate_wrapper.test.d.ts
+    IGNORED  pacgate-adapters/typescript/dist/qm_pacgate_wrapper.test.js
+             pacgate-ai/pacgate-adapters/typescript/.gitignore:3:dist/	pacgate-ai/pacgate-adapters/typescript/dist/qm_pacgate_wrapper.test.js
+    IGNORED  scope-assets/contracts/preapproval-contract-draft/out/out.zip
+             pacgate-ai/.gitignore:62:*.zip	pacgate-ai/scope-assets/contracts/preapproval-contract-draft/out/out.zip
+    IGNORED  scope-assets/contracts/preapproval-contract-draft/out/pdf-bundle.zip
+             pacgate-ai/.gitignore:62:*.zip	pacgate-ai/scope-assets/contracts/preapproval-contract-draft/out/pdf-bundle.zip
+
+  legitimately ignored: 18   unexplained: 0
+
+  Categories of the ignored remainder (all correct):
+    deploy/qm-pacgate/tasks/          runtime state, regenerated
+    pacgate-adapters/**/dist/         build output (platform .gitignore)
+    scope-assets/**/out/*.zip         generated archives
+
+=== 3. Bottom line ===
+  All remaining exclusions are intentional (runtime state / build output).

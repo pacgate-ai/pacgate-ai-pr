@@ -1,0 +1,376 @@
+PHASE 1 RESUME (Step 4b + 5 + 6 + verification)
+==============================================================
+The interrupted move is repaired (see RECOVERY.txt). Resuming the remaining work.
+
+>>> 4b. Remove the pacgate-ai gitlink from the index
+  gitlink present before: 1
+    160000 0f7db15284cbcdda3d2fca4c04e8953d6d038fbe 0	pacgate-ai
+    rm 'pacgate-ai'
+  gitlink present after : 0  (must be 0)
+
+>>> 5. Place staged platform content at pacgate-ai\
+  robocopy exit=1  placed 456 files
+
+>>> 6. Drop the stale .gitmodules and stage everything
+  removed stale .gitmodules (no real submodule remains)
+    warning: in the working copy of 'pacgate-ai/.env.example', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.gitattributes', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.github/copilot-instructions.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.github/instructions/docs-static-frontend.instructions.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.github/instructions/proposal-bilingual.instructions.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.github/skills/pacgate-frontend-design/SKILL.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.github/skills/pacgate-qa-workboard/SKILL.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.github/skills/pacgate-qa-workboard/references/analysis-report-schema.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.github/skills/pacgate-qa-workboard/references/artifact-requirements.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.github/skills/pacgate-qa-workboard/references/verification-checklist.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.github/skills/pacgate-qa-workboard/references/workboard-architecture.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.github/skills/pacgate-redesign/SKILL.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.github/workflows/build-ghcr.yml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/.gitignore', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/CONTINUE-FROM-OTHER-MACHINE.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/Cargo.lock', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/Dockerfile', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/README-ZH.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/README.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/auth-gate/Dockerfile', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/auth-gate/server.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/compose.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-agent/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-agent/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-agent/src/system_prompt_base.txt', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-agent/src/workflow_executor.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/src/auth.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/src/bin/seed.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/src/chat.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/src/documents.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/src/error.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/src/main.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/src/matters.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/src/search.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/src/state.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/src/workflows.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/tests/integration.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-api/tests/smoke.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-auth/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-auth/src/error.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-auth/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-auth/src/middleware.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-core/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-core/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-docx/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-docx/src/builder.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-docx/src/diff.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-docx/src/error.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-docx/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-docx/src/ooxml.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-docx/src/parser.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-docx/src/store.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-docx/src/styles.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-docx/src/templates.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-llm/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-llm/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-persona/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-persona/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-rag/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-rag/src/embed.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-rag/src/ingest.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-rag/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-search/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-search/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-template/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-template/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-tenant/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-tenant/src/error.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-tenant/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-tenant/src/tenant_store.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-workflow/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-workflow/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/crates/pacgate-workflow/tests/yaml_loader.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/AIPC-DEPLOYMENT-HANDBOOK-ZH.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/AIPC-DEPLOYMENT-HANDBOOK.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/AIPC2-HANDOFF-PROMPT-v2.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/AIPC2-HANDOFF-PROMPT.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/ARCHITECTURE-DIAGRAMS.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/COPILOT_CONTEXT.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/DEPLOYMENT-GUIDE.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/GRAPH_REPORT.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/PLANS.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/README-BUILD.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/SETUP-AND-OPERATIONS-ZH.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/SETUP-AND-OPERATIONS.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/USER-MANUAL-ZH.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/USER-MANUAL.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/build-frontend.ps1', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/build-images.ps1', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/.env.example', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/README-client.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/compose.bundle.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/compose.e2e-override.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/compose.prod.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/deer-flow-config.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/deer-flow-extensions-config.template.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/e2e-audit.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/install.ps1', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/nginx/default.conf', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/ollama-models.txt', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/openviking/ov.conf.template', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/patches/deer-flow-agent.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/patches/deer-flow-artifacts.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/patches/deer-flow-prompt.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/patches/deer-flow-sync.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/patches/deer-flow-thread-runs.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/patches/deer-flow-uploads.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/patches/deer-flow-worker.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/patches/langchain-mcp-tools.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/personas/README.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/setup-qm.ps1', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/smoke-deer-flow-outputs.ps1', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/strength-doc-loop.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/archive_collection.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/banking_general.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/capital_markets.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/compliance_corporate.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/compliance_extra.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/compliance_specialized.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/contract_review.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/daily_general.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/fund_extra.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/fund_lawyer.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/investment_financing.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/litigation.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/litigation_extra.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/ma_due_diligence.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-bundle/workflows/nonlitigation_extra.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/client-delivery/README.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/deer-flow-frontend-pacgate/Dockerfile', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/deer-flow-pacgate/Dockerfile', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/deer-flow-pacgate/config.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/frontend-patches/files/src/components/workspace/input-box.tsx', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/frontend-patches/files/src/core/i18n/locales/en-US.ts', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/frontend-patches/files/src/core/i18n/locales/types.ts', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/frontend-patches/files/src/core/i18n/locales/zh-CN.ts', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/frontend-patches/files/src/core/threads/hooks.ts', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/graph.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/graphify-graph.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/handbooks/.gitignore', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/handbooks/deer-flow-openviking-pacgate-handbook.zh.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/handbooks/qm-openviking-pacgate-handbook.zh.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/handbooks/render_handbooks.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/knowledge-graph.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/pacgate-mcp/Dockerfile', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/pacgate-mcp/requirements.txt', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/pacgate-mcp/server.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/.codex/skills/deploy-qm/SKILL.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/.codex/skills/deploy-qm/agents/openai.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/.codex/skills/deploy-qm/references/aws.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/.codex/skills/deploy-qm/references/email.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/.codex/skills/deploy-qm/references/fly.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/.codex/skills/deploy-qm/references/slack.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/.env.example', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/.gitignore', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/AGENTS.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/compose.qm.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/deployment.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/package-lock.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/package.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/patch/pi-models.ts', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/qm.config.jsonc', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/sandbox/Dockerfile', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/sandbox/skills/firecrawl-web/SKILL.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/sandbox/skills/pacgate-workflow-reference/SKILL.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/sandbox/skills/pacgate-workflow/SKILL.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/sandbox/tools/firecrawl-qm/firecrawl-qm', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/sandbox/tools/firecrawl-qm/firecrawl_qm.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/sandbox/tools/firecrawl-qm/tool.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/sandbox/tools/pacgate-qm/pacgate-qm', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/sandbox/tools/pacgate-qm/pacgate_qm.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/sandbox/tools/pacgate-qm/test_pacgate_qm.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/sandbox/tools/pacgate-qm/tool.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/deploy/qm-pacgate/slack-app-manifest.yml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/PACGATE-AI-BUILD-PLAN-PHASE1.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/PACGATE-AI-BUILD-PLANS.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/PACGATE-AI-COMMERCIAL-APPENDIX.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/PACGATE-AI-FULL-STACK-REPORT-ZH.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/PACGATE-AI-FULL-STACK-REPORT-ZH.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/PACGATE-AI-QUOTE-SUMMARY.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/PACGATE-LAW-STAFF-HANDBOOK-ZH.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/PACGATE-LAW-STAFF-HANDBOOK.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/SETUP-AND-OPERATIONS-ZH.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/assets/protect.js', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/01-system-overview.drawio', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/02-llm-router.drawio', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/03-agent-loop.drawio', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/04-docx-engine.drawio', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/05-rag-pipeline.drawio', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/mermaid/fullstack-01-layer-status.mmd', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/mermaid/fullstack-02-delivery-roadmap.mmd', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/mermaid/fullstack-03-runtime-topology.mmd', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/mermaid/pacgate-report-theme.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/mermaid/setup-01-day1-bootstrap.mmd', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/mermaid/setup-02-day2-integration.mmd', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/mermaid/setup-03-day3-handover.mmd', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/mermaid/user-01-two-doors.mmd', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/mermaid/user-02-answer-flow.mmd', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/mermaid/user-03-privacy-split.mmd', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/pacgate-concept-diagram.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/pacgate-diagrams-report.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/pacgate-function-diagram.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/diagrams/pacgate-utility-diagram.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/index.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/plans/2026-08-13-session5-implementation-plan.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/plans/2026-08-16-qm-core-ollama-adaptation-plan.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/progress-reportcard/index.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/progress-reportcard/prerequisites-checklist.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/prompt-templates/patent-disclosure-prompt.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/qa/index.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/qa/pacgate-phase1-annex-a-scope-matrix.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/qa/pacgate-phase1-annex-b-hardware-deployment.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/qa/pacgate-phase1-annex-c-systems-knowledge.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/qa/pacgate-phase1-annex-d-phase2-options.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/qa/pacgate-phase1-clarification-reply.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/qa/phase1-clarification-shell.js', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/qa/phase1-clarification-theme.css', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/superpowers/plans/2026-08-28-openviking-memory-lane.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/docs/superpowers/specs/2026-08-28-openviking-memory-lane-design.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/extract_pdfs.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/migrations/001_initial_schema.sql', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/migrations/002_rag_schema.sql', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/migrations/003_rag_enrichment.sql', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/migrations/004_data_level.sql', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/migrations/004_matter_external_keys.sql', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/nginx/default.conf', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/python/pacgate_deerflow_adapter/.gitignore', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/python/pacgate_deerflow_adapter/__init__.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/python/pacgate_deerflow_adapter/client.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/python/pacgate_deerflow_adapter/pyproject.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/python/pacgate_deerflow_adapter/storage.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/typescript/.gitignore', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/typescript/index.ts', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/typescript/package-lock.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/typescript/package.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/typescript/qm_pacgate_contract.ts', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/typescript/qm_pacgate_runtime.test.ts', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/typescript/qm_pacgate_runtime.ts', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/typescript/qm_pacgate_wrapper.test.ts', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/typescript/qm_pacgate_wrapper.ts', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/pacgate-adapters/typescript/tsconfig.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/patches/0001-perf-search-fan-out-connectors-concurrently-in-searc.patch', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/patches/0002-feat-deer-flow-add-pacgate-mcp-so-the-agent-can-quer.patch', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/patches/0003-chore-deploy-on-board-Ollama-models-nginx-research-r.patch', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/patches/0004-feat-qm-enable-portal-auth-broker-with-Resend-sign-i.patch', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/001-client-bundle.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/002-deer-flow-multi-model.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/003-qm-bootstrap.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/004-fix-deployment-guide.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/005-workflow-packaging.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/006-setup-guide.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/007-aipc-full-installation-handoff.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/007-aipc1-kickoff-prompt.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/007-audit-smoke-report.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/007-delivery-log.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/007-signin-status.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/008-refine-user-manuals-bilingual-mermaid-pdf.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/009-aipc2-sync-and-upgrade-0.1.7.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/010-qm-single-stack-migration.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/plans/README.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/safe_clarification_board_to_pdf.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/safe_clarification_html_to_pdf.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/safe_markdown_to_pdf.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/__export_v4_pdf_bundle.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/addon-services-schedule-en.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/addon-services-schedule-zh.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/annual-license-renewal-order-en.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/annual-license-renewal-order-zh.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/bundle_addon_docs.py', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/contract-writer-agent-plan.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/onsite-service-order-en.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/onsite-service-order-zh.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/out/v4-contract-dashboard-zh.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/pacgate-contract-review-checklist.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/remote-advisory-service-order-en.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/contracts/preapproval-contract-draft/remote-advisory-service-order-zh.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/PACGATE-AI-BUILD-PLAN-PHASE1-ZH.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/PACGATE-AI-QUOTE-WORKSHEET-ZH.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/PACGATE-AI-PHASE1-CLARIFICATION-ANALYSIS.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/PACGATE-AI-PHASE1-CLARIFICATION-QUESTIONS.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/PACGATE-AI-PHASE1-WORKBOARD-PLAN.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-a-scope-matrix.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-b-hardware-deployment.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-c-systems-knowledge.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-d-phase2-options.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/pacgate-phase1-clarification-reply.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/pacgate-phase1-client-send-guide.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/pacgate-phase1-review-hub.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/pacgate-phase1-workboard.html', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/pacgate-phase1-workboard.seed.json', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/pdf-export-safe/pdf-review.txt', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/pdf-export/pdf-review.txt', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/phase1-clarification-shell.js', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/generated/phase1-clarification/phase1-clarification-theme.css', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scope-assets/寮€婧愭硶寰婣I椤圭洰娣卞害璋冪爺锛?026骞?鏈堬級.md', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scripts/bootstrap-integration-postgres.ps1', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/scripts/qm-local.ps1', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/wasm-crates/pacgate-citation-check/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/wasm-crates/pacgate-citation-check/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/wasm-crates/pacgate-clause-parser/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/wasm-crates/pacgate-clause-parser/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/wasm-crates/pacgate-doc-validator/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/wasm-crates/pacgate-doc-validator/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/wasm-crates/pacgate-rule-engine/Cargo.toml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/wasm-crates/pacgate-rule-engine/src/lib.rs', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/archive_collection.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/banking_general.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/capital_markets.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/compliance_corporate.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/compliance_extra.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/compliance_specialized.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/contract_review.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/daily_general.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/fund_extra.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/fund_lawyer.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/investment_financing.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/litigation.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/litigation_extra.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/ma_due_diligence.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'pacgate-ai/workflows/nonlitigation_extra.yaml', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'runtime/relocate/ASSETS-STRUCTURE.txt', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'runtime/relocate/BASELINE-COMMIT.txt', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'runtime/relocate/POST-FAILURE-ASSESS.txt', LF will be replaced by CRLF the next time Git touches it
+    warning: in the working copy of 'runtime/relocate/RECOVERY.txt', LF will be replaced by CRLF the next time Git touches it
+  staged paths: 449
+
+  --- FATAL guards ---
+  OK  no credential match: OPERATOR\.md$
+  OK  no credential match: remote-handbook
+  OK  no credential match: MCP鎺堟潈
+  OK  no credential match: V2\.docx
+  OK  no bulk match: (^|/)deer-flow(/|$)
+  OK  no bulk match: (^|/)target(/|$)
+  OK  no bulk match: client-bundle/data/
+  OK  no bulk match: \.zip$
+  OK  no bulk match: ^pacgate-ai-assets/
+  all guards passed
+
+>>> Verification
+  Cargo.toml                                     OK
+  deploy\client-bundle\compose.bundle.yaml       OK
+  deploy\qm-pacgate\compose.qm.yaml              OK
+  pacgate-adapters                               OK
+  scope-assets                                   OK
+  patches                                        OK
+  docs                                           OK
+  no target/ dir                : True
+  credential carriers in target : 5  (must be 0)
+      !!! C:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\patches\langchain-mcp-tools.py
+      !!! C:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\pacgate-mcp\Dockerfile
+      !!! C:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\pacgate-mcp\requirements.txt
+      !!! C:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\pacgate-mcp\server.py
+      !!! C:\Users\pacga\github-pr\pacgate-law\pacgate-ai\patches\0002-feat-deer-flow-add-pacgate-mcp-so-the-agent-can-quer.patch
+  index entries 515 | excluded(credential tree) 59 | expected 456
+  MISSING at target: 0  (must be 0)
+  non-ASCII-named files         : 13
+
+PHASE 1 INCOMPLETE - investigate before Phase 2.

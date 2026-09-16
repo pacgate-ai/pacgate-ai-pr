@@ -1,0 +1,58 @@
+PHASE 1 VERIFICATION (post-commit)
+==============================================================
+
+=== Commits ===
+  9d8fc3b feat(monorepo): import PacGate platform from C:\pacgate-ai-pr
+  c4ba8b0 chore: baseline local monorepo before pacgate-ai-pr relocation
+
+=== Tracked files in HEAD ===
+  total            : 547
+  under pacgate-ai/: 438
+
+=== Non-ASCII names committed: 13 ===
+  pacgate-ai/docs/assets/q&a/Pacgate_AI_Phase1_技术方书面澄清问题清单.docx
+  pacgate-ai/docs/progress-reportcard/项目时间线与关键节点.pdf
+  pacgate-ai/scope-assets/Crosby 深度调研（2025-2026）.pdf
+  pacgate-ai/scope-assets/Harvey 2026年4月全景调研.pdf
+  pacgate-ai/scope-assets/Harvey Agent技术应用调研（2026年4月）.pdf
+  pacgate-ai/scope-assets/Moritz 深度调研（2025-2026）.pdf
+  pacgate-ai/scope-assets/contracts/preapproval-contract-draft/(6.5)智方云本地 AI 硬件设备及标准系统交付合同.docx
+  pacgate-ai/scope-assets/contracts/preapproval-contract-draft/智方云产品及服务统一选购表.xlsx
+  pacgate-ai/scope-assets/contracts/preapproval-contract-draft/（6.5）智方云法律 Agent 应用定制服务合同.docx
+  pacgate-ai/scope-assets/original-concept/Pacgate AI Law Firm 浅色科技版.pdf
+  pacgate-ai/scope-assets/original-concept/Pacgate AI Law Firm 系统设计报告.docx
+  pacgate-ai/scope-assets/original-concept/法律AI系统产品设计框架.pdf
+  pacgate-ai/scope-assets/开源法律AI项目深度调研（2026年5月）.md
+
+=== Spot-check the CJK files named in the plan ===
+  pacgate-ai/docs/progress-reportcard/             5 file(s)
+  pacgate-ai/docs/assets/q&a/                      1 file(s)
+  pacgate-ai/scope-assets/                         106 file(s)
+
+=== Exclusions confirmed ===
+  pacgate-ai/target/                           0  OK
+  pacgate-ai/deploy/client-bundle/data/        0  OK
+  pacgate-ai-assets/                           0  OK
+  deer-flow/                                   0  OK
+  OPERATOR.md                                  0  OK
+  remote-handbook                              0  OK
+
+=== Working tree status ===
+  entries: 8
+    ?? runtime/relocate/PHASE1-COMMIT.txt
+    ?? runtime/relocate/PHASE1-RESUME.txt
+    ?? runtime/relocate/RECONCILE-VERIFIED.txt
+    ?? runtime/relocate/RECONCILE.txt
+    ?? runtime/relocate/phase1-commit.ps1
+    ?? runtime/relocate/phase1-verify.ps1
+    ?? runtime/relocate/reconcile-verified.ps1
+    ?? runtime/relocate/reconcile.ps1
+
+=== Source repo (rollback) intact ===
+  exists : True
+  HEAD   : 151a383
+  tracked: 515
+  dirs   : deploy=True pacgate-ai=True
+
+=== Running stack (must be untouched) ===
+  containers running: 25
