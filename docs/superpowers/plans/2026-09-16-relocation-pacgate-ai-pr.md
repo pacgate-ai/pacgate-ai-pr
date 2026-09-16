@@ -9,10 +9,31 @@
 **Goal:** Make `C:\Users\pacga\github-pr\pacgate-law` the single local repository
 hosting all services, codebases and runtimes, so `C:\pacgate-ai-pr` can be retired.
 
-**Hard constraint discovered during planning:** the running stack **bind-mounts
-absolute paths under `C:\pacgate-ai-pr`**. Moving that directory *will* break the
-stack unless the paths are updated in the same change window. This is not
-avoidable — it is a property of how the containers were started.
+> ### ⚠️ CORRECTION (2026-09-16, after Phase 1) — the original premise was WRONG
+>
+> This plan originally asserted: *"the running stack **bind-mounts absolute paths
+> under `C:\pacgate-ai-pr`**. Moving that directory *will* break the stack."*
+> **That is false.** Verified two ways:
+>
+> 1. Reading `compose.bundle.yaml` — every mount is **relative**:
+>    `./data:/data`, `./patches/deer-flow-artifacts.py:/app/...`,
+>    `./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro`.
+> 2. The live container labels show
+>    `com.docker.compose.project.working_dir = C:\pacgate-ai-pr\deploy\client-bundle`.
+>
+> Compose resolves relative mounts against the **compose file's own directory**,
+> so they follow the move automatically. There is **no absolute path to rewrite**
+> in any compose file, `.env`, or runtime config.
+>
+> **Consequences:**
+> - Task 2 shrank from "rewrite 23 hardcoded paths" to **2 stale comments** in
+>   `build-images.ps1` / `build-frontend.ps1` (their code already used
+>   `$PSScriptRoot`) plus 6 handbooks made layout-agnostic. ✅ done, commit `66051ec`.
+> - The cutover is **much safer than feared**: the stack must still be restarted
+>   (Docker resolves mounts at container start), but the risk of a silently broken
+>   mount is low, and the volume/project-name trap is the only real hazard.
+> - The maintenance window is still required, but it is a *restart*, not a
+>   *reconfiguration*.
 
 ---
 
@@ -180,6 +201,28 @@ and the failure modes are documented in the trap table.
 
 ## Task 1 — Stage the content at the new location (source untouched)
 
+> ### ✅ STATUS: COMPLETE (2026-09-16)
+> Commits `c4ba8b0` (baseline) → `9d8fc3b` (import) → `8bf3fee` (tooling).
+> 438 files under `pacgate-ai/`, 13 CJK names intact, 0 credential carriers,
+> 0 bulk paths. Source untouched at `151a383`; 25 containers still up.
+>
+> **Two deviations from the steps below, both forced by reality:**
+> 1. **Step 4's `Move-Item` failed** with *"cannot delete pacgate-ai\.git —
+>    insufficient access"*. `Move-Item` is **not atomic**: it moved the loose
+>    files and `.git`, then failed on the `.git` directory removal, leaving the
+>    subdirectories behind. Nothing was lost (262 files recovered = exact
+>    baseline). Fixed with `robocopy /MOVE` — see `runtime/relocate/RECOVERY.txt`.
+>    **Lesson: never use `Move-Item` on a directory containing a `.git`.**
+> 2. **`pacgate-ai-assets/` is ignored, not committed.** It is itself a git repo,
+>    so `git add` would record a *gitlink* (a phantom submodule). Fully committing
+>    it would mean deleting its `.git` and severing its link to
+>    `JZKK720/pacgate-ai`. That is destructive and was not requested, so it is
+>    deferred — see the `.gitignore` comment and `ASSETS-STRUCTURE.txt`.
+>
+> **Also discovered:** `deer-flow/` is an embedded repo; `git add -A` would have
+> recorded it as a gitlink too. Now ignored (it ships via its own
+> `pacgate-layer` branch). See `STAGE-PREVIEW.txt`.
+
 **Deliverable:** the same content present in both places; nothing stopped yet.
 
 - [ ] **1.0 Create the destination and clear the submodule gitlink** (Preflight P5):
@@ -300,6 +343,27 @@ and the failure modes are documented in the trap table.
 ---
 
 ## Task 2 — Rewrite the absolute path references
+
+> ### ✅ STATUS: COMPLETE (2026-09-16) — commit `66051ec`
+> Far smaller than planned. The scan found **22 references in 8 files**, of which
+> only **2 were functional** — and both were stale *comments* in
+> `build-images.ps1` / `build-frontend.ps1` whose code already used
+> `$PSScriptRoot`. The other 6 were handbooks/plans, rewritten to the
+> layout-agnostic `<monorepo>\pacgate-ai` (20 replacements) so they are correct
+> on this machine, machine #2 and the developer's clone alike.
+>
+> **No compose file, `.env`, or runtime config contained the old path** — because
+> the mounts are relative (see the correction at the top of this plan).
+>
+> **Trap hit while scanning:** the first pass searched for `'C:\\pacgate-ai-pr'`
+> in a *single-quoted* PowerShell string, where `\\` is a **literal two
+> backslashes** — so it reported 0 hits and looked like a clean result. The real
+> pattern is a single backslash. Always confirm a "0 hits" result with a broader
+> pattern before trusting it.
+>
+> **Trap avoided while rewriting:** files were read/written as raw bytes + UTF-8,
+> never `Get-Content`/`Set-Content`, to avoid GBK double-encoding. Verified 0
+> mojibake and 0 damaged GitHub URLs (only the drive-letter form was replaced).
 
 **Deliverable:** nothing in the platform refers to `C:\pacgate-ai-pr` any more.
 
