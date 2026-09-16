@@ -2,6 +2,8 @@ PHASE 1 VERIFICATION (post-commit)
 ==============================================================
 
 === Commits ===
+  c32d933 docs(relocate): correct the plan's central premise after Phase 1
+  9f5196f feat(relocate): fix the compose name defect and add the cutover script
   cde68a2 docs(relocate): correct the plan's central premise after Phase 1
   66051ec refactor(relocate): make the platform location-independent
   8bf3fee chore: phase 1 relocation tooling, evidence and recovery notes
@@ -9,7 +11,7 @@ PHASE 1 VERIFICATION (post-commit)
   c4ba8b0 chore: baseline local monorepo before pacgate-ai-pr relocation
 
 === Tracked files in HEAD ===
-  total            : 566
+  total            : 573
   under pacgate-ai/: 438
 
 === Non-ASCII names committed: 13 ===

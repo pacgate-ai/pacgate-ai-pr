@@ -1,0 +1,136 @@
+TASK 2 -- searching ALL representations of the old path
+==============================================================
+
+First pass searched only for the literal `C:\pacgate-ai-pr`. The path can
+appear in several other forms, so search each one.
+
+===== SCOPE: NEW copy (pacgate-ai) =====
+  pacgate-ai-pr        ->    98 hit(s)
+  pacgate-ai-pr\       ->    19 hit(s)
+  pacgate-ai-pr/       ->    21 hit(s)
+  C:\pacgate-ai-pr     ->    22 hit(s)
+  C:/pacgate-ai-pr     ->     0 hit(s)
+  /pacgate-ai-pr       ->    60 hit(s)
+  PACAGATE_AI_PR       ->     0 hit(s)
+
+===== SCOPE: SOURCE (C:\pacgate-ai-pr) =====
+  pacgate-ai-pr        ->   456 hit(s)
+  pacgate-ai-pr\       ->   342 hit(s)
+  pacgate-ai-pr/       ->    21 hit(s)
+  C:\pacgate-ai-pr     ->    28 hit(s)
+  C:/pacgate-ai-pr     ->     0 hit(s)
+  /pacgate-ai-pr       ->    60 hit(s)
+  PACAGATE_AI_PR       ->     0 hit(s)
+
+===== What the broad 'pacgate-ai-pr' hits actually are (NEW copy) =====
+
+  [ 10] \deploy\AIPC-DEPLOYMENT-HANDBOOK.md
+        L10    AIPC #2 must pull the **updated** code (from `pacgate-ai/pacgate-ai-pr`, see Stage 1) so it
+        L11    gets these fixes, not the older `JZKK720/pacgate-ai-pr` main.
+        L45    6. **Git push to `JZKK720/pacgate-ai-pr` is blocked for the `pacgate-ai` account** (403,
+        L47    there. The fork `pacgate-ai/pacgate-ai-pr` now carries all fixes on `main`.
+        L69    - GitHub access to `JZKK720/pacgate-ai-pr` (private repo) — a PAT or `gh auth login`
+        L109   cd c:\Users\cubecloud-io\github-pr\pacgate-ai-pr
+
+  [ 10] \deploy\AIPC-DEPLOYMENT-HANDBOOK-ZH.md
+        L10    AIPC #2 必须拉取**更新后**的代码（来自 `pacgate-ai/pacgate-ai-pr`，见 Stage 1），
+        L11    以获得这些修复，而不是较旧的 `JZKK720/pacgate-ai-pr` main 分支。
+        L46    6. **`pacgate-ai` 账号向 `JZKK720/pacgate-ai-pr` 推送被阻止**（403，需要 2FA 授权）。
+        L48    `pacgate-ai/pacgate-ai-pr` 现在在 `main` 上携带所有修复。
+        L73    - 访问 `JZKK720/pacgate-ai-pr`（私有仓库）的 GitHub 权限——PAT 或 `gh auth login`
+        L113   cd c:\Users\cubecloud-io\github-pr\pacgate-ai-pr
+
+  [  8] \deploy\AIPC2-HANDOFF-PROMPT-v2.md
+        L23    | `<monorepo>\pacgate-ai` | **The REAL implementation/deploy repo** | `JZKK720/pacgate-ai-pr` (push via fork `pacgate-ai/pacgate-ai-pr`) |
+        L26    **Clone from `<monorepo>\pacgate-ai` = the `pacgate-ai-pr` repo.** Do **not** create or sync
+        L31    The `pacgate-ai` account **cannot write** to `JZKK720/pacgate-ai-pr` (403, needs
+        L32    2FA grant). The fixes live on the **`pacgate-ai/pacgate-ai-pr`** fork, which the
+        L37    git clone https://github.com/pacgate-ai/pacgate-ai-pr.git
+        L38    cd pacgate-ai-pr
+
+  [  8] \scope-assets\generated\phase1-clarification\pdf-export\reply-en.pdf
+        L686   /URI (file:///C:/Users/cubecloud-io/github-pr/pacgate-ai-pr/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-a-scope-matrix. ...
+        L697   /URI (file:///C:/Users/cubecloud-io/github-pr/pacgate-ai-pr/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-b-hardware-depl ...
+        L708   /URI (file:///C:/Users/cubecloud-io/github-pr/pacgate-ai-pr/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-c-systems-knowl ...
+        L719   /URI (file:///C:/Users/cubecloud-io/github-pr/pacgate-ai-pr/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-d-phase2-option ...
+        L2375  /URI (file:///C:/Users/cubecloud-io/github-pr/pacgate-ai-pr/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-a-scope-matrix. ...
+        L2386  /URI (file:///C:/Users/cubecloud-io/github-pr/pacgate-ai-pr/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-b-hardware-depl ...
+
+  [  7] \docs\plans\2026-08-16-qm-core-ollama-adaptation-plan.md
+        L84    - Modify: local deployment docs [deploy/qm-pacgate/.env.example](d:/users/joeyzh/github-pr/pacgate-ai-pr/deploy/qm-pacgate/.env.example)
+        L140   - Modify: [deploy/qm-pacgate/qm.config.jsonc](d:/users/joeyzh/github-pr/pacgate-ai-pr/deploy/qm-pacgate/qm.config.jsonc)
+        L141   - Modify: [deploy/qm-pacgate/.env.example](d:/users/joeyzh/github-pr/pacgate-ai-pr/deploy/qm-pacgate/.env.example)
+        L142   - Modify: [scripts/qm-local.ps1](d:/users/joeyzh/github-pr/pacgate-ai-pr/scripts/qm-local.ps1)
+        L202   - Verify: [deploy/qm-pacgate/sandbox/tools/pacgate-qm/pacgate_qm.py](d:/users/joeyzh/github-pr/pacgate-ai-pr/deploy/qm-pacgate/sandbox/tools ...
+        L203   - Verify: [deploy/qm-pacgate/sandbox/skills/pacgate-workflow/SKILL.md](d:/users/joeyzh/github-pr/pacgate-ai-pr/deploy/qm-pacgate/sandbox/ski ...
+
+  [  6] \deploy\AIPC2-HANDOFF-PROMPT.md
+        L18    The `pacgate-ai` account **cannot write** to `JZKK720/pacgate-ai-pr` (403, needs
+        L19    2FA grant). The fixes live on the **`pacgate-ai/pacgate-ai-pr`** fork, which the
+        L24    git clone https://github.com/pacgate-ai/pacgate-ai-pr.git
+        L25    cd pacgate-ai-pr
+        L36    If you must use `JZKK720/pacgate-ai-pr`, pull the `feat/deer-flow-pacgate-mcp`
+        L51    6. **Git push via fork** — push to `pacgate-ai/pacgate-ai-pr`, not `JZKK720`.
+
+  [  4] \plans\007-aipc1-kickoff-prompt.md
+        L5     > is fresh — the `JZKK720/pacgate-ai-pr` repo is **NOT cloned yet**, so the prompt
+        L38    - [ ] GitHub access to the private repo `JZKK720/pacgate-ai-pr` — verified in
+        L58    `git clone https://github.com/JZKK720/pacgate-ai-pr.git`
+        L59    `cd pacgate-ai-pr`
+
+  [  4] \scope-assets\generated\phase1-clarification\pdf-export\reply-zh.pdf
+        L538   /URI (file:///C:/Users/cubecloud-io/github-pr/pacgate-ai-pr/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-a-scope-matrix. ...
+        L549   /URI (file:///C:/Users/cubecloud-io/github-pr/pacgate-ai-pr/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-b-hardware-depl ...
+        L560   /URI (file:///C:/Users/cubecloud-io/github-pr/pacgate-ai-pr/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-c-systems-knowl ...
+        L571   /URI (file:///C:/Users/cubecloud-io/github-pr/pacgate-ai-pr/scope-assets/generated/phase1-clarification/pacgate-phase1-annex-d-phase2-option ...
+
+  [  3] \CONTINUE-FROM-OTHER-MACHINE.md
+        L8     git clone https://github.com/JZKK720/pacgate-ai-pr.git
+        L9     cd pacgate-ai-pr
+        L33    pacgate-ai-pr/
+
+  [  2] \deploy\client-bundle\README-client.md
+        L8     3. Clone the repo: `git clone https://github.com/JZKK720/pacgate-ai-pr.git`
+        L9     and work in `pacgate-ai-pr\deploy\client-bundle`
+
+  [  2] \README-ZH.md
+        L34    git clone https://github.com/JZKK720/pacgate-ai-pr.git
+        L35    cd pacgate-ai-pr
+
+  [  2] \README.md
+        L34    git clone https://github.com/JZKK720/pacgate-ai-pr.git
+        L35    cd pacgate-ai-pr
+
+  [  2] \deploy\DEPLOYMENT-GUIDE.md
+        L24    - This repo cloned: `c:\Users\cubecloud-io\github-pr\pacgate-ai-pr`
+        L40    cd c:\Users\cubecloud-io\github-pr\pacgate-ai-pr
+
+  [  2] \deploy\README-BUILD.md
+        L24    The repo's push remote is `fork = https://github.com/pacgate-ai/pacgate-ai-pr.git`
+        L25    (the `pacgate-ai` org), and `origin = JZKK720/pacgate-ai-pr`. The CI workflow
+
+  [  1] \deploy\SETUP-AND-OPERATIONS-ZH.md
+        L60    cd c:\Users\cubecloud-io\github-pr\pacgate-ai-pr
+
+  [  1] \extract_pdfs.py
+        L3     base = r'c:\Users\cubecloud-io\github-pr\pacgate-ai-pr\scope-assets'
+
+  [  1] \scope-assets\contracts\preapproval-contract-draft\bundle_addon_docs.py
+        L16    PYTHON = "c:/Users/cubecloud-io/github-pr/pacgate-ai-pr/.venv/Scripts/python.exe"
+
+  [  1] \plans\007-aipc-full-installation-handoff.md
+        L285   - [ ] GitHub access to `JZKK720/pacgate-ai-pr` (private repo; `gh auth login`
+
+  [  1] \deploy\client-delivery\README.md
+        L98    2. 克隆仓库：`git clone https://github.com/JZKK720/pacgate-ai-pr.git`
+
+  [  1] \deploy\SETUP-AND-OPERATIONS.md
+        L60    cd c:\Users\cubecloud-io\github-pr\pacgate-ai-pr
+
+  [  1] \docs\PACGATE-AI-FULL-STACK-REPORT-ZH.md
+        L164   > 仓库地址：github.com/JZKK720/pacgate-ai-pr（私有）
+
+  [  1] \docs\PACGATE-AI-FULL-STACK-REPORT-ZH.html
+        L516   仓库地址：github.com/JZKK720/pacgate-ai-pr（私有） · 提交版本：151881c（2026-08-18）
+
+  files: 22   total hits: 78

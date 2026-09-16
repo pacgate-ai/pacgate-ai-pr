@@ -1,0 +1,147 @@
+MOUNT AUDIT -- exact bind mounts, and whether the new copy has the source
+==============================================================================
+
+Previous count was wrong: `$j | ConvertFrom-Json` returns the array as a
+SINGLE object in PowerShell 5.1 (not enumerated), so Where-Object treated
+all 13 deer-flow mounts as one item. Enumerate properly below.
+
+=== Bind mounts found: 31 ===
+    referencing the OLD path: 16
+    other locations:          15
+
+=== The OLD-path mounts, with new-copy status ===
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\data
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\data
+    dest: /data  (rw)
+    new copy present: *** MISSING ***
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\deer-flow-extensions-config.json
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\deer-flow-extensions-config.json
+    dest: /app/deer-flow-extensions-config.json  (ro)
+    new copy present: *** MISSING ***
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\workflows
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\workflows
+    dest: /app/workflows  (ro)
+    new copy present: YES
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\data\deer-flow
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\data\deer-flow
+    dest: /app/backend/.deer-flow  (rw)
+    new copy present: *** MISSING ***
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\deer-flow-config.yaml
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\deer-flow-config.yaml
+    dest: /app/backend/config.yaml  (ro)
+    new copy present: YES
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-artifacts.py
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\patches\deer-flow-artifacts.py
+    dest: /app/backend/app/gateway/routers/artifacts.py  (ro)
+    new copy present: YES
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-thread-runs.py
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\patches\deer-flow-thread-runs.py
+    dest: /app/backend/app/gateway/routers/thread_runs.py  (ro)
+    new copy present: YES
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-uploads.py
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\patches\deer-flow-uploads.py
+    dest: /app/backend/app/gateway/routers/uploads.py  (ro)
+    new copy present: YES
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-sync.py
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\patches\deer-flow-sync.py
+    dest: /app/backend/packages/harness/deerflow/tools/sync.py  (ro)
+    new copy present: YES
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\patches\langchain-mcp-tools.py
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\patches\langchain-mcp-tools.py
+    dest: /app/backend/.venv/lib/python3.12/site-packages/langchain_mcp_adapters/tools.py  (ro)
+    new copy present: YES
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-agent.py
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\patches\deer-flow-agent.py
+    dest: /app/backend/packages/harness/deerflow/agents/lead_agent/agent.py  (ro)
+    new copy present: YES
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-prompt.py
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\patches\deer-flow-prompt.py
+    dest: /app/backend/packages/harness/deerflow/agents/lead_agent/prompt.py  (ro)
+    new copy present: YES
+
+  [deer-flow]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-worker.py
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\patches\deer-flow-worker.py
+    dest: /app/backend/packages/harness/deerflow/runtime/runs/worker.py  (ro)
+    new copy present: YES
+
+  [openviking]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\openviking
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\openviking
+    dest: /app/.openviking  (rw)
+    new copy present: YES
+
+  [pacgate-api]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\data
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\data
+    dest: /data  (rw)
+    new copy present: *** MISSING ***
+
+  [pacgate-nginx]
+    old : C:\pacgate-ai-pr\deploy\client-bundle\nginx\default.conf
+    new : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\nginx\default.conf
+    dest: /etc/nginx/conf.d/default.conf  (ro)
+    new copy present: YES
+
+=== Mounts pointing somewhere other than C:\pacgate-ai-pr ===
+  [dockhand] /var/run/docker.sock -> /var/run/docker.sock
+  [hermes-gateway] C:\Users\pacga\github-pr\hermes-agent\data -> /opt/data
+  [hermes-gateway] C:\Users\pacga\github-pr\hermes-agent\docker\hermes-config.yaml -> /opt/hermes/cli-config.yaml.example
+  [hermes-web] C:\Users\pacga\github-pr\hermes-agent\data -> /opt/data
+  [hermes-web] C:\Users\pacga\github-pr\hermes-agent\docker\hermes-config.yaml -> /opt/hermes/cli-config.yaml.example
+  [odysseus-odysseus-1] C:\Users\pacga\github-pr\odysseus\data\local -> /app/.local
+  [odysseus-odysseus-1] C:\Users\pacga\github-pr\odysseus\data\ssh -> /app/.ssh
+  [odysseus-odysseus-1] C:\Users\pacga\github-pr\odysseus\data -> /app/data
+  [odysseus-odysseus-1] C:\Users\pacga\github-pr\odysseus\logs -> /app/logs
+  [odysseus-odysseus-1] C:\Users\pacga\github-pr\odysseus\data\huggingface -> /app/.cache/huggingface
+  [odysseus-odysseus-1] /var/run/docker.sock -> /var/run/docker.sock
+  [odysseus-searxng-1] /run/desktop/mnt/host/c/Users/pacga/github-pr/odysseus/config/searxng/settings.yml -> /tmp/searxng-settings.yml.template
+  [qm-pacgate-core-1] /run/desktop/mnt/host/c/pacgate-ai-pr/deploy/qm-pacgate/sandbox/skills -> /layer/skills
+  [qm-pacgate-core-1] /run/desktop/mnt/host/c/pacgate-ai-pr/deploy/qm-pacgate/sandbox/tools -> /layer/tools
+  [qm-pacgate-core-1] /run/desktop/mnt/host/c/pacgate-ai-pr/deploy/qm-pacgate/patch/pi-models.ts -> /app/src/model/pi-models.ts
+
+=== GAP SUMMARY ===
+  4 mount source(s) MISSING from the new copy:
+    C:\pacgate-ai-pr\deploy\client-bundle\data
+    C:\pacgate-ai-pr\deploy\client-bundle\deer-flow-extensions-config.json
+    C:\pacgate-ai-pr\deploy\client-bundle\data\deer-flow
+    C:\pacgate-ai-pr\deploy\client-bundle\data
+
+  These must be copied during the cutover or the container will start
+  with an empty/absent directory at the mount point.
+
+=== qm-pacgate specifics ===
+  qm-pacgate bind mounts: 3
+    /run/desktop/mnt/host/c/pacgate-ai-pr/deploy/qm-pacgate/sandbox/skills -> /layer/skills
+    /run/desktop/mnt/host/c/pacgate-ai-pr/deploy/qm-pacgate/sandbox/tools -> /layer/tools
+    /run/desktop/mnt/host/c/pacgate-ai-pr/deploy/qm-pacgate/patch/pi-models.ts -> /app/src/model/pi-models.ts
+  sandbox              old=11       new=11
+  patch                old=1        new=1
+  tasks                old=4        new=4
+  node_modules         old=130      new=ABSENT
+  .env                 old=1        new=ABSENT
+  qm.config.jsonc      old=1        new=1

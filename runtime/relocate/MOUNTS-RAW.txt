@@ -1,0 +1,95 @@
+RAW MOUNT INSPECTION -- why did the previous scan report 0 bind mounts?
+==============================================================================
+
+=== A. deer-flow, several format strings ===
+
+  --- format: {{json .Mounts}} ---
+    lines: 1
+      [{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\data","Destination":"/data","Mode":"rw","RW":true,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\deer-flow-extensions-config.json","Destination":"/app/deer-flow-extensions-config.json","Mode":"ro","RW":false,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\workflows","Destination":"/app/workflows","Mode":"ro","RW":false,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\data\\deer-flow","Destination":"/app/backend/.deer-flow","Mode":"rw","RW":true,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\deer-flow-config.yaml","Destination":"/app/backend/config.yaml","Mode":"ro","RW":false,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\patches\\deer-flow-artifacts.py","Destination":"/app/backend/app/gateway/routers/artifacts.py","Mode":"ro","RW":false,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\patches\\deer-flow-thread-runs.py","Destination":"/app/backend/app/gateway/routers/thread_runs.py","Mode":"ro","RW":false,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\patches\\deer-flow-uploads.py","Destination":"/app/backend/app/gateway/routers/uploads.py","Mode":"ro","RW":false,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\patches\\deer-flow-sync.py","Destination":"/app/backend/packages/harness/deerflow/tools/sync.py","Mode":"ro","RW":false,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\patches\\langchain-mcp-tools.py","Destination":"/app/backend/.venv/lib/python3.12/site-packages/langchain_mcp_adapters/tools.py","Mode":"ro","RW":false,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\patches\\deer-flow-agent.py","Destination":"/app/backend/packages/harness/deerflow/agents/lead_agent/agent.py","Mode":"ro","RW":false,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\patches\\deer-flow-prompt.py","Destination":"/app/backend/packages/harness/deerflow/agents/lead_agent/prompt.py","Mode":"ro","RW":false,"Propagation":"rprivate"},{"Type":"bind","Source":"C:\\pacgate-ai-pr\\deploy\\client-bundle\\patches\\deer-flow-worker.py","Destination":"/app/backend/packages/harness/deerflow/runtime/runs/worker.py","Mode":"ro","RW":false,"Propagation":"rprivate"}]
+
+  --- format: {{range .Mounts}}{{.Type}}{{"\n"}}{{end}} ---
+    lines: 1
+      template parsing error: template: :1: unexpected "\\" in command
+
+  --- format: {{range .Mounts}}{{.Type}}|{{.Source}}{{"\n"}}{{end}} ---
+    lines: 1
+      template parsing error: template: :1: unexpected "\\" in command
+
+  --- format: {{range .Mounts}}[{{.Type}}] {{.Source}} => {{.Destination}}{{"\n"}}{{end}} ---
+    lines: 1
+      template parsing error: template: :1: unexpected "\\" in command
+
+=== B. Mount counts per container (authoritative) ===
+
+  [deer-flow]  bind=1  volume=0
+      OLD   System.Object[]
+            -> /data
+
+  [dockhand]  bind=1  volume=1
+      EXT   System.Object[]
+            -> /app/data
+      VOL   System.Object[] -> System.Object[]
+
+  [hermes-gateway]  bind=1  volume=0
+      EXT   System.Object[]
+            -> /opt/data
+
+  [hermes-postgres]  bind=0  volume=1
+      VOL   hermes-agent_postgres_data -> /var/lib/postgresql/data
+
+  [hermes-web]  bind=1  volume=1
+      EXT   System.Object[]
+            -> /opt/data
+      VOL   System.Object[] -> System.Object[]
+
+  [odysseus-chromadb-1]  bind=0  volume=1
+      VOL   odysseus_chromadb-data -> /chroma/chroma
+
+  [odysseus-ntfy-1]  bind=0  volume=1
+      VOL   odysseus_ntfy-cache -> /var/cache/ntfy
+
+  [odysseus-odysseus-1]  bind=1  volume=0
+      EXT   System.Object[]
+            -> /app/.local
+
+  [odysseus-searxng-1]  bind=1  volume=1
+      EXT   System.Object[]
+            -> /etc/searxng
+      VOL   System.Object[] -> System.Object[]
+
+  [openviking]  bind=1  volume=0
+      OLD   C:\pacgate-ai-pr\deploy\client-bundle\openviking
+            -> /app/.openviking
+
+  [open-webui]  bind=0  volume=1
+      VOL   open-webui -> /app/backend/data
+
+  [pacgate-api]  bind=1  volume=0
+      OLD   C:\pacgate-ai-pr\deploy\client-bundle\data
+            -> /data
+
+  [pacgate-db]  bind=0  volume=1
+      VOL   pacgate-ai-bundle_pacgate-db-data -> /var/lib/postgresql/data
+
+  [pacgate-nginx]  bind=1  volume=0
+      OLD   C:\pacgate-ai-pr\deploy\client-bundle\nginx\default.conf
+            -> /etc/nginx/conf.d/default.conf
+
+  [qm-pacgate-core-1]  bind=1  volume=1
+      OLD   System.Object[]
+            -> /data
+      VOL   System.Object[] -> System.Object[]
+
+  [qm-pacgate-pg-1]  bind=0  volume=1
+      VOL   qm-pacgate-pgdata -> /var/lib/postgresql/data
+
+  TOTAL bind mounts: 10
+  TOTAL volume mounts: 10
+
+=== C. Mounts still referencing the OLD path ===
+  count: 5
+  deer-flow : C:\pacgate-ai-pr\deploy\client-bundle\data C:\pacgate-ai-pr\deploy\client-bundle\deer-flow-extensions-config.json C:\pacgate-ai-pr\deploy\client-bundle\workflows C:\pacgate-ai-pr\deploy\client-bundle\data\deer-flow C:\pacgate-ai-pr\deploy\client-bundle\deer-flow-config.yaml C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-artifacts.py C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-thread-runs.py C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-uploads.py C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-sync.py C:\pacgate-ai-pr\deploy\client-bundle\patches\langchain-mcp-tools.py C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-agent.py C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-prompt.py C:\pacgate-ai-pr\deploy\client-bundle\patches\deer-flow-worker.py -> /data /app/deer-flow-extensions-config.json /app/workflows /app/backend/.deer-flow /app/backend/config.yaml /app/backend/app/gateway/routers/artifacts.py /app/backend/app/gateway/routers/thread_runs.py /app/backend/app/gateway/routers/uploads.py /app/backend/packages/harness/deerflow/tools/sync.py /app/backend/.venv/lib/python3.12/site-packages/langchain_mcp_adapters/tools.py /app/backend/packages/harness/deerflow/agents/lead_agent/agent.py /app/backend/packages/harness/deerflow/agents/lead_agent/prompt.py /app/backend/packages/harness/deerflow/runtime/runs/worker.py
+  openviking : C:\pacgate-ai-pr\deploy\client-bundle\openviking -> /app/.openviking
+  pacgate-api : C:\pacgate-ai-pr\deploy\client-bundle\data -> /data
+  pacgate-nginx : C:\pacgate-ai-pr\deploy\client-bundle\nginx\default.conf -> /etc/nginx/conf.d/default.conf
+  qm-pacgate-core-1 : /var/lib/docker/volumes/qm-pacgate-coredata/_data /run/desktop/mnt/host/c/pacgate-ai-pr/deploy/qm-pacgate/sandbox/skills /run/desktop/mnt/host/c/pacgate-ai-pr/deploy/qm-pacgate/sandbox/tools /run/desktop/mnt/host/c/pacgate-ai-pr/deploy/qm-pacgate/patch/pi-models.ts -> /data /layer/skills /layer/tools /app/src/model/pi-models.ts

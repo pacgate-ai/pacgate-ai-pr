@@ -1,0 +1,56 @@
+PATH MAP -- old vs new for every bind-mount the stack uses
+==============================================================================
+
+  OLD client-bundle : C:\pacgate-ai-pr\deploy\client-bundle
+  NEW client-bundle : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle
+
+  OLD qm-pacgate    : C:\pacgate-ai-pr\deploy\qm-pacgate
+  NEW qm-pacgate    : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\qm-pacgate
+
+=== 1. LIVE bind mounts (what the running containers actually use) ===
+
+  [pacgate-db]  bind mounts: 0
+
+  [pacgate-api]  bind mounts: 0
+
+  [deer-flow]  bind mounts: 0
+
+  [deer-flow-frontend]  bind mounts: 0
+
+  [pacgate-nginx]  bind mounts: 0
+
+  [pacgate-mcp]  bind mounts: 0
+
+  [openviking]  bind mounts: 0
+
+  [qm-pacgate-core-1]  bind mounts: 0
+
+=== 2. How compose DECLARES them (relative vs absolute) ===
+
+=== 3. Runtime state that is NOT in git (must be copied) ===
+  data                                     old=files=244 MB=1915.7 new=ABSENT
+  openviking                               old=files=145 MB=9   new=files=1 MB=0
+  .env                                     old=files=1 MB=0     new=ABSENT
+  deer-flow-extensions-config.json         old=files=1 MB=0     new=ABSENT
+  node_modules                             old=files=130 MB=1.2 new=ABSENT
+  .env                                     old=files=1 MB=0     new=ABSENT
+
+  total runtime state at old path: 1925.9 MB
+
+=== 4. Image pinning (how the runtime is version-locked) ===
+
+=== 5. ANSWER: the new path ===
+
+  Platform source (git-tracked, committed):
+    c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\
+
+  Runtime / compose root (where you run docker compose from):
+    c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\
+
+  Compose entry points:
+    c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\compose.bundle.yaml     <- the file that started the live stack
+    c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\compose.prod.yaml       <- used by install.ps1
+    c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\qm-pacgate\compose.qm.yaml
+
+  Named volume that holds the database (NOT moved; it is a Docker volume):
+    pacgate-ai-bundle_pacgate-db-data
