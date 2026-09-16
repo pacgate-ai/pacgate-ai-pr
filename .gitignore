@@ -103,3 +103,19 @@ graphify-ollama.log
 # keeps this monorepo self-contained and avoids a broken pointer.
 # See runtime/relocate/STAGE-PREVIEW.txt
 deer-flow/
+
+# pacgate-ai-assets/ was the `pacgate-ai` submodule, moved aside during the
+# relocation (it holds docs/assets for JZKK720/pacgate-ai, v0.1.0).
+#
+# DEFERRED DECISION -- intentionally NOT committed yet. Reason: it is itself a git
+# repo, so `git add` would record a gitlink (another phantom submodule). Fully
+# committing it would mean deleting its .git and thereby severing its connection
+# to JZKK720/pacgate-ai + pacgate-ai/pacgate-ai. That is destructive and was not
+# requested, so it is left as-is and ignored for now.
+#
+# Note: 43.4 MB of its 63 content files are 13 PDFs (41.8 MB) -- reference docs,
+# not runtime dependencies. The 4 credential carriers inside it are already
+# covered by the `**/` rules above.
+# Revisit once the user decides: keep assets in their own repo, or absorb them.
+# See runtime/relocate/ASSETS-STRUCTURE.txt
+pacgate-ai-assets/

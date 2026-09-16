@@ -1,0 +1,170 @@
+POST-FAILURE ASSESSMENT (Step 4 Move-Item permission error)
+==============================================================
+
+The move of pacgate-ai -> pacgate-ai-assets failed on pacgate-ai\.git.
+Move-Item can fall back to copy-then-delete, so a PARTIAL move is possible.
+Determine exactly what state we are in before attempting recovery.
+
+=== 1. Target locations ===
+  pacgate-ai                       files=61 MB=43.4
+  pacgate-ai-assets                files=201 MB=41.9
+  pacgate-ai\assets                files=60 MB=43.4
+  pacgate-ai\pacgate-ai            files=1 MB=0
+  pacgate-ai\.git                  files=0 MB=0
+  pacgate-ai-assets\.git           files=198 MB=41.9
+  pacgate-ai-assets\assets         ABSENT
+
+=== 2. Top-level of pacgate-ai (still present?) ===
+    .git
+    assets
+    pacgate-ai
+
+=== 3. Stage (source for recovery) intact? ===
+  C:\temp\pacgate-stage            files=456 MB=31.9
+  top-level:
+    .github
+    auth-gate
+    crates
+    deploy
+    docs
+    migrations
+    nginx
+    pacgate-adapters
+    patches
+    plans
+    scope-assets
+    scripts
+    wasm-crates
+    workflows
+    .env.example
+    .gitattributes
+    .gitignore
+    Cargo.lock
+    Cargo.toml
+    compose.yaml
+    CONTINUE-FROM-OTHER-MACHINE.md
+    Dockerfile
+    extract_pdfs.py
+    README-ZH.md
+    README.md
+    safe_clarification_board_to_pdf.py
+    safe_clarification_html_to_pdf.py
+    safe_markdown_to_pdf.py
+  Cargo.toml at root : True
+  credential tree    : False
+  OPERATOR.md count  : 0
+
+=== 4. SOURCE still intact? (C:\pacgate-ai-pr) ===
+  exists : True
+  HEAD   : 151a383
+  tracked: 515
+
+=== 5. pacgate-law index state (did git rm --cached run?) ===
+  ls-files --stage:
+    100644 e87750d798411ea20d304afcb583340127d04880 0	.gitignore
+    100644 533bba721e8e315b8e1a6cfca2111da1cd8d65c5 0	.gitmodules
+    100644 c6d1ed50953535212296e007b19322ba9b47efc2 0	AGENTS.md
+    100644 d1ec063c721dfb5f6a1732d17cf73dc9b797ad1b 0	DEER-FLOW-INTEGRATION.md
+    100644 c1cea2da57a5180ed4207d4152bcc19718531075 0	containers.txt
+    100644 a3354d7de0a0dd322b112245080963c8dc5c5217 0	docs/superpowers/plans/2026-09-16-relocation-pacgate-ai-pr.md
+    100644 c61d8ce7729ffcb1a05b95b76679799256757ef5 0	docs/superpowers/specs/2026-09-16-credential-exposure-incident.md
+    100644 d6fa0c4dad9116640547c5fa7881c36b0833ace8 0	docs/superpowers/specs/2026-09-16-mono-repo-consolidation-plan.md
+    100644 9cce593ec05cc373273c451781afe5ed63e5f274 0	docs/superpowers/specs/2026-09-16-mono-stack-delivery-plan.md
+    100644 5fd8bf303eb6445f4a2e3c0d74909d0a4117aa0f 0	docs/superpowers/specs/2026-09-16-repo-consolidation-and-runtime-pinning-design.md
+    100644 cf2ec9221bd16ce8ac9579ea90c00e36821ea4f7 0	mcp_final_verify.txt
+    100644 bd056fbaa52cce32408d5ec4322023102c967863 0	mcp_verify.txt
+    160000 0f7db15284cbcdda3d2fca4c04e8953d6d038fbe 0	pacgate-ai
+    100644 16f478ea02e5f69587fb02388245cc6f9379ede6 0	runtime/AUTHORITATIVE-credential-check.ps1
+    100644 55cb9c218f249f06c561a81f56452e67e34c61df 0	runtime/AUTHORITATIVE-credential-status.txt
+    100644 9109c7315a2a128aaaf65b901263aa1f852c1ee5 0	runtime/DELETE-IMPACT-ANALYSIS.md
+    100644 4f0b94ef103c169579c6631f24f802a71f605549 0	runtime/README.md
+    100644 04109608baf3d2e4717d23a74c0a1c7576ba0097 0	runtime/RUNTIME-INVENTORY.md
+    100644 1a1aee7a146c89208451ff22bafca0ca56fce924 0	runtime/VOLUME-INVESTIGATION-FINDINGS.md
+    100644 fcb6ed87e9dd892fd333d50c7557eb5bdd62e4b8 0	runtime/analyze-git-history.ps1
+    100644 cea244a96ca9c9aa3e8704d477b359be4890546b 0	runtime/analyze-install-mechanics.ps1
+    100644 a389909ab818c95eb6de0024ed9fae36c29434d8 0	runtime/analyze-relocation.ps1
+    100644 aaaed745f094dd02bd52b1c0820dda53c179ca8e 0	runtime/audit-tracked-vs-excluded.ps1
+    100644 6796a29c8838486585cbffc67d1b89ff88834392 0	runtime/bindmount-deletion-experiment.txt
+    100644 03b7ec8b260f8529aa308b0edfc536d70b181eca 0	runtime/breakdown-client-bundle.ps1
+    100644 c17b119b74015a3fe683e315739d855e13696004 0	runtime/capture-runtime.ps1
+    100644 87b6e4b5de4e9405cc29b4d62cece77098421a71 0	runtime/check-all-exposed-remote.ps1
+    100644 07baa931c7fa71b3a8160e6ff5077ad0578f86cf 0	runtime/check-authored-files-for-leaks.ps1
+    100644 689239830a2cdafe81dced21ed9bdd87efb9a705 0	runtime/check-exposure-control.ps1
+    100644 7afafb358bedd297c814901df2057a01fecd0f84 0	runtime/check-submodule-credentials.ps1
+    100644 b03e6a44d31b5f817e2e8ad1c243674b3f29f664 0	runtime/check-volume-generations.ps1
+    100644 30e3b4cfae821321d74dcae26589d318e952a690 0	runtime/client-bundle-breakdown.txt
+    100644 f103136b77b899f532542e0bcdfd51409a594b48 0	runtime/compare-volume-mtime.ps1
+    100644 7de2c28680bd66b8a962532e47013e1c5ee06612 0	runtime/credential-scan-results.txt
+    100644 2d5c146bdf1c030855a2e9c3310da7ed78a83274 0	runtime/critical-verification.txt
+    100644 59d09cee34625da766e65c4d20b267acf9391ebb 0	runtime/delete-impact-bindmounts.txt
+    100644 1c08a8cae9557aaaf0e0bad1475efa4a760dcfe1 0	runtime/delete-impact-counts.txt
+    100644 b380f1afa9947165869e0edf38ec8490b98058f1 0	runtime/delete-impact-full.txt
+    100644 154274a46e7f9535271c85bb0b3f924d10712554 0	runtime/delete-impact-verdict.txt
+    100644 d92d1b6045d3af215dcbe66e3953347bf7196f0f 0	runtime/delivery-mechanics.txt
+    100644 2eec42528c57d7bbdbb786b4bd5543139d0e2ad2 0	runtime/experiment-bindmount-delete.ps1
+    100644 ca334d4d3bd57937db083bcd2287fbcbfa117668 0	runtime/exposure-control-results.txt
+    100644 828742501ad5eaee3e2e78f2b9fa371a825398a6 0	runtime/final-encoding-verdict.ps1
+    100644 1b28ffc7eb7c285d88ac84a4fb76d561cbc85851 0	runtime/final-encoding-verdict.txt
+    100644 1cdb4bc9300c1dd07e4a19f92e13016b83129a80 0	runtime/git-history-options.txt
+    100644 542a8b1a1b4700c268119f653232b4b62efea754 0	runtime/hardcoded-path-references.txt
+    100644 e45092f9819a18d8fc9b8a26a23db536fa69b495 0	runtime/install-mechanics.txt
+    100644 057f96125cd08057ad019c675515eb99c6154f45 0	runtime/investigate-volume-contents.ps1
+    100644 64590ef4ba8572f9d52d86c46364493d050e0b1c 0	runtime/leak-selfcheck-results.txt
+    100644 607489d2e6d8afb44b9170db3142b0ee686c2d96 0	runtime/project-name-and-volumes.txt
+    100644 231e3736ace09dc6a38c646e81b4562dd40409ff 0	runtime/relocate/ALL-CREDENTIAL-GATE.txt
+    100644 7def3164e7ee9830feaa60687782e4ce1adc855e 0	runtime/relocate/ASSETS-CREDENTIAL-RISK.txt
+    100644 b4c0224587aae253a8b77c4f4ae8889f5fea00ac 0	runtime/relocate/BLOCKER-DIAGNOSIS.txt
+    100644 32501afe5934c252228d8453a0c9fcb706c587c6 0	runtime/relocate/CJK-DECISIVE-TEST.txt
+    100644 d06a6d491e8ee0bbd1cb548dcbdb4d717177bf2c 0	runtime/relocate/CJK-DIAGNOSIS.txt
+    100644 9c861f98317c7b45737730254e649ff8f4842104 0	runtime/relocate/DRY-RUN-RESULT.txt
+    100644 bebcf67665641533cec48dab8c14c76f5576236d 0	runtime/relocate/EXTRACTION-AUDIT.txt
+    100644 af17c79971dbaa7519cb7a63248fc4789e889213 0	runtime/relocate/PROBE-CJK-PATHS.txt
+    100644 87ead2eafd947320a7815e2b5282b19723b166c2 0	runtime/relocate/RECON-BEFORE-EXECUTE.txt
+    100644 fa473d997b838a42f8a2b34a384d20bb36fe6e8b 0	runtime/relocate/REHEARSAL-RESULT.txt
+    100644 2c97d2f0ad76915a696e284808342e70f1427430 0	runtime/relocate/ROLLBACK-ANCHOR.txt
+    100644 8c2c07955e9b9a0434c05bc45fcf9058c766f087 0	runtime/relocate/STAGE-PREVIEW.txt
+    100644 76f52f4994c879648b57fbdd9f702bf30b45d839 0	runtime/relocate/WHY-MISSING.txt
+    100644 7ead4422d1c332ac2f28584d878a868baeb7d063 0	runtime/relocate/audit-extraction.ps1
+    100644 7e2d666615c9178c1a5f9f933fc372350e62e81c 0	runtime/relocate/baseline-commit.ps1
+    100644 cfcf438cc1ef53a05a1a891ec058598a444dd1d9 0	runtime/relocate/check-all-credential-gate.ps1
+    100644 d79831aa204646b32a81841fba9bc2db201ffbde 0	runtime/relocate/check-assets-credential-risk.ps1
+    100644 684d85a5fc840001406a8b24597be82fad16ad67 0	runtime/relocate/check-container-deps.ps1
+    100644 c17cfee99e08be8496aba47039c68ba665a86db7 0	runtime/relocate/check-credential-safety.ps1
+    100644 a381d75df375ad9891b3ff5fc650f8db30e76648 0	runtime/relocate/check-gitignore-gap.ps1
+    100644 2c563fba20f47845a7d3bfda52068ac03cad4097 0	runtime/relocate/container-dependency-check.txt
+    100644 29a541f81c833cc4f5a6c4bf6f73876bedabe89a 0	runtime/relocate/credential-safety-on-move.txt
+    100644 df200eab571f6e0c5ba52979264eca9c38b7e071 0	runtime/relocate/decide-placement.ps1
+    100644 267d93d12a0153952d46ba206e66a2624a185b09 0	runtime/relocate/diagnose-blockers.ps1
+    100644 1b2b5cc714f513eb1eca23367e9cc4f8b51ade32 0	runtime/relocate/diagnose-cjk.ps1
+    100644 4ecad48715ba89351f5803447e8f1381f73989b9 0	runtime/relocate/diagnose-why-missing.ps1
+    100644 73a0723660d04ef506b29fc227f73931e2247e53 0	runtime/relocate/dry-run-validate.ps1
+    100644 349320aa4c9c99d2552345c4ed2ec3372a81f893 0	runtime/relocate/gitignore-gap-check.txt
+    100644 5741d8e6d59dbfc563606cde2256b071a9ad19a7 0	runtime/relocate/gitignore-verification.txt
+    100644 0f623f926307fafa13d4572a1d6de1e1c748720b 0	runtime/relocate/inventory-BEFORE.json
+    100644 e63c38e880416ea59215a092fdb63d510d0b73d3 0	runtime/relocate/pdf-hit-context.py
+    100644 1dfb430df9287e1eceb98037e355e4affcd91094 0	runtime/relocate/phase1-stage.ps1
+    100644 1358626f66420023c0a536ffd58faa75b5a00388 0	runtime/relocate/placement-decision.txt
+    100644 dddf8b20fcece9a472256dcf99612cd4379b0e18 0	runtime/relocate/preflight.ps1
+    100644 0e8b9f5f6e07bab2783f25f20881a74d248a7bff 0	runtime/relocate/preview-stage.ps1
+    100644 5b3ad0ee6973f7e17d3d57c282a90136740f4f0e 0	runtime/relocate/probe-cjk-paths.ps1
+    100644 d9c6101cae9063f09a65748901690c8d5c1c1dc0 0	runtime/relocate/recon-before-execute.ps1
+    100644 018f946a6cffd461b9ca6a64990b0acdc05e9dae 0	runtime/relocate/rehearse.ps1
+    100644 4efd0a6690ea5a9bf40321349b39d7161f3fb21f 0	runtime/relocate/scan-handbook-pdfs.py
+    100644 4a860e1f40c7fabb64eedcf2a4d98cc25d7ac390 0	runtime/relocate/test-cjk-decisive.ps1
+    100644 f905e0ea3c5988d0309c4a0f70e4583094d6cef1 0	runtime/relocate/verify-gitignore-rules.ps1
+    100644 555687cb9a090f39d793a9ee01e3d93edd732a9f 0	runtime/relocation-analysis.txt
+    100644 f34069226302d1f9269b819eddf1c34036a5c972 0	runtime/runtime-inventory.json
+    100644 a70aeb59d5659802b5e75f5f108e292d9508c091 0	runtime/scan-credential-history.ps1
+    100644 a3c8f60ce64e4689f91e66bf737d63cc76a95f9c 0	runtime/scan-hardcoded-paths.ps1
+    100644 b760041102662087d9ce55b03bebbec7f9f496da 0	runtime/submodule-credential-status.txt
+    100644 6163872238a588d9d1463b31b442871a30994515 0	runtime/test-delete-impact.ps1
+    100644 34060dd3418cd368586c4e934933b2c9c950fdbb 0	runtime/tracked-vs-excluded-audit.txt
+    100644 522fff7450d4b8489fa4c741008541be8096e519 0	runtime/volume-contents-investigation.txt
+    100644 3c961e6afe148ada4d60c50e6a11774b742e4823 0	runtime/volume-coupling.txt
+    100644 9a2ab82249fe1887f3adc369868fe3a0cdb809ce 0	runtime/volume-generations.txt
+    100644 9c41dd3178c77b7d394074a8456f3a1f1e1f6178 0	runtime/volume-mtime.txt
+    100644 f62c8020fa23c74451d00e6ec7a7dc49fd00b3cf 0	verify_mcp.txt
+  commits: 1
+
+=== 6. Read-only attributes on the nested .git ===
+  read-only entries under pacgate-ai\.git : 0

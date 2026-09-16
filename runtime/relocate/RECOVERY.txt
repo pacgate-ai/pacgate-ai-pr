@@ -1,0 +1,44 @@
+RECOVERY: finish the interrupted pacgate-ai -> pacgate-ai-assets move
+==============================================================
+
+Cause: `Move-Item <dir> <dest>` moved the loose top-level files and .git, then
+failed with "cannot delete pacgate-ai\.git - insufficient access". Move-Item
+does not fail atomically, so the source was left PARTIALLY moved: the
+subdirectories (assets, pacgate-ai) stayed behind. Nothing was lost.
+
+Fix: move the stragglers with robocopy /MOVE (robust; handles the locked
+.git directory that Move-Item choked on), then drop the empty leftovers.
+
+=== BEFORE ===
+  pacgate-ai        : files=61 MB=43.4
+  pacgate-ai-assets : files=201 MB=41.9
+
+=== 1. Move stragglers with robocopy /MOVE ===
+  assets       move rc=1 -> OK
+  pacgate-ai   move rc=1 -> OK
+
+=== 2. Remove the empty leftover .git ===
+  entries in stray .git: 0
+  removed: True
+
+=== 3. Remove the emptied pacgate-ai dir ===
+  entries remaining: 0
+  removed: True
+
+=== AFTER ===
+  pacgate-ai        : ABSENT
+  pacgate-ai-assets : files=262 MB=85.4
+
+=== 4. Submodule repo still healthy? ===
+  HEAD    : 0f7db15
+  changes : 1
+    ?? "assets/\350\207\252\345\212\250\345\214\226\347\272\277\346\235\241/\346\263\225\345\276\213\346\235\220\346\226\231\350\204\261\346\225\217\350\214\203\345\233\264\344\270\216\345\256\236\347\216\260\350\246\201\346\261\202_\346\212\200\346\234\257\344\272\244\346\216\245\347\211\210.md"
+
+=== 5. Expected content present? ===
+  assets                     True
+  pacgate-ai                 True
+  .gitignore                 True
+  AGENTS.md                  True
+  DEER-FLOW-INTEGRATION.md   True
+
+  total files under pacgate-ai-assets: 262  (pre-move baseline was 262)

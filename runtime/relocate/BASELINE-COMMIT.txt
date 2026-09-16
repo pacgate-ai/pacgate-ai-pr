@@ -1,0 +1,125 @@
+BASELINE COMMIT (pre-relocation checkpoint)
+==============================================================
+
+  repo has 0 commits - creating the baseline
+  set local git identity (PacGate Migration)
+
+  staged paths: 103
+
+  --- guard scan ---
+  OK  no credential match 'OPERATOR\.md$'
+  OK  no credential match 'remote-handbook'
+  OK  no credential match 'MCP鎺堟潈'
+  OK  no credential match 'V2\.docx'
+  OK  no bulk match '(^|/)deer-flow(/|$)'
+  OK  no bulk match '(^|/)target(/|$)'
+  OK  no bulk match 'client-bundle/data/'
+  OK  no bulk match '\.zip$'
+
+  --- committed paths ---
+    .gitignore
+    .gitmodules
+    AGENTS.md
+    DEER-FLOW-INTEGRATION.md
+    containers.txt
+    docs/superpowers/plans/2026-09-16-relocation-pacgate-ai-pr.md
+    docs/superpowers/specs/2026-09-16-credential-exposure-incident.md
+    docs/superpowers/specs/2026-09-16-mono-repo-consolidation-plan.md
+    docs/superpowers/specs/2026-09-16-mono-stack-delivery-plan.md
+    docs/superpowers/specs/2026-09-16-repo-consolidation-and-runtime-pinning-design.md
+    mcp_final_verify.txt
+    mcp_verify.txt
+    pacgate-ai
+    runtime/AUTHORITATIVE-credential-check.ps1
+    runtime/AUTHORITATIVE-credential-status.txt
+    runtime/DELETE-IMPACT-ANALYSIS.md
+    runtime/README.md
+    runtime/RUNTIME-INVENTORY.md
+    runtime/VOLUME-INVESTIGATION-FINDINGS.md
+    runtime/analyze-git-history.ps1
+    runtime/analyze-install-mechanics.ps1
+    runtime/analyze-relocation.ps1
+    runtime/audit-tracked-vs-excluded.ps1
+    runtime/bindmount-deletion-experiment.txt
+    runtime/breakdown-client-bundle.ps1
+    runtime/capture-runtime.ps1
+    runtime/check-all-exposed-remote.ps1
+    runtime/check-authored-files-for-leaks.ps1
+    runtime/check-exposure-control.ps1
+    runtime/check-submodule-credentials.ps1
+    runtime/check-volume-generations.ps1
+    runtime/client-bundle-breakdown.txt
+    runtime/compare-volume-mtime.ps1
+    runtime/credential-scan-results.txt
+    runtime/critical-verification.txt
+    runtime/delete-impact-bindmounts.txt
+    runtime/delete-impact-counts.txt
+    runtime/delete-impact-full.txt
+    runtime/delete-impact-verdict.txt
+    runtime/delivery-mechanics.txt
+    runtime/experiment-bindmount-delete.ps1
+    runtime/exposure-control-results.txt
+    runtime/final-encoding-verdict.ps1
+    runtime/final-encoding-verdict.txt
+    runtime/git-history-options.txt
+    runtime/hardcoded-path-references.txt
+    runtime/install-mechanics.txt
+    runtime/investigate-volume-contents.ps1
+    runtime/leak-selfcheck-results.txt
+    runtime/project-name-and-volumes.txt
+    runtime/relocate/ALL-CREDENTIAL-GATE.txt
+    runtime/relocate/ASSETS-CREDENTIAL-RISK.txt
+    runtime/relocate/BLOCKER-DIAGNOSIS.txt
+    runtime/relocate/CJK-DECISIVE-TEST.txt
+    runtime/relocate/CJK-DIAGNOSIS.txt
+    runtime/relocate/DRY-RUN-RESULT.txt
+    runtime/relocate/EXTRACTION-AUDIT.txt
+    runtime/relocate/PROBE-CJK-PATHS.txt
+    runtime/relocate/RECON-BEFORE-EXECUTE.txt
+    runtime/relocate/REHEARSAL-RESULT.txt
+    runtime/relocate/ROLLBACK-ANCHOR.txt
+    runtime/relocate/STAGE-PREVIEW.txt
+    runtime/relocate/WHY-MISSING.txt
+    runtime/relocate/audit-extraction.ps1
+    runtime/relocate/baseline-commit.ps1
+    runtime/relocate/check-all-credential-gate.ps1
+    runtime/relocate/check-assets-credential-risk.ps1
+    runtime/relocate/check-container-deps.ps1
+    runtime/relocate/check-credential-safety.ps1
+    runtime/relocate/check-gitignore-gap.ps1
+    runtime/relocate/container-dependency-check.txt
+    runtime/relocate/credential-safety-on-move.txt
+    runtime/relocate/decide-placement.ps1
+    runtime/relocate/diagnose-blockers.ps1
+    runtime/relocate/diagnose-cjk.ps1
+    runtime/relocate/diagnose-why-missing.ps1
+    runtime/relocate/dry-run-validate.ps1
+    runtime/relocate/gitignore-gap-check.txt
+    runtime/relocate/gitignore-verification.txt
+    runtime/relocate/inventory-BEFORE.json
+    runtime/relocate/pdf-hit-context.py
+    runtime/relocate/phase1-stage.ps1
+    runtime/relocate/placement-decision.txt
+    runtime/relocate/preflight.ps1
+    runtime/relocate/preview-stage.ps1
+    runtime/relocate/probe-cjk-paths.ps1
+    runtime/relocate/recon-before-execute.ps1
+    runtime/relocate/rehearse.ps1
+    runtime/relocate/scan-handbook-pdfs.py
+    runtime/relocate/test-cjk-decisive.ps1
+    runtime/relocate/verify-gitignore-rules.ps1
+    runtime/relocation-analysis.txt
+    runtime/runtime-inventory.json
+    runtime/scan-credential-history.ps1
+    runtime/scan-hardcoded-paths.ps1
+    runtime/submodule-credential-status.txt
+    runtime/test-delete-impact.ps1
+    runtime/tracked-vs-excluded-audit.txt
+    runtime/volume-contents-investigation.txt
+    runtime/volume-coupling.txt
+    runtime/volume-generations.txt
+    runtime/volume-mtime.txt
+    verify_mcp.txt
+
+  HEAD: 
+    c4ba8b0 chore: baseline local monorepo before pacgate-ai-pr relocation

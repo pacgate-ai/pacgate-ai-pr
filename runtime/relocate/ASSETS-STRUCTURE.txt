@@ -1,0 +1,46 @@
+pacgate-ai-assets STRUCTURE (decide how the monorepo should carry it)
+==============================================================
+
+  HEAD: 
+  branch: 
+  remotes:
+    fork	https://github.com/pacgate-ai/pacgate-ai.git (fetch)
+    fork	https://github.com/pacgate-ai/pacgate-ai.git (push)
+    origin	https://github.com/JZKK720/pacgate-ai.git (fetch)
+    origin	https://github.com/JZKK720/pacgate-ai.git (push)
+
+=== Top-level entries ===
+  DIR  .git
+  FILE .gitignore
+  FILE AGENTS.md
+  DIR  assets
+  FILE DEER-FLOW-INTEGRATION.md
+  DIR  pacgate-ai
+
+=== Size by top-level entry (what would enter the monorepo) ===
+  .git                               198 files      41.9 MB
+  .gitignore                           1 file          0 MB
+  AGENTS.md                            1 file      0.004 MB
+  assets                              60 files      43.4 MB
+  DEER-FLOW-INTEGRATION.md             1 file      0.013 MB
+  pacgate-ai                           1 files         0 MB
+
+=== File types (by count) ===
+  .md              31 files       0.7 MB
+  .pdf             13 files      41.8 MB
+  .png              7 files       0.7 MB
+  .docx             6 files       0.2 MB
+  .ds_store         4 files         0 MB
+  .py               1 files         0 MB
+  .gitignore        1 files         0 MB
+  .toml             1 files         0 MB
+
+=== Nested repos present? (blocks direct tracking) ===
+  C:\Users\pacga\github-pr\pacgate-law\pacgate-ai-assets\.git
+
+=== Would git track its CONTENTS, or just a gitlink? ===
+  dry-run lines: 16
+  embedded-repo warnings: 3
+    warning: adding embedded git repository: pacgate-ai-assets
+    hint: the embedded repository and will not know how to obtain it.
+    hint: Disable this message with "git config set advice.addEmbeddedRepo false"
