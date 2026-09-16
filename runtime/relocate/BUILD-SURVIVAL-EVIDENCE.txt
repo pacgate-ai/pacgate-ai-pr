@@ -1,0 +1,114 @@
+EVIDENCE: did the BUILD survive, or only the RUN?
+==============================================================================
+
+These are different claims. A running container proves the RUN survived.
+It proves nothing about whether `docker build` still works, because the
+running containers use images PULLED from GHCR, not built locally.
+
+=== 1. Image provenance for the running stack ===
+
+  A locally-built image has no registry prefix and a recent Created time.
+  A pulled image names a registry (ghcr.io/...) and matches a remote digest.
+
+  cloudflare               cloudflare/cloudflared:latest                        LOCAL (no registry prefix)
+  deer-flow                ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.10          PULLED (registry)
+  deer-flow-frontend       ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.11 PULLED (registry)
+  dockhand                 fnsys/dockhand:latest                                LOCAL (no registry prefix)
+  hermes-gateway           ghcr.io/jzkk720/hermes-agent:latest                  PULLED (registry)
+  hermes-postgres          postgres:16-alpine                                   LOCAL (no registry prefix)
+  hermes-web               ghcr.io/jzkk720/hermes-agent:latest                  PULLED (registry)
+  ironclawai-survey        ironclawai-survey-ironclawai-survey                  LOCAL (no registry prefix)
+  odysseus-chromadb-1      docker.io/chromadb/chroma:latest                     PULLED (registry)
+  odysseus-ntfy-1          docker.io/binwiederhier/ntfy                         PULLED (registry)
+  odysseus-odysseus-1      ghcr.io/jzkk720/odysseus:main                        PULLED (registry)
+  odysseus-searxng-1       docker.io/searxng/searxng:2026.5.31-7159b8aed        PULLED (registry)
+  openviking               ghcr.io/volcengine/openviking@sha256:46f9e34cd37238c28cbd9535033773d179006bdf7f3e528dd1c46567abce7701 PULLED (registry)
+  open-webui               ghcr.io/open-webui/open-webui:main                   PULLED (registry)
+  pacgate-api              ghcr.io/pacgate-ai/pacgate-api:0.1.9                 PULLED (registry)
+  pacgate-db               pgvector/pgvector:pg16                               LOCAL (no registry prefix)
+  pacgate-mcp              ghcr.io/pacgate-ai/pacgate-mcp:0.1.9                 PULLED (registry)
+  pacgate-nginx            nginx:1.27-alpine                                    LOCAL (no registry prefix)
+  qm-mailpit               axllent/mailpit:v1.24                                LOCAL (no registry prefix)
+  qm-pacgate-admin         ghcr.io/yc-software/qm/admin@sha256:ec071338547e17d44337441d3144a068e6f3119fc377b2d9dd5c75d5b210c604 PULLED (registry)
+  qm-pacgate-auth          ghcr.io/yc-software/qm/auth@sha256:27f2e1467adca3d5dc6fb75f2d624a514d113a437893cc75d1eb54ebf365639b PULLED (registry)
+  qm-pacgate-core          ghcr.io/yc-software/qm/core@sha256:bee03e7f22719dfe76ea2c83bb65db2bdefd55b714eae4014007033800bdb5ab PULLED (registry)
+  qm-pacgate-pg            postgres:16                                          LOCAL (no registry prefix)
+  qm-pacgate-portal        ghcr.io/yc-software/qm/portal@sha256:e245dfc2c12a47f18f0bb367622538b30e9b89e890a145dcfd5abefe342d0e98 PULLED (registry)
+  qm-pacgate-web-ui        ghcr.io/yc-software/qm/web-ui@sha256:f037834fd726bcff220245665ef46accb10b476331006a85c59defbde1635e52 PULLED (registry)
+
+=== 2. The three builds: context + Dockerfile + COPY sources ===
+
+  --- pacgate-ai (Rust API) ---
+    context : .                                        EXISTS
+    file    : Dockerfile                               EXISTS
+    COPY . .  -> whole context (valid)
+    COPY /build/target/release/pacgate-server *** MISSING ***
+    COPY /build/target/release/pacgate-seed *** MISSING ***
+    COPY migrations                         EXISTS
+
+  --- pacgate-mcp (Python) ---
+    context : deploy/pacgate-mcp                       EXISTS
+    file    : deploy/pacgate-mcp/Dockerfile            EXISTS
+    COPY requirements.txt                   EXISTS
+    COPY server.py                          EXISTS
+
+  --- deer-flow-pacgate ---
+    context : .                                        EXISTS
+    file    : deploy/deer-flow-pacgate/Dockerfile      EXISTS
+    COPY pacgate-adapters/python/pacgate_deerflow_adapter EXISTS
+    COPY deploy/deer-flow-pacgate/config.yaml EXISTS
+
+  --- deer-flow-frontend-pacgate ---
+    context : .                                        EXISTS
+    file    : deploy/deer-flow-frontend-pacgate/Dockerfile EXISTS
+    COPY deploy/deer-flow-src/frontend      *** MISSING ***
+    COPY /app/frontend                      *** MISSING ***
+
+=== 3. qm-pacgate: is it built from source at all? ===
+  compose.qm.yaml present : True
+  images declared: 7
+    ghcr.io/yc-software/qm/core@sha256:bee03e7f22719dfe76ea2c83bb65db2bdefd55b714eae4014007033800bdb5ab
+    ghcr.io/yc-software/qm/web-ui@sha256:f037834fd726bcff220245665ef46accb10b476331006a85c59defbde1635e52
+    ghcr.io/yc-software/qm/portal@sha256:e245dfc2c12a47f18f0bb367622538b30e9b89e890a145dcfd5abefe342d0e98
+    ghcr.io/yc-software/qm/auth@sha256:27f2e1467adca3d5dc6fb75f2d624a514d113a437893cc75d1eb54ebf365639b
+    ghcr.io/yc-software/qm/admin@sha256:ec071338547e17d44337441d3144a068e6f3119fc377b2d9dd5c75d5b210c604
+    axllent/mailpit:v1.24
+    postgres:16
+  uild: directives: 0  (0 = qm is PULLED, not built here)
+  Dockerfile present: False
+
+=== 4. deer-flow source: where does the build expect it? ===
+
+  The deer-flow-pacgate build uses context `.` = the PLATFORM root
+  (pacgate-ai\). But the deer-flow source lives at pacgate-law\deer-flow,
+  which is OUTSIDE that context. If the Dockerfile COPYs deer-flow/, the
+  build cannot see it.
+
+  --- COPY/ADD lines in deploy/deer-flow-pacgate/Dockerfile ---
+    COPY pacgate-adapters/python/pacgate_deerflow_adapter /app/adapters/pacgate_deerflow_adapter
+    COPY deploy/deer-flow-pacgate/config.yaml /app/backend/config.yaml
+
+  pacgate-law\deer-flow exists        : True
+  pacgate-ai\deer-flow exists        : False
+  pacgate-ai\deploy\deer-flow-src    : False
+
+=== 5. Locally present images matching the stack ===
+  ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.10|3 days ago|3.49GB
+  ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.11|3 days ago|2.15GB
+  ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.10|4 days ago|2.15GB
+  ghcr.io/pacgate-ai/pacgate-mcp:0.1.9|4 days ago|695MB
+  ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.9|5 days ago|2.15GB
+  ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.9|5 days ago|3.27GB
+  ghcr.io/pacgate-ai/pacgate-api:0.1.9|5 days ago|163MB
+  ghcr.io/yc-software/qm/core:<none>|6 weeks ago|3.14GB
+  ghcr.io/yc-software/qm/admin:<none>|6 weeks ago|327MB
+  ghcr.io/yc-software/qm/web-ui:<none>|6 weeks ago|644MB
+  ghcr.io/yc-software/qm/auth:<none>|6 weeks ago|232MB
+  ghcr.io/yc-software/qm/portal:<none>|6 weeks ago|236MB
+  count: 12
+
+=== VERDICT ===
+  RUN  : survived (25 containers up, verified functionally earlier).
+  BUILD: NOT YET VERIFIED. Static path checks pass, but no build has been
+         executed. The running stack uses pulled images, so it cannot
+         demonstrate buildability.

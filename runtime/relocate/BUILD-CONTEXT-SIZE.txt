@@ -1,0 +1,42 @@
+BUILD CONTEXT SIZE (the missing .dockerignore problem)
+==============================================================================
+
+The Rust Dockerfile does `COPY . .` with context = the platform root.
+There is NO .dockerignore anywhere, so the ENTIRE platform tree is sent to
+the Docker daemon on every build. Measure what that actually is.
+
+=== Top-level directories in the build context ===
+  deploy                            643 files     1930.9 MB  <-- huge
+  scope-assets                      108 files       23.1 MB
+  docs                               70 files        2.4 MB
+  workflows                          15 files        0.5 MB
+  crates                             53 files        0.5 MB
+  pacgate-adapters                   27 files        0.1 MB
+  plans                              15 files        0.1 MB
+  scripts                             2 files          0 MB
+  .github                            11 files          0 MB
+  wasm-crates                         8 files          0 MB
+  migrations                          5 files          0 MB
+  auth-gate                           2 files          0 MB
+  patches                             4 files          0 MB
+  nginx                               1 files          0 MB
+
+  TOTAL context: 1957.6 MB
+
+=== What SHOULD be excluded (candidates for .dockerignore) ===
+  deploy\client-bundle\data                  1915.7 MB   client runtime data (1.9 GB) - never needed to compile Rust
+  deploy\client-bundle\openviking                 9 MB   runtime state
+  deploy\deer-flow-src                     (absent)
+  target                                   (absent)
+  deploy\qm-pacgate\node_modules                1.2 MB   installed deps
+  graphify-out                             (absent)
+
+  excludable: 1925.9 MB of 1957.6 MB  (98.4% of the context)
+
+=== Impact ===
+  Not a build FAILURE - the build would still work. But every `docker build`
+  would tar and transfer the whole context to the daemon first. On a 1.9 GB
+  context that is minutes of pure overhead per build, and it grows as client
+  data accumulates.
+
+  Fix: add a .dockerignore at the platform root excluding the runtime dirs.

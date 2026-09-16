@@ -1,0 +1,42 @@
+PULL RUST BASE IMAGES VIA THE DAOCLOUD MIRROR
+==============================================================================
+
+docker.io is unreachable from this machine, but the daocloud mirror is
+already in use (python:3.12-slim and node:22-alpine are cached from it).
+Pull the Rust base images through the same mirror so the build graph can be
+validated offline.
+
+=== rust:1.94-bookworm ===
+  pull exit=0 (9.4s)
+    1.94-bookworm: Pulling from library/rust
+    Digest: sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55
+    Status: Downloaded newer image for docker.m.daocloud.io/library/rust:1.94-bookworm
+    docker.m.daocloud.io/library/rust:1.94-bookworm
+  tagged as rust:1.94-bookworm
+
+=== debian:bookworm-slim ===
+  pull exit=0 (4.8s)
+    88efe71721f2: Download complete
+    Digest: sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+    Status: Downloaded newer image for docker.m.daocloud.io/library/debian:bookworm-slim
+    docker.m.daocloud.io/library/debian:bookworm-slim
+  tagged as debian:bookworm-slim
+
+=== Now re-run the Rust build check ===
+  exit=0
+    #0 building with "desktop-linux" instance using docker driver
+    System.Management.Automation.RemoteException
+    #1 [internal] load build definition from Dockerfile
+    #1 transferring dockerfile: 1.73kB done
+    #1 DONE 0.0s
+    System.Management.Automation.RemoteException
+    #2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+    #2 DONE 0.0s
+    System.Management.Automation.RemoteException
+    #3 [internal] load metadata for docker.io/library/rust:1.94-bookworm
+    #3 DONE 0.0s
+    System.Management.Automation.RemoteException
+    #4 [internal] load .dockerignore
+    #4 transferring context: 3.24kB done
+    #4 DONE 0.0s
+    Check complete, no warnings found.
