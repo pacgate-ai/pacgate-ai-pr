@@ -1,0 +1,35 @@
+HTTP PROOF: the locally built image serves requests
+==============================================================================
+
+The previous run proved the built image connects to the DB and applies
+migrations. This proves it actually SERVES HTTP. The slim runtime image has
+no curl, so probe from the HOST via a published port instead.
+
+=== Starting built image on host port 18099 ===
+  id: 621986631f17a0b9d9d1a3066546da4c0541b1520c0e15a15d56ea17e89cf548
+
+=== Waiting for startup ===
+  state: running restarts=0
+
+=== HTTP probes from the HOST ===
+  /                HTTP 401 (responded)
+  /healthz         HTTP 401 (responded)
+  /api/health      HTTP 401 (responded)
+  /api/matters     HTTP 401 (responded)
+
+=== Container logs (tail) ===
+    [2m2026-09-16T13:44:26.634691Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_kb_chunks_source_level" already exists, skipping
+    [2m2026-09-16T13:44:26.634701Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_kb_chunks_jurisdiction_matter" already exists, skipping
+    [2m2026-09-16T13:44:26.635994Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "data_level" of relation "kb_chunks" already exists, skipping
+    [2m2026-09-16T13:44:26.636022Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_kb_chunks_data_level" already exists, skipping
+    [2m2026-09-16T13:44:26.636029Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_kb_chunks_matter_data_level" already exists, skipping
+    [2m2026-09-16T13:44:26.637516Z[0m [32m INFO[0m [2mpacgate_rag[0m[2m:[0m RAG migrations applied (002_schema + 003_enrichment + 004_data_level)
+    [2m2026-09-16T13:44:27.003033Z[0m [32m INFO[0m [2mpacgate_server[0m[2m:[0m RAG store initialized (ollama=http://host.docker.internal:11434, model=nomic-embed-text)
+    [2m2026-09-16T13:44:27.004683Z[0m [32m INFO[0m [2mpacgate_server[0m[2m:[0m Listening on http://0.0.0.0:8080
+
+=== Cleanup ===
+  removed: True
+
+=== VERDICT ===
+  endpoints responding: 4   failing: 0
+  The locally built image SERVES HTTP against the live database.

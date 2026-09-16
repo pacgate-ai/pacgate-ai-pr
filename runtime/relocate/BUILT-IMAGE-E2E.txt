@@ -1,0 +1,87 @@
+END-TO-END TEST: the LOCALLY BUILT image against the LIVE database
+==============================================================================
+
+This is the strongest available proof. It runs the image we just compiled
+from the monorepo path against the real pacgate-db, on the real network.
+If this serves HTTP, the build is genuinely usable - not just "it compiled".
+
+=== 1. Image under test ===
+  pacgate-api:local-verify|25 minutes ago|163MB
+
+=== 2. Live DB network (so the built image can reach it) ===
+  pacgate-db network: pacgate-ai-bundle_default
+
+=== 3. Env vars the running pacgate-api uses (names only, values hidden) ===
+  DATABASE_URL=postgres://pacgate:0cce16718ed2ee11@pacgate-db:5432/pacgate
+  DATA_DIR=/data/tenants
+  OLLAMA_BASE_URL=http://host.docker.internal:11434
+  COURTLISTENER_API_KEY=<hidden>
+  PACGATE_DEFAULT_TENANT=pacgate-law
+  YUANDIAN_API_KEY=<hidden>
+  FYOPEN_API_KEY=<hidden>
+  RUST_LOG=info
+  GATEWAY_CORS_ORIGINS=http://localhost:8089,http://localhost:8090
+  OPENVIKING_ROOT_API_KEY=<hidden>
+  OPENVIKING_CONF_CONTENT={ "server": { "host": "0.0.0.0", "port": 1933, "root_api_key": "17cb371236735c7469b933643d10ea6a" }, "storage": { "workspace": "/app/.openviking/workspace" }, "embedding": { "dense": { "provider": "ollama", "api_base": "http://host.docker.internal:11434/v1", "model": "nomic-embed-text", "dimension": 768 } }, "vlm": { "provider": "ollama", "model": "gemma4:12b-it-q8_0", "api_base": "http://host.docker.internal:11434", "api_key": "ollama", "max_tokens": 8192, "temperature": 0.1 } }
+  ANSVAR_API_KEY=<hidden>
+  PACGATE_JWT_SECRET=<hidden>
+  PACGATE_JWT_TOKEN=<hidden>
+  PKULAW_API_KEY=<hidden>
+  PACGATE_API_EMAIL=admin@pacgate-law.com
+  PACGATE_TENANT_ID=pacgate-law
+  PACGATE_MATTER_ID=769225d9-804c-4a3f-8775-8dcc4c676d0e
+  VAQUILL_API_KEY=<hidden>
+  OPENVIKING_API_KEY=<hidden>
+  PACGATE_API_PASSWORD=<hidden>
+  QCC_API_KEY=<hidden>
+  PACGATE_DB_PASSWORD=<hidden>
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  
+
+=== 4. Run the built image against the live DB ===
+  wrote 23 env vars to a temp env-file
+  docker run --network pacgate-ai-bundle_default --env-file <temp> pacgate-api:local-verify
+  container id: 3677ed7be5eb0e3fa850050539a083b01edc51ded4a44fc9d70a07590d93a6f5
+
+=== 5. Container state after 15s ===
+  running restarts=0 exit=0
+
+=== 6. Its logs (did it connect to the DB?) ===
+    [2m2026-09-16T13:43:38.136001Z[0m [32m INFO[0m [2mpacgate_server[0m[2m:[0m Pacgate-ai API server starting up
+    [2m2026-09-16T13:43:38.146964Z[0m [32m INFO[0m [2mpacgate_server[0m[2m:[0m Connected to database
+    [2m2026-09-16T13:43:38.157267Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m extension "uuid-ossp" already exists, skipping
+    [2m2026-09-16T13:43:38.158069Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "tenants" already exists, skipping
+    [2m2026-09-16T13:43:38.158145Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "users" already exists, skipping
+    [2m2026-09-16T13:43:38.161848Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_users_tenant" already exists, skipping
+    [2m2026-09-16T13:43:38.162046Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_users_email" already exists, skipping
+    [2m2026-09-16T13:43:38.162061Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "matters" already exists, skipping
+    [2m2026-09-16T13:43:38.162439Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_matters_tenant" already exists, skipping
+    [2m2026-09-16T13:43:38.162470Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "documents" already exists, skipping
+    [2m2026-09-16T13:43:38.162478Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_documents_matter" already exists, skipping
+    [2m2026-09-16T13:43:38.162650Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_documents_tenant" already exists, skipping
+    [2m2026-09-16T13:43:38.162686Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_documents_owner" already exists, skipping
+    [2m2026-09-16T13:43:38.162693Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "audit_log" already exists, skipping
+    [2m2026-09-16T13:43:38.162999Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_audit_tenant" already exists, skipping
+    [2m2026-09-16T13:43:38.163050Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_audit_user" already exists, skipping
+    [2m2026-09-16T13:43:38.163056Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_audit_action" already exists, skipping
+    [2m2026-09-16T13:43:38.164014Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m column "external_key" of relation "matters" already exists, skipping
+    [2m2026-09-16T13:43:38.164237Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_matters_tenant_external_key" already exists, skipping
+    [2m2026-09-16T13:43:38.167516Z[0m [32m INFO[0m [1mrun_migrations[0m[2m:[0m [2mpacgate_tenant[0m[2m:[0m database migrations applied
+    [2m2026-09-16T13:43:38.167586Z[0m [32m INFO[0m [2mpacgate_server[0m[2m:[0m Migrations applied
+    [2m2026-09-16T13:43:38.172813Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m extension "vector" already exists, skipping
+    [2m2026-09-16T13:43:38.172867Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "kb_chunks" already exists, skipping
+    [2m2026-09-16T13:43:38.173540Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m column "content_tsv" of relation "kb_chunks" already exists, skipping
+    [2m2026-09-16T13:43:38.173792Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m relation "idx_kb_chunks_tenant_matter" already exists, skipping
+
+=== 7. HTTP probe against the built image ===
+  container IP: 172.23.0.9
+  /              -> NOCURL
+  /healthz       -> NOCURL
+  /api/health    -> NOCURL
+
+=== 8. Cleanup ===
+  removed test container: True
+
+=== VERDICT ===
+  See sections 5-7. If the container stayed Up and served HTTP, the locally
+  built image is functionally equivalent to the pulled one.

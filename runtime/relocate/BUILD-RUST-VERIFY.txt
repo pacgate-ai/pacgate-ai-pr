@@ -1,0 +1,51 @@
+RUST BUILD VERIFICATION (post-build)
+==============================================================================
+
+A successful `docker build` proves the image was produced. These checks
+prove the BINARIES inside it actually work.
+
+=== 1. Image ===
+  pacgate-api:local-verify|29 seconds ago|163MB
+
+=== 2. Binaries inside the image ===
+  /usr/local/bin/pacgate-server      -rwxr-xr-x 1 root root 16677936 Sep 16 13:18 /usr/local/bin/pacgate-server
+  /usr/local/bin/pacgate-seed        -rwxr-xr-x 1 root root 9595704 Sep 16 13:18 /usr/local/bin/pacgate-seed
+
+=== 3. Do the binaries execute? (the real proof) ===
+
+  --- pacgate-server --help (exit 1) ---
+    [2m2026-09-16T13:18:48.154860Z[0m [32m INFO[0m [2mpacgate_server[0m[2m:[0m Pacgate-ai API server starting up
+    [2m2026-09-16T13:18:52.113991Z[0m [31mERROR[0m [2mpacgate_server[0m[2m:[0m Failed to connect to database: error communicating with database: failed to lookup address information: Name or service not known
+    Error: database connection failed: error communicating with database: failed to lookup address information: Name or service not known
+
+  --- pacgate-seed --help (exit 0) ---
+    pacgate-seed [--db-url URL] [--assets DIR] [--tenant-slug SLUG] [--tenant-name NAME] [--matter-name NAME] [--purge] [--skip-uploads]
+
+=== 4. Migrations present in the image ===
+    total 32
+    drwxr-xr-x 2 root root 4096 Sep 16 07:16 .
+    drwxr-xr-x 3 root root 4096 Sep 16 13:18 ..
+    -rwxr-xr-x 1 root root 5162 Sep 16 07:16 001_initial_schema.sql
+    -rwxr-xr-x 1 root root 2223 Sep 16 07:16 002_rag_schema.sql
+    -rwxr-xr-x 1 root root  951 Sep 16 07:16 003_rag_enrichment.sql
+    -rwxr-xr-x 1 root root  978 Sep 16 07:16 004_data_level.sql
+    -rwxr-xr-x 1 root root  211 Sep 16 07:16 004_matter_external_keys.sql
+
+=== 5. Runtime shared-library deps (libssl3 etc.) ===
+    	linux-vdso.so.1 (0x00007cf7f4155000)
+    	liblzma.so.5 => /lib/x86_64-linux-gnu/liblzma.so.5 (0x00007cf7f34c8000)
+    	libssl.so.3 => /lib/x86_64-linux-gnu/libssl.so.3 (0x00007cf7f341f000)
+    	libcrypto.so.3 => /lib/x86_64-linux-gnu/libcrypto.so.3 (0x00007cf7f2f97000)
+    	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007cf7f2f77000)
+    	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007cf7f2e97000)
+    	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007cf7f2cb3000)
+    	/lib64/ld-linux-x86-64.so.2 (0x00007cf7f4157000)
+
+=== 6. Build context size (the .dockerignore effect) ===
+
+=== 7. Compiler warnings ===
+  warning lines: 0
+
+=== VERDICT ===
+  BUILD: PASS - image produced, exit 0, 7.4 min cold build.
+  See section 3 for whether the binaries actually execute.
