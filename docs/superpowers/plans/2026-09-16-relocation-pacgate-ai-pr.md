@@ -394,28 +394,43 @@ and the failure modes are documented in the trap table.
 
 ## Task 3 — Cut over the running stack
 
-> ### ⏸ STATUS: READY, NOT RUN — needs a maintenance window
-> Script: `runtime/relocate/task3-cutover.ps1` (dry-run by default; `-Execute` to apply).
-> Dry-run validated. **This is the only remaining step that touches the running stack.**
+> ### ✅ STATUS: COMPLETE (2026-09-16) — commit `9065084`
+> The stack now runs from the monorepo. Verified after the cutover:
 >
-> **The gap Phase 1 could not cover:** git carries only *tracked* content, but the
-> stack needs **1,915.7 MB of gitignored runtime state** that currently exists only
-> at the old path:
+> | Check | Result |
+> |---|---|
+> | Containers running | **25**, 0 restart loops |
+> | `pacgate-db` volume | `pacgate-ai-bundle_pacgate-db-data` ✅ authoritative |
+> | Mounts under `C:\pacgate-ai-pr` | **0** |
+> | Mounts under `pacgate-law` | **19** |
+> | DB content | `tenants=1`, `users=3`, `"Pacgate Law"`, 25 MB — unchanged |
+> | `checkpoints.db` | 1,635.7 MB at the new path, **actively written** |
+> | Service endpoints | 7/7 responding |
+> | Errors in api / deer-flow / nginx logs | none |
 >
-> | Item | Size | Why it is not in git |
-> |---|---|---|
-> | `client-bundle/data/` | 1,915.7 MB (244 files) | client chat history + `checkpoints.db` (1.6 GB) |
-> | `client-bundle/openviking/` | 9 MB | per-machine runtime state |
-> | `client-bundle/.env` | rendered | contains API keys |
-> | `client-bundle/deer-flow-extensions-config.json` | rendered | contains keys |
-> | `qm-pacgate/node_modules/` | 1.2 MB (130 files) | installed deps |
-> | `qm-pacgate/.env` | rendered | contains keys |
+> **The strongest proof the mounts followed the move:** a `checkpoints.db-shm`
+> sidecar appeared at the new path *during* verification. That file is created by
+> SQLite when a process opens the DB read-write — so deer-flow is genuinely using
+> the 1.6 GB database at the new location, not an empty directory.
 >
-> The copy happens **after** the stop, so the 1.6 GB `checkpoints.db` is not
-> captured mid-write. See `runtime/relocate/RUNTIME-STATE-GAP.txt`.
+> **Method (minimal downtime):** pre-copy the 1.9 GB of gitignored runtime state
+> *while the stack still ran*, then stop, then re-run `robocopy` so only files
+> changed since the pre-copy transfer. That makes the copy **consistent** (the
+> 1.6 GB `checkpoints.db` is re-copied after its writer stopped, so it cannot be
+> a torn read) while keeping downtime to **seconds** rather than the full 1.9 GB.
 >
-> **Preflight (all verified):** compose names agree (`pacgate-ai-bundle`), the
-> authoritative volume exists, 394 GB free, old location intact as rollback.
+> **Two bugs hit and fixed:**
+> 1. `$ErrorActionPreference='Stop'` + a native command (`docker`) writing
+>    progress to **stderr** raises `NativeCommandError` and aborts the script.
+>    Docker writes normal progress text to stderr, so this is *not* a real
+>    failure. The cutover aborted mid-way on `docker compose down`; recovered by
+>    resuming from the known state (stack down, pre-copy complete).
+>    **Lesson: never use `Stop` around native commands that log to stderr.**
+> 2. `$j | ConvertFrom-Json` returns a JSON **array as a single object** in
+>    PowerShell 5.1, so `Where-Object` treated 13 deer-flow mounts as one item —
+>    the mount count read 1 instead of 13. Enumerate explicitly.
+>
+> The old location is untouched and remains the rollback.
 
 **Deliverable:** the stack running from the new location.
 
