@@ -1,0 +1,34 @@
+FIX: copy the missing generated deer-flow source
+==============================================================================
+
+Gap found during the e2e audit: my cutover copied data/, openviking/, .env
+and node_modules, but MISSED deploy/deer-flow-src (574 files / 31.3 MB).
+It is gitignored + untracked, so Phase 1 correctly skipped it - but the
+frontend build needs it, and the old repo had it from a previous build.
+
+Copying it closes the gap without needing a network clone.
+
+  source: C:\pacgate-ai-pr\deploy\deer-flow-src
+  dest  : c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\deer-flow-src
+  source present: True
+  dest present  : False
+  robocopy exit=1  files=574  0.7s
+
+=== Verify ===
+  source files: 574
+  dest files  : 574
+  match       : True
+  frontend dir: True
+  package.json: True
+
+=== Confirm it stays out of git ===
+  ignored: pacgate-ai/.gitignore:42:deploy/deer-flow-src/	pacgate-ai/deploy/deer-flow-src/frontend/package.json
+  uncommitted entries after copy: 4  (0 = correctly ignored)
+    ?? runtime/relocate/BUILD-DEERFLOW.done
+    ?? runtime/relocate/E2E-STATUS.txt
+    ?? runtime/relocate/e2e-status.ps1
+    ?? runtime/relocate/fix-deerflow-src.ps1
+
+=== Next step ===
+  The frontend can now build. The supported entry point is
+  deploy/build-frontend.ps1 (it also applies the PacGate frontend overrides).

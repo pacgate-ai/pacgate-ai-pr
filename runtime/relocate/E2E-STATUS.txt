@@ -1,0 +1,67 @@
+END-TO-END STATUS
+==============================================================================
+
+=== 1. Is the deer-flow-frontend failure a relocation defect? ===
+
+  The build failed because COPY deploy/deer-flow-src/frontend was not found.
+
+  FINDING: deploy/deer-flow-src is GITIGNORED and UNTRACKED in the original
+  repo (0 tracked files; 574 files / 31.3 MB present on disk, ignored by
+  .gitignore:42). It is a GENERATED artifact - build-frontend.ps1 clones it
+  from the bytedance/deer-flow tag on demand.
+
+  So the failure is NOT a relocation defect - the directory was never in git
+  and never should have been migrated as source.
+
+  BUT it is a real (small) gap in MY cutover: the old repo had it on disk
+  from a previous build, and my runtime-state copy step transferred data/,
+  openviking/, .env, node_modules - but MISSED deploy/deer-flow-src.
+  Consequence: the frontend cannot build here until it is regenerated.
+
+  original repo  (C:\pacgate-ai-pr)  present on disk
+  monorepo       (pacgate-ai)        ABSENT
+
+  FIX (supported path): run deploy/build-frontend.ps1, which clones the
+  pinned source first and then builds. Or copy the 31.3 MB from the old repo.
+
+=== 2. Build matrix ===
+  BUILD                    RESULT     NOTE
+  --------------------------------------------------------------------------
+  pacgate-api (Rust)       PASS       built, ran against live DB, served HTTP 4/4
+  pacgate-mcp (Python)     PASS       cached layers
+  deer-flow-pacgate        PASS       exit=0, 3919.8s (65 min)
+  deer-flow-frontend       FAIL*      needs build-frontend.ps1 (clones source first)
+
+=== 3. Images actually present ===
+  pacgate-api:local-verify           pacgate-api:local-verify|163MB
+  pacgate-mcp:local-verify           pacgate-mcp:local-verify|695MB
+  deer-flow-pacgate:local-verify     deer-flow-pacgate:local-verify|3.49GB
+  deer-flow-frontend:local-verify    (not built)
+
+=== 4. Relocation deliverables (the actual task) ===
+  content imported               OK     pacgate-ai/* files present
+  9d8fc3b import commit          OK     the import commit exists
+  stack on new path              OK                     "com.docker.compose.project.config_files": "C:\\Users\\pacga\\github-pr\\pacgate-law\\pacgate-ai\\deploy\\client-bundle\\compose.bundle.yaml",
+
+=== 5. Runtime ===
+  containers running : 25
+  pacgate-db volume  : pacgate-ai-bundle_pacgate-db-data
+  tenants in DB      : 1
+
+=== 6. Outstanding (why this is NOT fully e2e) ===
+
+  1. NO GIT REMOTE. github.com is reachable but gh is not authenticated.
+     The monorepo is still single-copy-on-this-disk despite the mirror.
+  2. deer-flow-frontend not built (needs its documented entry point).
+  3. Credential rotation OUTSTANDING - 4 files still publicly readable
+     on GitHub. Deleting cannot un-publish a commit.
+  4. Task 5 (archive C:\pacgate-ai-pr) not done - intentionally deferred.
+  5. pacgate-ai-assets/ deferred (would need deleting its .git).
+  6. Containers still run PULLED images, not the ones just built. Swapping
+     them in is an untested deployment step.
+
+=== VERDICT ===
+  Relocation: ESSENTIALLY DONE. Content imported, stack cut over and verified,
+              platform builds and runs from the new path.
+  Fully E2E:  NO - see section 6. The two that matter are the missing git
+              remote and the un-rotated credentials.
