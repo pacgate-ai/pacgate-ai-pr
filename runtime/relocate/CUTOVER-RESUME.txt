@@ -1,0 +1,84 @@
+CUTOVER RESUME (after the NativeCommandError interruption)
+======================================================================
+
+State at resume: pacgate-ai-bundle stack DOWN, pre-copy complete,
+qm stack still up. This continues from step 4 of task3-cutover.ps1.
+
+>>> 3b. Stop the qm stack (it also binds paths under the old location)
+    exit=0
+       Container qm-pacgate-core-1 Removing 
+       Container qm-pacgate-core-1 Removed 
+       Container qm-pacgate-pg-1 Stopping 
+       Container qm-pacgate-pg-1 Stopped 
+       Container qm-pacgate-pg-1 Removing 
+       Container qm-pacgate-pg-1 Removed 
+    containers running now: 11
+
+>>> 4. Incremental re-copy (makes the copy consistent - writers are stopped)
+    data                               rc=0   0.0s
+    openviking                         rc=1   0.0s
+    .env                               rc=0   0.0s
+    deer-flow-extensions-config.json   rc=0   0.0s
+    node_modules                       rc=0   0.0s
+    .env                               rc=0   0.0s
+
+>>> 5. Verify the copy before starting anything
+    data                 source=244     dest=244     OK
+    node_modules         source=130     dest=130     OK
+    mount source data                               present
+    mount source deer-flow-extensions-config.json   present
+    mount source default.conf                       present
+    mount source workflows                          present
+    mount source patches                            present
+    mount source openviking                         present
+    mount source .env                               present
+    mount source deer-flow-config.yaml              present
+    mount source skills                             present
+    mount source pi-models.ts                       present
+    checkpoints.db: 1635.7 MB
+    copy verified
+
+>>> 6. Start the stack from the NEW location
+    bundle up exit=0
+       Container openviking Started 
+       Container pacgate-db Started 
+       Container pacgate-api Starting 
+       Container pacgate-api Started 
+       Container pacgate-mcp Starting 
+       Container pacgate-mcp Started 
+       Container deer-flow Starting 
+       Container deer-flow Started 
+       Container deer-flow-frontend Starting 
+       Container deer-flow-frontend Started 
+       Container pacgate-nginx Starting 
+       Container pacgate-nginx Started 
+    qm up exit=0
+       Container qm-pacgate-pg Started 
+       Container qm-pacgate-core Starting 
+       Container qm-mailpit Started 
+       Container qm-pacgate-core Started 
+       Container qm-pacgate-auth Starting 
+       Container qm-pacgate-admin Starting 
+       Container qm-pacgate-web-ui Starting 
+       Container qm-pacgate-auth Started 
+       Container qm-pacgate-admin Started 
+       Container qm-pacgate-web-ui Started 
+       Container qm-pacgate-portal Starting 
+       Container qm-pacgate-portal Started 
+
+>>> 7. Verify the cutover
+    containers running: 25  (expect 25)
+    pacgate-db volume: pacgate-ai-bundle_pacgate-db-data
+    mounts still under the OLD path: 0  (must be 0)
+    mounts now under the NEW path: 19
+    tenants AFTER cutover: 1  (was 1)
+    pacgate-db           running restarts=0
+    pacgate-api          running restarts=0
+    deer-flow            running restarts=0
+    deer-flow-frontend   running restarts=0
+    pacgate-nginx        running restarts=0
+    pacgate-mcp          running restarts=0
+    openviking           running restarts=0
+    pacgate-api /health: not reachable - 远程服务器返回错误: (404) 未找到。
+
+CUTOVER OK - stack runs from pacgate-law\pacgate-ai, correct volume, data intact.

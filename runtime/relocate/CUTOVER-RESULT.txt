@@ -1,38 +1,64 @@
 RELOCATION TASK 3 - CUTOVER (mode: DRY-RUN)
-==============================================================
+======================================================================
 
-This is the DOWNTIME step. It stops the stack, copies the runtime state
-that git does not carry, and restarts from the new location.
+Minimal-downtime strategy:
+  2. PRE-COPY the 1.9 GB of runtime state while the stack still runs
+     (robocopy is incremental, so this needs no window)
+  3. STOP the stack
+  4. re-run robocopy -> only files changed since step 2 transfer. This is
+     what makes the copy CONSISTENT: the 1.6 GB checkpoints.db is re-copied
+     after its writer stopped, so it cannot be a torn read.
+  5. verify  6. START from the new location  7. verify live
 
-Rollback: the old location is untouched. If anything fails, start the stack
-again from C:\pacgate-ai-pr\deploy\client-bundle with the same command.
+Downtime is therefore seconds (the incremental pass), not 1.9 GB.
+
+Rollback: the old location is untouched. To revert, start the stack again
+from C:\pacgate-ai-pr\deploy\client-bundle with the same command.
+
+>>> 0. Runtime state to transfer (gitignored; exists only at the old path)
+  data                                       present
+  openviking                                 present
+  .env                                       present
+  deer-flow-extensions-config.json           present
+  node_modules                               present
+  .env                                       present
 
 >>> 1. Preflight
     compose names agree: name: pacgate-ai-bundle
     authoritative volume present: pacgate-ai-bundle_pacgate-db-data
+    nginx/default.conf present (nginx would fail to start without it)
+    tenants BEFORE cutover: 1
     free space: 394.4 GB
     preflight OK
 
->>> 2. Stop the stack FROM THE OLD LOCATION (files still exist there)
+>>> 2. PRE-COPY while the stack still runs (bulk transfer, no downtime)
+    [DRY-RUN] pre-copy C:\pacgate-ai-pr\deploy\client-bundle\data -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\data
+    [DRY-RUN] pre-copy C:\pacgate-ai-pr\deploy\client-bundle\openviking -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\openviking
+    [DRY-RUN] pre-copy C:\pacgate-ai-pr\deploy\client-bundle\.env -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\.env
+    [DRY-RUN] pre-copy C:\pacgate-ai-pr\deploy\client-bundle\deer-flow-extensions-config.json -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\deer-flow-extensions-config.json
+    [DRY-RUN] pre-copy C:\pacgate-ai-pr\deploy\qm-pacgate\node_modules -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\qm-pacgate\node_modules
+    [DRY-RUN] pre-copy C:\pacgate-ai-pr\deploy\qm-pacgate\.env -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\qm-pacgate\.env
+
+>>> 3. STOP the stack (from the OLD location - files still exist there)
     [DRY-RUN] cd C:\pacgate-ai-pr\deploy\client-bundle ; docker compose -f compose.bundle.yaml down
     [DRY-RUN] cd C:\pacgate-ai-pr\deploy\qm-pacgate ; docker compose -f compose.qm.yaml down
 
->>> 3. Copy the runtime state git does not carry (~1.9 GB)
-    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\client-bundle\data -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\data
-    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\client-bundle\openviking -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\openviking
-    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\client-bundle\.env -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\.env
-    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\client-bundle\deer-flow-extensions-config.json -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\deer-flow-extensions-config.json
-    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\qm-pacgate\node_modules -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\qm-pacgate\node_modules
-    [DRY-RUN] copy C:\pacgate-ai-pr\deploy\qm-pacgate\.env -> c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\qm-pacgate\.env
+>>> 4. Re-copy incrementally (this is what makes the copy CONSISTENT)
+    [DRY-RUN] incremental re-copy C:\pacgate-ai-pr\deploy\client-bundle\data
+    [DRY-RUN] incremental re-copy C:\pacgate-ai-pr\deploy\client-bundle\openviking
+    [DRY-RUN] incremental re-copy C:\pacgate-ai-pr\deploy\client-bundle\.env
+    [DRY-RUN] incremental re-copy C:\pacgate-ai-pr\deploy\client-bundle\deer-flow-extensions-config.json
+    [DRY-RUN] incremental re-copy C:\pacgate-ai-pr\deploy\qm-pacgate\node_modules
+    [DRY-RUN] incremental re-copy C:\pacgate-ai-pr\deploy\qm-pacgate\.env
 
->>> 4. Verify the copy is complete
-    [DRY-RUN] compare file counts old vs new
+>>> 5. Verify the copy is complete before starting anything
+    [DRY-RUN] compare counts + confirm every bind-mount source exists
 
->>> 5. Start the stack FROM THE NEW LOCATION
+>>> 6. START the stack from the NEW location
     [DRY-RUN] cd c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle ; docker compose -f compose.bundle.yaml up -d
     [DRY-RUN] cd c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\qm-pacgate ; docker compose -f compose.qm.yaml up -d
 
->>> 6. Verify the cutover
-    [DRY-RUN] check container count, pacgate-db volume, mount sources, and a DB query
+>>> 7. Verify the cutover
+    [DRY-RUN] check container count, volume name, old-path mounts, DB row count, health
 
-DRY-RUN complete. Re-run with -Execute during the maintenance window.
+DRY-RUN complete. Re-run with -Execute to perform the cutover.

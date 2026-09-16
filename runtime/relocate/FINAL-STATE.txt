@@ -1,0 +1,38 @@
+FINAL STATE AFTER CUTOVER
+======================================================================
+
+=== 1. The new path ===
+  c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\
+
+  runtime / compose root:
+  c:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\
+
+=== 2. Containers ===
+  running: 25
+    (unmanaged)            25
+
+=== 3. Where each compose project now lives ===
+
+=== 4. Dependencies on the OLD location ===
+  container mounts under C:\pacgate-ai-pr : 0   (0 = safe to retire)
+  container mounts under pacgate-law        : 19
+
+=== 5. Data integrity ===
+  tenants    1
+  users      3
+  db size    25 MB
+  checkpoints.db  1635.7 MB  (at the NEW path)
+
+=== 6. Old location still intact (rollback) ===
+  exists : True
+  HEAD   : 151a383
+  tracked: 515
+
+=== 7. Monorepo ===
+  3e949f5 docs(relocate): correct the plan's central premise after Phase 1
+  c32d933 docs(relocate): correct the plan's central premise after Phase 1
+  9f5196f feat(relocate): fix the compose name defect and add the cutover script
+  cde68a2 docs(relocate): correct the plan's central premise after Phase 1
+  66051ec refactor(relocate): make the platform location-independent
+  8bf3fee chore: phase 1 relocation tooling, evidence and recovery notes
+  tracked files: 580

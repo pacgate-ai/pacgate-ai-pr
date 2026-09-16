@@ -1,0 +1,75 @@
+POST-CUTOVER FUNCTIONAL VERIFICATION
+======================================================================
+
+Containers being "up" is not proof the apps work - a bind mount that failed
+to follow the move leaves a container running against an empty directory.
+These checks exercise the actual services.
+
+=== 1. Published ports ===
+  qm-pacgate-portal        0.0.0.0:8181->8080/tcp  [::]:8181->8080/tcp
+  qm-pacgate-web-ui        0.0.0.0:8182->8080/tcp  [::]:8182->8080/tcp
+  qm-pacgate-admin         0.0.0.0:8183->8080/tcp  [::]:8183->8080/tcp
+  qm-pacgate-core          0.0.0.0:8180->8080/tcp  [::]:8180->8080/tcp
+  qm-mailpit               0.0.0.0:8025->8025/tcp  [::]:8025->8025/tcp
+  pacgate-nginx            0.0.0.0:8089->80/tcp  [::]:8089->80/tcp
+  deer-flow-frontend       0.0.0.0:8090->3000/tcp  [::]:8090->3000/tcp
+  openviking               0.0.0.0:1933->1933/tcp  [::]:1933->1933/tcp
+
+=== 2. Service endpoints ===
+  pacgate-api /healthz                           HTTP 404 (responded)
+  pacgate-api /api/health                        HTTP 401 (responded)
+  pacgate-api root                               HTTP 200
+  deer-flow frontend                             HTTP 200
+  nginx :8089                                    HTTP 200
+  qm portal                                      HTTP 401 (responded)
+  qm mailpit                                     HTTP 200
+
+=== 3. Database content (proves the volume, not just the container) ===
+  tenants        1
+  users          3
+  tables         6
+  db size        25 MB
+  tenant names   Pacgate Law
+
+=== 4. deer-flow state (its admin user lives in ./data) ===
+  --- deer-flow:/data ---
+    total 8
+    drwxrwxrwx 1 root root 4096 Sep  6 08:50 .
+    drwxr-xr-x 1 root root 4096 Sep 16 11:48 ..
+    drwxrwxrwx 1 root root 4096 Sep  6 07:13 assets
+    drwxrwxrwx 1 root root 4096 Sep 12 03:27 deer-flow
+    -rw-r--r-- 1 root root  194 Sep  4 04:42 df_logs.txt
+  --- deer-flow:/app/backend/.deer-flow ---
+    total 1801564
+    drwxrwxrwx 1 root root       4096 Sep 12 03:27 .
+    drwxr-xr-x 1 root root       4096 Sep 16 11:48 ..
+    -rw------- 1 root root         43 Sep  6 08:51 .jwt_secret
+    drwxrwxrwx 1 root root       4096 Sep  6 08:50 channels
+    -rw-r--r-- 1 root root 1715118080 Sep 15 07:17 checkpoints.db
+  --- db-ish files under /data ---
+    /data/deer-flow:
+    total 1801556
+    drwxrwxrwx 1 root root       4096 Sep 12 03:27 .
+    drwxrwxrwx 1 root root       4096 Sep  6 08:50 ..
+    -rw------- 1 root root         43 Sep  6 08:51 .jwt_secret
+    drwxrwxrwx 1 root root       4096 Sep  6 08:50 channels
+    -rw-r--r-- 1 root root 1715118080 Sep 15 07:17 checkpoints.db
+    -rw-r--r-- 1 root root      32768 Sep 16 11:49 checkpoints.db-shm
+
+=== 5. Mount sources are the NEW path and readable inside the container ===
+  pacgate-api        /data                            PRESENT
+  deer-flow          /app/backend/config.yaml         PRESENT
+  pacgate-nginx      /etc/nginx/conf.d/default.conf   PRESENT
+  openviking         /app/.openviking                 PRESENT
+
+=== 6. Recent errors in key containers (last 15 log lines) ===
+  --- pacgate-api ---
+    (no error-like lines)
+  --- deer-flow ---
+    (no error-like lines)
+  --- pacgate-nginx ---
+    (no error-like lines)
+
+=== SUMMARY ===
+  endpoints responding: 7   failing: 0
+  containers running  : 25
