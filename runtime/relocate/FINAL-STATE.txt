@@ -29,10 +29,10 @@ FINAL STATE AFTER CUTOVER
   tracked: 515
 
 === 7. Monorepo ===
-  3e949f5 docs(relocate): correct the plan's central premise after Phase 1
-  c32d933 docs(relocate): correct the plan's central premise after Phase 1
-  9f5196f feat(relocate): fix the compose name defect and add the cutover script
-  cde68a2 docs(relocate): correct the plan's central premise after Phase 1
-  66051ec refactor(relocate): make the platform location-independent
-  8bf3fee chore: phase 1 relocation tooling, evidence and recovery notes
-  tracked files: 580
+  5986a34 chore(relocate): final tasks - 4/4 builds, archive, two risks found
+  e439307 chore(relocate): e2e audit, and close a gap the audit found
+  1490075 fix(relocate): the backup mirror was silently going stale
+  fccebb0 chore(relocate): local bare mirror as interim insurance
+  a556ae2 chore(relocate): detached runner for the deer-flow builds
+  5a15693 build(relocate): full Rust build PASSES and runs against the live database
+  tracked files: 652
