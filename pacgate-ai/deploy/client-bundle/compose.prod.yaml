@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
 
   pacgate-api:
-    image: ghcr.io/pacgate-ai/pacgate-api:0.1.12
+    image: ghcr.io/pacgate-ai/pacgate-api:0.1.14
     container_name: pacgate-api
     depends_on: [pacgate-db]
     environment:
@@ -49,7 +49,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.12
+    image: ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.14
     container_name: deer-flow
     depends_on: [pacgate-api, openviking, pacgate-mcp]
     environment:
@@ -118,7 +118,7 @@ services:
   # correct without a runtime patch. Published to GHCR by the build-ghcr.yml
   # workflow; pushed on every release tag so both AIPCs stay in sync.
   deer-flow-frontend:
-    image: ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.12
+    image: ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.11
     container_name: deer-flow-frontend
     depends_on: [deer-flow]
     ports:
@@ -130,7 +130,7 @@ services:
     restart: unless-stopped
 
   pacgate-mcp:
-    image: ghcr.io/pacgate-ai/pacgate-mcp:0.1.12
+    image: ghcr.io/pacgate-ai/pacgate-mcp:0.1.14
     container_name: pacgate-mcp
     depends_on: [pacgate-api]
     environment:
