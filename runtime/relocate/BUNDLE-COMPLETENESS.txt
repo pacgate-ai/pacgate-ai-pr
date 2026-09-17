@@ -1,0 +1,37 @@
+BUNDLE COMPLETENESS - resolve the 158 vs 159 discrepancy
+==============================================================================
+
+A backup that is missing a commit is not a backup. Determine whether a
+commit was lost, or whether the two numbers merely count different ref sets.
+
+=== 1. Counts ===
+  source  rev-list --all : 159
+  clone   rev-list --all : 158
+
+=== 2. Ref inventory (what each side actually has) ===
+  source refs: 16    clone refs: 12
+
+  --- refs in SOURCE but not in CLONE ---
+    refs/heads/feat/deer-flow-pacgate-mcp
+    refs/heads/main
+    refs/remotes/fork/feat/agent-capability-enablement
+    refs/remotes/fork/feat/deer-flow-pacgate-mcp
+    refs/remotes/fork/HEAD
+    refs/remotes/fork/main
+  --- refs in CLONE but not in SOURCE (expected: clone-local) ---
+    refs/remotes/origin/feat/agent-capability-enablement
+    refs/remotes/origin/feat/deer-flow-pacgate-mcp
+
+=== 3. Decisive test: is EVERY source commit reachable from the bundle? ===
+  source commits: 159
+  clone  commits: 158  (incl. reflog)
+  MISSING from the bundle: 1   (must be 0)
+    ! 28dc159042  28dc159 2026-09-13 Merge pull request #1 from pacgate-ai/feat/agent-capability-enablement
+
+=== 4. Which ref contains the 'missing' commit? ===
+  28dc159042 is contained in:   remotes/fork/HEAD -> fork/main,   remotes/fork/main
+    dangling (not a ref tip, unreachable from any branch): False
+
+=== VERDICT ===
+  1 commit(s) not carried. Investigate whether they are reachable
+  from a ref the bundle omitted, or genuinely dangling (unreferenced).

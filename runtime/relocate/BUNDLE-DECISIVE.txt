@@ -1,0 +1,40 @@
+DECISIVE TEST: is the object PRESENT, or is it ABSENT from the backup?
+==============================================================================
+
+This distinguishes two very different claims:
+  (a) the commit OBJECT is not in the bundle          -> data LOSS
+  (b) the object IS in the bundle, but a fresh clone does not create a
+      local REF pointing at it                        -> no loss at all
+
+`rev-list --all` only walks LOCAL refs, so it answers neither on its own.
+`git cat-file -e` asks about the object database directly. That is the
+question that matters for a backup.
+
+=== 1. Clone the SHIPPED bundle ===
+  cloned: True
+  target commit: 28dc15904203ff868c08c9a4cf7154340a71577f
+
+=== 2. Is the OBJECT present in the clone's database? ===
+  git cat-file -e  -> PRESENT
+  readable as    : 28dc159 2026-09-13 Merge pull request #1 from pacgate-ai/feat/agent-capability-enablement
+  object type    : commit
+
+=== 3. Can the commit be fully recovered from the bundle alone? ===
+  If the object is present, `git checkout <sha>` / `git branch x <sha>`
+  works without ever touching C:\pacgate-ai-pr.
+  branch created from it: YES
+  files in that tree    : 515
+
+=== 4. Complete check: is EVERY source commit object in the bundle? ===
+  source commits     : 159
+  ABSENT from bundle : 0   (must be 0)
+
+=== 5. Every ref that exists in the source ===
+  source refs: 16   refs whose object is absent: 0   (must be 0)
+
+=== VERDICT ===
+  NO DATA LOSS. Every source commit object is inside the bundle.
+  The earlier "MISSING: 1" was a REF-MATERIALISATION artefact: a fresh
+  clone does not create a local ref for refs/remotes/* entries, so
+  `rev-list --all` cannot see that commit even though its objects are
+  present. The backup is complete.

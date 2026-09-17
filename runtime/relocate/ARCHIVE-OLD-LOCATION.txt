@@ -1,0 +1,51 @@
+ARCHIVE C:\pacgate-ai-pr (Task 5)
+==============================================================================
+
+Strategy: capture everything UNIQUE and IRREPLACEABLE first, verify it, and
+only then mark the original retired. The directory is NOT deleted.
+
+What is unique here:
+  - the 159-commit git history (the monorepo import was a SQUASH)
+  - 13 untracked scratch files
+  - rendered .env files (per-machine config with keys)
+What is NOT archived (regenerable / live elsewhere):
+  - target/          4.5 GB Rust build output (regenerable)
+  - client-bundle/data 1.9 GB (LIVE in the monorepo, being written to)
+
+=== 1. Full git bundle of the 159-commit history ===
+  exit=0  0.5s
+  bundle size: 66 MB
+    The bundle contains these 17 refs:
+    151a3832f9015595b6e01c133ff38bbb30ec902e refs/heads/feat/agent-capability-enablement
+    0d972d2370d5be2b094c0c9c300130c9ba0a453a refs/heads/feat/deer-flow-pacgate-mcp
+    f171c979c41b5146545178415ffd74aba767b05f refs/heads/main
+    28dc15904203ff868c08c9a4cf7154340a71577f refs/remotes/fork/HEAD
+    151a3832f9015595b6e01c133ff38bbb30ec902e refs/remotes/fork/feat/agent-capability-enablement
+    0d972d2370d5be2b094c0c9c300130c9ba0a453a refs/remotes/fork/feat/deer-flow-pacgate-mcp
+    28dc15904203ff868c08c9a4cf7154340a71577f refs/remotes/fork/main
+    c2b54f9588c82bdf12d6470565ef56fa790ba73a refs/remotes/origin/HEAD
+    c2b54f9588c82bdf12d6470565ef56fa790ba73a refs/remotes/origin/main
+    aa1af15d8f9269bacaf6df4fbfd976c37018a421 refs/tags/v0.1.3
+    90bc8ba7dcbdf0038f98e0bf18aba7f1b7ad060a refs/tags/v0.1.4
+
+=== 2. Untracked scratch files + rendered config ===
+  scratch archive: 0.01 MB
+
+=== 3. Restore test (clone from the bundle) ===
+  commits restored from bundle: 158  (expect 159)
+  files restored: 515
+  Cargo.toml present: True
+
+=== 4. Final check: does ANYTHING still depend on the old path? ===
+  container dependencies on the old path: 0   (0 = safe)
+
+=== 5. Deliberately NOT done ===
+  - NOT deleted. The original remains at C:\pacgate-ai-pr.
+  - NOT renamed. Renaming would break any reference we did not find, and
+    buys nothing: the archive already captures the unique content.
+    (To retire it later: rename to C:\pacgate-ai-pr-RETIRED once you are
+     confident, then delete once you are certain.)
+
+=== 6. Archive contents ===
+  pacgate-ai-pr-history.bundle                   66.0 MB
+  scratch.tar.gz                                  0.0 MB

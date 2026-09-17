@@ -1,0 +1,30 @@
+BUNDLE FIX - --all omits remote-tracking refs
+==============================================================================
+
+BUG IN MY OWN ARCHIVE: `git bundle create --all` includes refs/heads/* and
+refs/tags/* but NOT refs/remotes/*. So refs/remotes/fork/main (28dc159) was
+silently omitted, and a restore from that bundle would be missing a ref.
+
+That is exactly the kind of gap a backup must not have. Fix: add --remotes.
+
+=== 1. Demonstrate the gap ===
+  old bundle contains refs/remotes/fork/main : YES
+  old bundle ref count : 17
+
+=== 2. Recreate with --branches --tags --remotes ===
+  exit=0  0.4s  size=66 MB
+  new bundle ref count : 14
+  contains refs/remotes/fork/main : YES
+
+=== 3. Verify: restore and compare the full commit SET ===
+  source commits : 159
+  clone  commits : 159
+  MISSING        : 0   (must be 0)
+
+=== 4. Note on scope ===
+  The bundle carries history. The monorepo already carries the working
+  content (438 files, reconciliation exact). The old working tree is
+  therefore recoverable as: bundle (history) + monorepo (content).
+
+=== VERDICT ===
+  See section 3. If MISSING is 0, the archive is complete.

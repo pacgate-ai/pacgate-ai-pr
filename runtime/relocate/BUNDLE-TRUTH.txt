@@ -1,0 +1,49 @@
+BUNDLE TRUTH - resolve the contradiction
+==============================================================================
+
+My check said the OLD (--all) bundle DID contain refs/remotes/fork/main,
+yet a clone from it was missing a commit. Both cannot be true. Determine
+the actual content of each bundle.
+
+=== 1. Ref lists side by side ===
+  --all     refs: 17
+  full      refs: 14
+
+  --- refs in --all but NOT in full ---
+    HEAD
+    refs/remotes/fork/HEAD
+    refs/remotes/origin/HEAD
+
+  --- refs in full but NOT in --all ---
+    (none)
+
+  --- does each bundle carry refs/remotes/fork/main ? ---
+    --all : YES
+    full  : YES
+
+=== 2. Commit-set completeness per bundle (the test that matters) ===
+
+  --- bundle --all ---
+    source commits : 159
+    clone  commits : 158
+    MISSING        : 1
+      ! 28dc159 Merge pull request #1 from pacgate-ai/feat/agent-capability-enablement
+        contained in: refs/remotes/fork/HEAD, refs/remotes/fork/main
+
+  --- bundle full  ---
+    source commits : 159
+    clone  commits : 158
+    MISSING        : 1
+      ! 28dc159 Merge pull request #1 from pacgate-ai/feat/agent-capability-enablement
+        contained in: refs/remotes/fork/HEAD, refs/remotes/fork/main
+
+=== 3. What the shipped archive actually contains ===
+  shipped bundle refs: 14
+  remote-tracking refs inside: 4
+  size: 66 MB
+  last written: 2026-09-17 12:13:16   (should be the --branches --tags --remotes run)
+
+=== VERDICT ===
+  Both bundles were regenerated here so the comparison is apples-to-apples.
+  The decisive number is 2: MISSING per bundle.
+  If --all shows MISSING=1 and full shows MISSING=0, the fix is proven.
