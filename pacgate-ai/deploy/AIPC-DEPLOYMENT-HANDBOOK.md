@@ -7,8 +7,13 @@
 ## ⚠️ Significant findings (2026-09-02) — read before deploying AIPC #2
 
 These were discovered during the AIPC #1 pilot and are **already fixed in this repo**.
-AIPC #2 must pull the **updated** code (from `pacgate-ai/pacgate-ai-pr`, see Stage 1) so it
-gets these fixes, not the older `JZKK720/pacgate-ai-pr` main.
+AIPC #2 must pull the **updated** code (see Stage 1) so it gets these fixes.
+
+> **Update 2026-09-15.** Both repos are now **public** and carry **identical trees**
+> (`origin/main` = fork `main`). The earlier warning to avoid "the older
+> `JZKK720/pacgate-ai-pr` main" no longer applies — `origin/main` contains every
+> fork commit plus merge `832d84e`. Clone either. See
+> `plans/012-master-release-namespace.md`.
 
 1. **deer-flow agent could not query pacgate's legal databases.** Root cause: no tool was
    wired to pacgate-api's `/api/kb/search` (RAG) or `/api/search` (legal connectors), and the
@@ -42,9 +47,11 @@ gets these fixes, not the older `JZKK720/pacgate-ai-pr` main.
    no-secret way** to reach the web-ui directly — you must run `portal`+`auth` (Resend) or
    an external OIDC provider. `ADMIN_GRANTS` is an authorization seed, not a sign-in.
 
-6. **Git push to `JZKK720/pacgate-ai-pr` is blocked for the `pacgate-ai` account** (403,
-   needs 2FA grant). **Workaround:** the `pacgate-ai` account can create a fork and push
-   there. The fork `pacgate-ai/pacgate-ai-pr` now carries all fixes on `main`.
+6. **Git push to `JZKK720/pacgate-ai-pr` was blocked for the `pacgate-ai` account** (403,
+   needs 2FA grant). **Workaround:** the `pacgate-ai` account could fork and push there.
+   All fixes are now merged into both `main` branches, so this is historical — but note
+   the two remotes are separate publishing targets for GHCR (see
+   `plans/012-master-release-namespace.md`).
 
 ## Architecture: two identical machines
 
@@ -66,13 +73,15 @@ If you later want shared matter data across both machines, connect them with a p
 
 ## What you need before starting
 
-- GitHub access to `JZKK720/pacgate-ai-pr` (private repo) — a PAT or `gh auth login`
+- GitHub access to the source repo — either `JZKK720/pacgate-ai-pr` or
+  `pacgate-ai/pacgate-ai-pr`. Both are **public**; a plain clone needs no auth at all.
+  A PAT or `gh auth login` is only required if you intend to push.
 - Docker Desktop running on both AIPCs
 - Ollama running on both AIPCs (`install.ps1` pulls the models it needs)
 - `ollama signin` completed on each AIPC if the cloud-tagged deepseek models are in use
 - Node.js 24+ installed on both AIPCs (for qm)
 - **No `docker login ghcr.io` needed** — the Pacgate runtime images are published as
-  **public** GHCR packages (see Stage 0). Only the source repo is private.
+  **public** GHCR packages (see Stage 0).
 
 ## Stage 0: Runtime images (dev machine, already done)
 
@@ -91,10 +100,30 @@ without registry credentials. Verify before rollout:
 
 ```powershell
 # Expect HTTP 200 with no docker login. 401/403 means the package is still private.
-# (The Accept header is required — omit it and a public manifest returns 404, not 200.)
+# 404 means the tag does not exist in that namespace — usually a drift between the
+# pins in compose.prod.yaml and where the images were actually published.
+#
+# (The Accept header is REQUIRED — omit it and a public manifest returns 404, not 200.)
+#
+# This reads the four pins straight out of compose.prod.yaml, so it can never go
+# stale: previously this snippet hard-coded an old tag that had been removed, and
+# reported a healthy system as broken.
 $acc = "application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json"
-$t = (Invoke-RestMethod "https://ghcr.io/token?scope=repository:jzkk720/pacgate-api:pull").token
-(Invoke-WebRequest "https://ghcr.io/v2/jzkk720/pacgate-api/manifests/0.1.3" -Headers @{Authorization="Bearer $t"; Accept=$acc} -Method Head -UseBasicParsing).StatusCode
+$compose = "deploy/client-bundle/compose.prod.yaml"
+$pins = Select-String -Path $compose -Pattern "image:\s*(ghcr\.io/[^\s]+)" -AllMatches |
+        ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } |
+        Where-Object { $_ -notmatch "openviking" } | Sort-Object -Unique
+
+foreach ($pin in $pins) {
+  $repo = $pin -replace "^ghcr\.io/", ""            # owner/name:tag
+  $name = ($repo -split ":")[0]                       # owner/name
+  $tag  = ($repo -split ":")[1]
+  $t = (Invoke-RestMethod "https://ghcr.io/token?scope=repository:$name`:pull").token
+  $code = (Invoke-WebRequest -Uri "https://ghcr.io/v2/$name/manifests/$tag" `
+            -Headers @{Authorization="Bearer $t"; Accept=$acc} `
+            -Method Head -UseBasicParsing).StatusCode
+  "{0,-58} => HTTP {1}" -f $pin, $code
+}
 ```
 
 To flip it (GitHub web UI — the API route 404s for personal accounts):
@@ -103,15 +132,21 @@ GitHub → your profile → Packages → `pacgate-api` → Package settings → 
 the compiled binary and SQL migrations, every secret is injected at runtime via `.env`,
 and the installer already has full source access to the same code.
 
-Only rebuild and push if the Rust source changes, from the dev machine:
+Only rebuild and push if the Rust source changes, from the dev machine. **Take the
+tag from the compose pin rather than typing a version** — a hard-coded tag here
+has gone stale twice, and one stale copy already reported a healthy system as
+broken:
 
 ```powershell
 cd c:\Users\cubecloud-io\github-pr\pacgate-ai-pr
-docker build -t ghcr.io/jzkk720/pacgate-api:0.1.3 -f pacgate-ai/Dockerfile ./pacgate-ai
-docker push ghcr.io/jzkk720/pacgate-api:0.1.3
+$tag = (Select-String -Path deploy/client-bundle/compose.prod.yaml `
+        -Pattern 'pacgate-ai/pacgate-api:(\S+)').Matches.Groups[1].Value
+docker build -t ghcr.io/pacgate-ai/pacgate-api:$tag -f pacgate-ai/Dockerfile ./pacgate-ai
+docker push  ghcr.io/pacgate-ai/pacgate-api:$tag
 ```
 
-Then bump the tag in `deploy/client-bundle/compose.prod.yaml`.
+In practice prefer the `build-ghcr.yml` workflow so all four images stay in step —
+see `deploy/README-BUILD.md` and `plans/012-master-release-namespace.md`.
 
 Do **not** rebuild on the AIPC — the pilot runs the published digests.
 
@@ -127,10 +162,14 @@ git clone https://github.com/pacgate-ai/pacgate-ai-pr.git
 cd pacgate-ai-pr
 ```
 
-> **AIPC #2 note:** clone from the **`pacgate-ai/pacgate-ai-pr`** fork (it carries all the
-> 2026-09-02 fixes on `main`). The `pacgate-ai` account owns it, so it's writable and always
-> up to date. If you must use `JZKK720/pacgate-ai-pr`, pull the `feat/deer-flow-pacgate-mcp`
-> branch (or apply the patches in `patches/`) to get the same fixes.
+> **AIPC #2 note:** both repos are now **identical** (`origin/main` = fork `main`, each
+> carrying all fixes plus merge `832d84e`) and **both are public**, so either clone works.
+> The only difference that matters is which repo you push a release tag to — that decides
+> which GHCR namespace the images publish into. See
+> `plans/012-master-release-namespace.md`.
+>
+> Cloning needs no credentials now that the repos are public; a PAT or `gh auth login` is
+> only required to push.
 
 If the repo is private and GitHub prompts for credentials, use a personal access token or the GitHub CLI (`gh auth login`).
 
@@ -139,7 +178,7 @@ If the repo is private and GitHub prompts for credentials, use a personal access
 Run these steps on each AIPC. The Docker Compose stack starts pacgate-api, Postgres, nginx, and deer-flow.
 
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\client-bundle
+cd C:\pacgate-ai-pr\deploy\client-bundle
 copy .env.example .env
 notepad .env
 ```
@@ -244,7 +283,7 @@ stay in pacgate-api/pacgate-rag.
 qm runs separately from the Docker Compose stack. Bootstrap it on each machine after the core stack is healthy.
 
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\client-bundle
+cd C:\pacgate-ai-pr\deploy\client-bundle
 .\setup-qm.ps1
 ```
 
@@ -274,7 +313,7 @@ AUTH_EMAIL_FROM="PacGate <onboarding@resend.dev>"
 Start qm:
 
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\qm-pacgate
+cd C:\pacgate-ai-pr\deploy\qm-pacgate
 node_modules\.bin\qm.cmd up
 ```
 
@@ -438,7 +477,7 @@ docker compose -f compose.prod.yaml up -d
 docker compose -f compose.prod.yaml down
 
 # Start qm
-cd <monorepo>\pacgate-ai\deploy\qm-pacgate
+cd C:\pacgate-ai-pr\deploy\qm-pacgate
 npm exec qm -- up
 
 # Stop qm
@@ -448,15 +487,86 @@ npm exec qm -- down
 ### Update to a new version
 
 ```powershell
-cd <monorepo>\pacgate-ai
-git pull
-cd deploy\client-bundle
+cd C:\pacgate-ai-pr\deploy\client-bundle
 .\install.ps1 -Update
 ```
 
-The update pulls new GHCR images and restarts containers. Data is preserved:
+`-Update` now does all of the following, so a separate `git pull` is no longer
+needed (it was the most easily forgotten step, and forgetting it silently ran
+new images against old config):
+
+| Step | What it does |
+| --- | --- |
+| 1 | Refreshes the repo working tree (fast-forward only) |
+| 2 | Re-renders the MCP config from the template, backing up any change |
+| 3 | Pulls new GHCR images |
+| 4 | Restarts the stack, and reloads nginx |
+
+**It refuses, rather than guessing, when the machine has local work:**
+
+- uncommitted changes in the repo -> the repo update is skipped, and the changed
+  files are listed. Nothing is stashed, reset, or discarded.
+- local commits the remote does not have -> it will not merge or rebase. The
+  repo stays as-is and the rest of the update continues.
+
+Use `-SkipRepoPull` if you deliberately want an image-only update:
+
+```powershell
+.\install.ps1 -Update -SkipRepoPull
+```
+
+#### qm is reported, not auto-updated
+
+If qm is running on the machine, `-Update` also checks whether its sandbox image
+still matches its source:
+
+```
+[OK] qm sandbox matches its source (38e062ec7c5c...)
+```
+
+or
+
+```
+[WARN] qm sandbox source has CHANGED since the image was pinned.
+       qm is running OLD skills and tools. Rebuild + repin:
+         cd deploy\qm-pacgate
+         npm exec qm -- sandbox build   # then repin the printed digest
+         pwsh -File ..\..\scripts\qm-sandbox-fingerprint.ps1 -Write
+```
+
+This matters because qm's agent executes inside a sandbox image **pinned by
+digest** in `deploy/qm-pacgate/qm.config.jsonc`. Digest pinning is correct - the
+isolation boundary should be immutable - but it means a repo update can change
+`deploy/qm-pacgate/sandbox/` while the image stays exactly as it was. The agent
+then keeps running the old skills and tools, with no error anywhere.
+
+`-Update` **reports** this rather than rebuilding on its own, because the rebuild
+needs Node 24 + npm + buildx and the digest must be repinned afterwards - a
+config change we should not make unattended on a client machine. A wrong
+automatic rebuild is a worse failure than a visible warning.
+
+Data is preserved across an update:
 - `./data/tenants/` (volume mount) - matters, documents, memory
 - Postgres data (named volume) - metadata database
+
+#### Is this machine current? Ask it.
+
+```powershell
+curl.exe -s http://localhost:8089/version
+```
+
+```json
+{"version":"<release>","revision":"<git sha>"}
+```
+
+This reports the version **compiled into the running pacgate-api binary**, and
+the commit it was built from. It deliberately does not echo the compose pin or
+the image tag: those record what was *deployed*, and the failure worth catching
+is exactly the case where the deployed artifact and the running process
+disagree.
+
+Before this existed there was no way to tell a current machine from one behind -both looked identical from the outside, and the only check was to SSH in and
+read the compose file, hoping the containers matched it.
 
 ### Switch models
 

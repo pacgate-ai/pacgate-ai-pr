@@ -22,8 +22,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-# $PSScriptRoot = <repo>\deploy; the repo root is one level up. Resolved at run
-# time, so the script works from any checkout location.
+# $PSScriptRoot = c:\pacgate-ai-pr\deploy; repo root is one level up.
 $Root = Split-Path -Parent $PSScriptRoot
 
 function Invoke-Step([string]$Label, [scriptblock]$Cmd) {
@@ -48,10 +47,7 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 # ── 1. pacgate-api (Rust) ────────────────────────────────────────────────────
 if ($Selected -contains "api") {
     Invoke-Step "pacgate-api" {
-        # NOTE: the Rust workspace was FLATTENED during the monorepo import, so
-        # the Dockerfile sits at $Root\Dockerfile, not $Root\pacgate-ai\Dockerfile.
-        # (In the old standalone repo the layout was <repo>\pacgate-ai\Dockerfile.)
-        docker build -f (Join-Path $Root "Dockerfile") -t "ghcr.io/pacgate-ai/pacgate-api:$Tag" $Root
+        docker build -f (Join-Path $Root "pacgate-ai/Dockerfile") -t "ghcr.io/pacgate-ai/pacgate-api:$Tag" (Join-Path $Root "pacgate-ai")
     }
     if ($Push) { Invoke-Step "push pacgate-api" { docker push "ghcr.io/pacgate-ai/pacgate-api:$Tag" } }
 }

@@ -3,16 +3,6 @@
 # This stack runs: pacgate-api (metadata), deer-flow (research), Postgres, nginx.
 # qm (co-working workspace) runs SEPARATELY via `qm up` from the qm-pacgate/
 # deployment directory. See setup-qm.ps1 for qm bootstrap.
-#
-# ⚠️ The `name:` key below is REQUIRED and must match compose.bundle.yaml.
-# Without it, Compose derives the project name from the DIRECTORY name
-# ("client-bundle"), which prefixes named volumes differently and would attach
-# this stack to a DIFFERENT, EMPTY database volume — presenting as data loss
-# while the real data sits untouched in pacgate-ai-bundle_pacgate-db-data.
-# Both files must declare the same name so they can never disagree.
-# See runtime/VOLUME-INVESTIGATION-FINDINGS.md
-
-name: pacgate-ai-bundle
 
 services:
   pacgate-db:
@@ -118,7 +108,7 @@ services:
   # correct without a runtime patch. Published to GHCR by the build-ghcr.yml
   # workflow; pushed on every release tag so both AIPCs stay in sync.
   deer-flow-frontend:
-    image: ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.11
+    image: ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.15
     container_name: deer-flow-frontend
     depends_on: [deer-flow]
     ports:

@@ -70,7 +70,7 @@ The checked-in `deploy/qm-pacgate/qm.config.jsonc` now sets:
 
 ### Stage 2 — core stack
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\client-bundle
+cd C:\pacgate-ai-pr\deploy\client-bundle
 copy .env.example .env
 notepad .env
 ```
@@ -94,12 +94,12 @@ Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -B
 
 ### Stage 4 — QM (portal topology, Mailpit sign-in)
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\client-bundle
+cd C:\pacgate-ai-pr\deploy\client-bundle
 .\setup-qm.ps1
 ```
 Then start qm:
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\qm-pacgate
+cd C:\pacgate-ai-pr\deploy\qm-pacgate
 node_modules\.bin\qm.cmd up
 ```
 > Use `node_modules\.bin\qm.cmd up` — `npm exec qm -- up` is blocked by the

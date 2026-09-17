@@ -93,6 +93,30 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         // Health (no auth)
         .route("/health", get(|| async { "ok" }))
+        // Version (no auth) — what release is actually running.
+        //
+        // Deliberately NOT the image tag, the compose pin, or a build arg: all
+        // of those are things that were DEPLOYED, and the whole point of a
+        // staleness marker is to catch the case where the deployed artifact and
+        // the running process disagree. CARGO_PKG_VERSION is compiled into the
+        // binary, so it can only be right about the process that is serving.
+        //
+        // Reported by the binary rather than by nginx so it cannot drift from
+        // the runtime. nginx proxies this at the public /version route.
+        //
+        // The revision comes from an optional build arg (see the Dockerfile);
+        // when it is absent this is "unknown" rather than a wrong value.
+        //
+        // This route lives on the PUBLIC router (below), which carries no auth
+        // middleware, so it is reachable without a token. Verified against the
+        // published 0.1.13 image: GET /build-info returns 200. See
+        // scripts/test-version-marker-against-image.ps1.
+        .route("/build-info", get(|| async {
+            axum::Json(serde_json::json!({
+                "version": env!("CARGO_PKG_VERSION"),
+                "revision": option_env!("PAC_SOURCE_REVISION").unwrap_or("unknown"),
+            }))
+        }))
         // Auth endpoints (no auth required for login/register)
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/register", post(auth::register))

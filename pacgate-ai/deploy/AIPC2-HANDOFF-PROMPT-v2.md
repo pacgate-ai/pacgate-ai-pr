@@ -20,10 +20,10 @@ The repo topology was clarified. There are **two distinct things**:
 
 | Path | What it is | GitHub remote |
 |---|---|---|
-| `<monorepo>\pacgate-ai` | **The REAL implementation/deploy repo** | `JZKK720/pacgate-ai-pr` (push via fork `pacgate-ai/pacgate-ai-pr`) |
+| `C:\pacgate-ai-pr` | **The REAL implementation/deploy repo** | `JZKK720/pacgate-ai-pr` (push via fork `pacgate-ai/pacgate-ai-pr`) |
 | `C:\Users\pacga\github-pr\pacgate-law` | **LOCAL docs wrapper** — NOT a repo, no remote, no commits | none (leave it) |
 
-**Clone from `<monorepo>\pacgate-ai` = the `pacgate-ai-pr` repo.** Do **not** create or sync
+**Clone from `C:\pacgate-ai-pr` = the `pacgate-ai-pr` repo.** Do **not** create or sync
 `pacgate-law` as a GitHub repo. It is a local docs folder only.
 
 ## Critical: clone from the fork, not the old repo
@@ -80,8 +80,8 @@ The deer-flow PacGate layer was **reconstructed** on the latest upstream
 `pacgate-ai/deer-flow`). It is a clean layer — NOT a rebase of old patches.
 
 If you are building the deer-flow image from source (instead of pulling the
-pre-built `ghcr.io/jzkk720/deer-flow-pacgate:0.1.0`), use the `pacgate-layer`
-branch. It contains:
+pre-built `ghcr.io/pacgate-ai/deer-flow-pacgate`, the published release), use the
+`pacgate-layer` branch. It contains:
 - 34 legal skills (`skills/public/`)
 - `pacgate_config.py` (3-axis routing + 5 hard gates)
 - `pacgate_routing_middleware.py` + `pacgate_hard_gates_middleware.py`
@@ -91,14 +91,21 @@ branch. It contains:
 Build it with:
 ```powershell
 # from the deer-flow repo (pacgate-layer branch)
-docker build -f docker/Dockerfile.pacgate -t ghcr.io/jzkk720/deer-flow-pacgate:latest .
+docker build -f docker/Dockerfile.pacgate -t ghcr.io/pacgate-ai/deer-flow-pacgate:local .
 ```
+
+> Tag it `:local`, not `:latest`. `ghcr.io/pacgate-ai/deer-flow-pacgate:latest`
+is a published release tag and the compose files pin *that*; overwriting it
+locally makes the machine's image disagree with the release and with every other
+AIPC. A local build is a scratch artifact — keep it on a tag the registry never
+serves. The `jzkk720` namespace this used to point at is the upstream/developer
+account and is only a mirror of `pacgate-ai` now; nothing should build INTO it.
 
 ## Setup steps (follow the handbook)
 
 ### Stage 2 — core stack
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\client-bundle
+cd C:\pacgate-ai-pr\deploy\client-bundle
 copy .env.example .env
 notepad .env
 ```
@@ -122,12 +129,12 @@ Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -B
 
 ### Stage 4 — QM (portal topology, Mailpit sign-in)
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\client-bundle
+cd C:\pacgate-ai-pr\deploy\client-bundle
 .\setup-qm.ps1
 ```
 Then start qm:
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\qm-pacgate
+cd C:\pacgate-ai-pr\deploy\qm-pacgate
 node_modules\.bin\qm.cmd up
 ```
 > Use `node_modules\.bin\qm.cmd up` — `npm exec qm -- up` is blocked by the

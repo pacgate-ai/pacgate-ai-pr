@@ -7,8 +7,12 @@
 ## ⚠️ 重要发现（2026-09-02）— 部署 AIPC #2 前请先阅读
 
 以下问题是在 AIPC #1 试点期间发现的，**已在本仓库中修复**。
-AIPC #2 必须拉取**更新后**的代码（来自 `pacgate-ai/pacgate-ai-pr`，见 Stage 1），
-以获得这些修复，而不是较旧的 `JZKK720/pacgate-ai-pr` main 分支。
+AIPC #2 必须拉取**更新后**的代码（见 Stage 1），以获得这些修复。
+
+> **2026-09-15 更新。** 两个仓库现在均为**公开**，且内容**完全一致**
+> （`origin/main` = fork `main`）。此前“避免使用较旧的 `JZKK720/pacgate-ai-pr`
+> main”的提示已不再适用——`origin/main` 已包含 fork 的全部提交及合并提交
+> `832d84e`。两者均可克隆。详见 `plans/012-master-release-namespace.md`。
 
 1. **deer-flow 代理无法查询 pacgate 的法律数据库。** 根本原因：没有工具接入
    pacgate-api 的 `/api/kb/search`（RAG）或 `/api/search`（法律连接器），且
@@ -70,13 +74,14 @@ AIPC #2 必须拉取**更新后**的代码（来自 `pacgate-ai/pacgate-ai-pr`�
 
 ## 开始前需要准备什么
 
-- 访问 `JZKK720/pacgate-ai-pr`（私有仓库）的 GitHub 权限——PAT 或 `gh auth login`
+- 源码仓库访问权限 —— `JZKK720/pacgate-ai-pr` 或 `pacgate-ai/pacgate-ai-pr` 均可。
+  两者**均为公开**，单纯克隆无需任何认证；仅当需要推送时才需 PAT 或 `gh auth login`。
 - 两台 AIPC 上都运行 Docker Desktop
 - 两台 AIPC 上都运行 Ollama（`install.ps1` 会拉取它需要的模型）
 - 如果使用带 cloud 标签的 deepseek 模型，每台 AIPC 上完成 `ollama signin`
 - 两台 AIPC 上都安装 Node.js 24+（供 qm 使用）
 - **无需 `docker login ghcr.io`**——Pacgate 运行时镜像以**公开** GHCR 包发布
-  （见 Stage 0）。只有源码仓库是私有的。
+  （见 Stage 0）。
 
 ## Stage 0：运行时镜像（开发机，已完成）
 
@@ -95,10 +100,29 @@ AIPC #2 必须拉取**更新后**的代码（来自 `pacgate-ai/pacgate-ai-pr`�
 
 ```powershell
 # 期望无需 docker login 即返回 HTTP 200。401/403 表示包仍是私有的。
+# 404 表示该命名空间下不存在此标签——通常是 compose.prod.yaml 的镜像固定值
+# 与实际发布位置不一致。
+#
 # （必须带 Accept 头——省略时公开清单会返回 404，而不是 200。）
+#
+# 本片段直接从 compose.prod.yaml 读取四个镜像固定值，因此永远不会过期：
+# 此前该片段硬编码了一个已被移除的旧标签，把健康系统误报为故障。
 $acc = "application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json"
-$t = (Invoke-RestMethod "https://ghcr.io/token?scope=repository:jzkk720/pacgate-api:pull").token
-(Invoke-WebRequest "https://ghcr.io/v2/jzkk720/pacgate-api/manifests/0.1.2" -Headers @{Authorization="Bearer $t"; Accept=$acc} -Method Head -UseBasicParsing).StatusCode
+$compose = "deploy/client-bundle/compose.prod.yaml"
+$pins = Select-String -Path $compose -Pattern "image:\s*(ghcr\.io/[^\s]+)" -AllMatches |
+        ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } |
+        Where-Object { $_ -notmatch "openviking" } | Sort-Object -Unique
+
+foreach ($pin in $pins) {
+  $repo = $pin -replace "^ghcr\.io/", ""            # owner/name:tag
+  $name = ($repo -split ":")[0]                       # owner/name
+  $tag  = ($repo -split ":")[1]
+  $t = (Invoke-RestMethod "https://ghcr.io/token?scope=repository:$name`:pull").token
+  $code = (Invoke-WebRequest -Uri "https://ghcr.io/v2/$name/manifests/$tag" `
+            -Headers @{Authorization="Bearer $t"; Accept=$acc} `
+            -Method Head -UseBasicParsing).StatusCode
+  "{0,-58} => HTTP {1}" -f $pin, $code
+}
 ```
 
 切换可见性（GitHub Web UI——个人账号的 API 路由返回 404）：
@@ -107,15 +131,19 @@ GitHub → 你的个人资料 → Packages → `pacgate-api` → Package setting
 编译后的二进制文件和 SQL 迁移，所有密钥都在运行时通过 `.env` 注入，且安装程序
 已拥有对相同代码的完整源码访问权限。
 
-仅当 Rust 源码变更时，才在开发机上重建并推送：
+仅当 Rust 源码变更时，才在开发机上重建并推送。**标签值应从 compose 固定值中读取，
+而不要手写版本号**——此处硬编码的标签已两次过期，其中一次还把健康系统误报为故障：
 
 ```powershell
 cd c:\Users\cubecloud-io\github-pr\pacgate-ai-pr
-docker build -t ghcr.io/jzkk720/pacgate-api:0.1.3 -f pacgate-ai/Dockerfile ./pacgate-ai
-docker push ghcr.io/jzkk720/pacgate-api:0.1.3
+$tag = (Select-String -Path deploy/client-bundle/compose.prod.yaml `
+        -Pattern 'pacgate-ai/pacgate-api:(\S+)').Matches.Groups[1].Value
+docker build -t ghcr.io/pacgate-ai/pacgate-api:$tag -f pacgate-ai/Dockerfile ./pacgate-ai
+docker push  ghcr.io/pacgate-ai/pacgate-api:$tag
 ```
 
-然后在 `deploy/client-bundle/compose.prod.yaml` 中更新标签。
+实践中建议使用 `build-ghcr.yml` 工作流，以保证四个镜像版本一致——参见
+`deploy/README-BUILD.md` 与 `plans/012-master-release-namespace.md`。
 
 **不要在 AIPC 上重建**——试点运行已发布的摘要。
 
@@ -133,19 +161,19 @@ git clone https://github.com/pacgate-ai/pacgate-ai-pr.git
 cd pacgate-ai-pr
 ```
 
-> **AIPC #2 说明：** 从 **`pacgate-ai/pacgate-ai-pr`** fork 克隆（它在 `main` 上携带
-> 所有 2026-09-02 的修复）。`pacgate-ai` 账号拥有它，因此可写且始终最新。
-> 如果必须使用 `JZKK720/pacgate-ai-pr`，请拉取 `feat/deer-flow-pacgate-mcp` 分支
-> （或应用 `patches/` 中的补丁）以获得相同的修复。
+> **AIPC #2 说明：** 两个仓库现在**内容完全一致**（`origin/main` = fork `main`，
+> 均含全部修复与合并提交 `832d84e`），且**均为公开**，因此克隆哪一个都可以。
+> 唯一需要留意的差异是：向哪个仓库推送标签会决定镜像发布到哪个 GHCR 命名空间——
+> 见 `plans/012-master-release-namespace.md`。
 
-如果仓库是私有的且 GitHub 提示输入凭据，请使用个人访问令牌或 GitHub CLI（`gh auth login`）。
+仓库为公开，克隆无需凭据；仅当需要推送时才使用个人访问令牌或 GitHub CLI（`gh auth login`）。
 
 ## Stage 2：部署核心栈（两台机器，步骤相同）
 
 在每台 AIPC 上运行这些步骤。Docker Compose 栈会启动 pacgate-api、Postgres、nginx 和 deer-flow。
 
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\client-bundle
+cd C:\pacgate-ai-pr\deploy\client-bundle
 copy .env.example .env
 notepad .env
 ```
@@ -247,7 +275,7 @@ T1-T4 受控内容保留在 pacgate-api/pacgate-rag 中。
 qm 独立于 Docker Compose 栈运行。在核心栈健康后，在每台机器上引导它。
 
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\client-bundle
+cd C:\pacgate-ai-pr\deploy\client-bundle
 .\setup-qm.ps1
 ```
 
@@ -278,7 +306,7 @@ AUTH_EMAIL_FROM="PacGate <onboarding@resend.dev>"
 启动 qm：
 
 ```powershell
-cd <monorepo>\pacgate-ai\deploy\qm-pacgate
+cd C:\pacgate-ai-pr\deploy\qm-pacgate
 node_modules\.bin\qm.cmd up
 ```
 
@@ -438,7 +466,7 @@ docker compose -f compose.prod.yaml up -d
 docker compose -f compose.prod.yaml down
 
 # 启动 qm
-cd <monorepo>\pacgate-ai\deploy\qm-pacgate
+cd C:\pacgate-ai-pr\deploy\qm-pacgate
 npm exec qm -- up
 
 # 停止 qm
@@ -448,15 +476,80 @@ npm exec qm -- down
 ### 更新到新版本
 
 ```powershell
-cd <monorepo>\pacgate-ai
-git pull
-cd deploy\client-bundle
+cd C:\pacgate-ai-pr\deploy\client-bundle
 .\install.ps1 -Update
 ```
 
-更新会拉取新的 GHCR 镜像并重启容器。数据会保留：
+`-Update` 现在会自动完成以下全部工作，因此**不再需要单独执行 `git pull`**
+（那一步最容易被遗忘，而一旦遗忘，就会让新镜像配上旧配置静默运行）：
+
+| 步骤 | 作用 |
+| --- | --- |
+| 1 | 刷新仓库工作区（仅快进 fast-forward） |
+| 2 | 从模板重新渲染 MCP 配置，变更前先备份 |
+| 3 | 拉取新的 GHCR 镜像 |
+| 4 | 重启技术栈，并重载 nginx |
+
+**当机器上存在本地改动时，它会拒绝执行而不是猜测：**
+
+- 仓库有未提交改动 → 跳过仓库更新，并列出被改动的文件。**不会** stash、
+  reset 或丢弃任何内容。
+- 存在远端没有的本地提交 → 不合并、不变基。仓库保持原样，其余更新继续进行。
+
+如需仅更新镜像，可使用 `-SkipRepoPull`：
+
+```powershell
+.\install.ps1 -Update -SkipRepoPull
+```
+
+#### qm 只做报告，不自动更新
+
+如果本机运行了 qm，`-Update` 还会检查其沙箱镜像是否仍与源码一致：
+
+```
+[OK] qm sandbox matches its source (38e062ec7c5c...)
+```
+
+或
+
+```
+[WARN] qm sandbox source has CHANGED since the image was pinned.
+       qm is running OLD skills and tools. Rebuild + repin:
+         cd deploy\qm-pacgate
+         npm exec qm -- sandbox build   # 然后把打印出的 digest 重新固定
+         pwsh -File ..\..\scripts\qm-sandbox-fingerprint.ps1 -Write
+```
+
+这一点很重要：qm 的智能体运行在一个**按 digest 固定**的沙箱镜像里（记录在
+`deploy/qm-pacgate/qm.config.jsonc`）。按 digest 固定本身是正确的 — 隔离边界
+就应当不可变 — 但这意味着仓库更新可以改动
+`deploy/qm-pacgate/sandbox/`，而镜像完全不变。于是智能体继续使用旧的 skills
+和 tools 运行，**任何地方都不会报错**。
+
+`-Update` 对此**只报告、不自动重建**，因为重建需要 Node 24 + npm + buildx，
+且之后必须重新固定 digest — 这属于配置变更，不应在客户机器上无人值守地执行。
+一次错误的自动重建，比一条可见的警告更糟。
+
+更新会保留数据：
 - `./data/tenants/`（卷挂载）— 事项、文档、记忆
 - Postgres 数据（命名卷）— 元数据数据库
+
+#### 这台机器是不是最新版本？直接问它
+
+```powershell
+curl.exe -s http://localhost:8089/version
+```
+
+```json
+{"version":"<release>","revision":"<git sha>"}
+```
+
+这里返回的是**编译进正在运行的 pacgate-api 二进制文件**的版本，以及它所基于的
+commit。它故意不回显 compose 中的 pin 或镜像 tag：那些记录的是“曾部署了什么”，
+而真正要捕获的故障，恰恰是所部署的产物与实际运行的进程不一致。
+
+在此之前，无法区分一台最新机器和一台落后的机器 — 从外部看两者完全相同，
+唯一的办法是 SSH 进去读 compose 文件，并寄希望于容器与之相符。
 
 ### 切换模型
 

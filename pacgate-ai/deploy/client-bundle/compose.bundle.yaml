@@ -122,7 +122,7 @@ services:
     restart: unless-stopped
 
   deer-flow-frontend:
-    image: ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.11
+    image: ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.15
     container_name: deer-flow-frontend
     depends_on: [deer-flow]
     environment:
