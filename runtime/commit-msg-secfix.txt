@@ -1,0 +1,19 @@
+fix(security): remove credential carriers from tracked tree
+
+Removes 4 files that contain live PacGate credentials from the public
+repository tree (incident 2026-09-16):
+
+- pacgate-ai-assets/.../pacgate-ai-remote-handbook/OPERATOR.md
+  (PacGate GitHub account credentials)
+- pacgate-ai-assets/.../MCP授权/法律数据库MCP.md
+  (legal-DB unified login)
+- pacgate-ai-assets/.../MCP授权/境外法律数据库和网站.md
+  (overseas legal-DB accounts)
+- pacgate-ai-assets/.../MCP授权/百宸AI系统资源接入清单V2.docx
+  (resource access inventory)
+
+Adds .gitignore rules so they cannot be re-added accidentally.
+
+NOTE: removal from HEAD does NOT purge git history. The credentials in
+prior commits remain public and MUST be rotated. This commit only stops
+the current tree from exposing them.
