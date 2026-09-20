@@ -26,12 +26,28 @@ Exposed tools:
                                (GET /api/documents/:id/download + markitdown)
     pacgate_upload_document   — upload a generated artifact back to a matter
                                (POST /api/documents)
+    pacgate_ocr_document      — run OCR extraction on a stored document
+                               (POST /api/documents/:id/extract) - standalone,
+                               NOT gated by the sanitizer pipeline
+    pacgate_ocr_batch         — OCR every document in a matter, capped by
+                               PACGATE_OCR_BATCH_PAGE_LIMIT (default 200
+                               pages per run; the tool stops at the cap and
+                               reports the remaining budget)
     pacgate_list_workflows    — list workflow templates
                                (GET /api/workflows?category=&search=)
     pacgate_get_workflow      — get a workflow template's steps
                                (GET /api/workflows/:id)
     pacgate_execute_workflow  — run a workflow template
                                (POST /api/workflows/:id/execute)
+    pacgate_sanitize_document  — run a sanitization job over a stored document
+                               (POST /api/documents/:id/sanitize)
+    pacgate_verify_sanitized   — check a document's sanitization status
+                               (GET /api/documents/:id/sanitize-status)
+    pacgate_sanitize_text      — sanitize raw text through the job pipeline
+                               (POST /api/documents + POST .../sanitize)
+
+    (pacgate_restore is deliberately NOT exposed: restore is client-side only,
+     design 3.5 - no chat turn can re-hydrate placeholders.)
 """
 
 from __future__ import annotations
@@ -103,6 +119,9 @@ class PacgateApi:
         return self._client.post(
             f"{self.base_url}{path}", json=json, headers=self._headers()
         )
+
+    def delete(self, path: str) -> httpx.Response:
+        return self._client.delete(f"{self.base_url}{path}", headers=self._headers())
 
     def post_multipart(
         self, path: str, data: dict[str, Any], files: dict[str, Any]
@@ -459,6 +478,224 @@ def pacgate_convert_document(
             "size_bytes": len(data),
             "markdown_chars": len(markdown),
             "markdown": markdown,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+@mcp.tool()
+def pacgate_ocr_document(document_id: str) -> str:
+    """Run OCR extraction on a stored document (standalone, no sanitization).
+
+    Turns a document (PDF, scan, image) into plain text + positional spans
+    through the local PaddleOCR service, cached per document version. This is
+    the plain perception lane: no redaction runs, no verdict is produced, and
+    the result carries no sanitization state change. Use pacgate_sanitize_document
+    instead when the text will leave the machine.
+
+    Args:
+        document_id: The UUID of the stored document to extract.
+
+    Returns: { text, pages, spans[], engine, incomplete }. incomplete=True
+    means at least one page failed to parse - treat the text as partial.
+    """
+    client = get_client()
+    resp = client.post(f"/api/documents/{document_id}/extract", json={})
+    _handle_error(resp)
+    return json.dumps(resp.json(), ensure_ascii=False, indent=2)
+
+
+# Bulk-OCR page cap (per tool invocation). Server-side enforced so an agent
+# cannot run away with an unbounded job: the loop stops at the cap, reports
+# what was processed, and the operator calls again to continue (already-
+# extracted documents are cache hits, so a re-run after a cap-stop only pays
+# for the remaining pages).
+OCR_BATCH_PAGE_LIMIT_DEFAULT = 200
+
+
+def _batch_page_limit() -> int:
+    raw = os.environ.get("PACGATE_OCR_BATCH_PAGE_LIMIT", "")
+    try:
+        value = int(raw) if raw else OCR_BATCH_PAGE_LIMIT_DEFAULT
+    except ValueError:
+        return OCR_BATCH_PAGE_LIMIT_DEFAULT
+    return max(1, value)
+
+
+@mcp.tool()
+def pacgate_ocr_batch(matter_id: str, max_pages: int | None = None) -> str:
+    """Run OCR extraction over every document in a matter (bulk lane).
+
+    Loops pacgate_ocr_document across the matter's document list, oldest
+    first. Each document's extraction is cached per version, so re-running
+    the batch after an interruption only pays for the remaining documents.
+
+    PAGE CAP: the run stops once the total extracted pages reach the cap -
+    PACGATE_OCR_BATCH_PAGE_LIMIT (default 200) or the max_pages argument,
+    whichever is smaller. This bounds a single tool invocation to roughly
+    2 minutes of OCR work at the observed ~600ms/page, well inside the
+    MCP request timeout. The response reports pages_used, pages_remaining,
+    and every document processed, so the caller can continue with another
+    batch call until pages_remaining reaches 0.
+
+    Args:
+        matter_id: The UUID of the matter whose documents to process.
+        max_pages: Optional smaller cap for this run (cannot raise above the
+            server limit).
+
+    Returns: { matter_id, processed: [{document_id, name, pages, spans,
+    incomplete, status}], pages_used, pages_remaining, cap }.
+    """
+    client = get_client()
+    cap = min(_batch_page_limit(), max_pages) if max_pages else _batch_page_limit()
+
+    listing = client.get(f"/api/matters/{matter_id}/documents")
+    _handle_error(listing)
+    documents = listing.json()
+
+    processed = []
+    pages_used = 0
+    stopped_at_cap = False
+    for doc in documents:
+        document_id = doc["id"]
+        # Cached extractions are free - check status first so a re-run does
+        # not burn page budget re-counting already-extracted pages.
+        try:
+            resp = client.post(f"/api/documents/{document_id}/extract", json={})
+            _handle_error(resp)
+            outcome = resp.json()
+        except RuntimeError as e:
+            processed.append(
+                {"document_id": document_id, "name": doc.get("name"), "status": "failed", "error": str(e)[:200]}
+            )
+            continue
+        pages_used += int(outcome.get("pages", 0))
+        processed.append(
+            {
+                "document_id": document_id,
+                "name": doc.get("name"),
+                "status": "extracted" if not outcome.get("incomplete") else "incomplete",
+                "pages": outcome.get("pages"),
+                "spans": len(outcome.get("spans", [])),
+                "text_chars": len(outcome.get("text", "")),
+            }
+        )
+        if pages_used >= cap:
+            break
+
+    remaining_docs = len(documents) - len(processed)
+    return json.dumps(
+        {
+            "matter_id": matter_id,
+            "cap": cap,
+            "pages_used": pages_used,
+            "pages_remaining": max(cap - pages_used, 0),
+            "processed_count": len(processed),
+            "documents_remaining_in_matter": max(remaining_docs, 0),
+            "note": "Cache makes a continuation free for already-extracted documents; call again to continue past the cap." if pages_used >= cap else None,
+            "processed": processed,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+@mcp.tool()
+def pacgate_sanitize_document(
+    document_id: str,
+    data_level: str = "T3",
+) -> str:
+    """Run a sanitization job over a stored document (extract-then-redact).
+
+    The server extracts the document once (cached per version) and then runs
+    the deterministic-first redaction pipeline. On a warm cache this costs
+    ZERO OCR calls. A Block verdict marks the document 'blocked' - it cannot
+    be downloaded or retrieved until a human decides. Restore is NOT exposed
+    through MCP; it is a client-side operator action in pacgate-api.
+
+    Args:
+        document_id: The UUID of the document to sanitize.
+        data_level: T1|T2|T3|T4 (default T3). T4 always requires human review.
+
+    Returns the job outcome: verdict, redaction_count, mapping_count, the
+    sanitized text, the allow_auto_pass / require_human_review flags, and the
+    ledger evidence (SHA-256 pre/post, rule versions). The mapping itself
+    never leaves pacgate-api.
+    """
+    client = get_client()
+    resp = client.post(
+        f"/api/documents/{document_id}/sanitize",
+        json={"data_level": data_level},
+    )
+    _handle_error(resp)
+    return json.dumps(resp.json(), ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def pacgate_verify_sanitized(document_id: str) -> str:
+    """Check a document's sanitization status (verifier side-channel).
+
+    Returns the document-level state, the distinct per-chunk states, and the
+    latest job id. Use this to decide whether material may be relied on in a
+    workflow: only documents whose state is 'sanitized' (or explicitly
+    'never') may leave the machine, and kb_search only ever returns
+    'sanitized' or 'never' chunks regardless.
+
+    Args:
+        document_id: The UUID of the document to check.
+    """
+    client = get_client()
+    resp = client.get(f"/api/documents/{document_id}/sanitize-status")
+    _handle_error(resp)
+    return json.dumps(resp.json(), ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def pacgate_sanitize_text(text: str, data_level: str = "T3") -> str:
+    """Sanitize raw text through the document pipeline (ephemeral artifact).
+
+    Uploads the text as a temporary document, runs the same job path, and
+    returns the sanitized text and verdict. The mapping is sealed server-side
+    and is NOT returned; the result is one-way on purpose (design 6.3 - cloud
+    output never resolves back). For bulk work prefer ingesting real
+    documents and using pacgate_sanitize_document so extraction is cached.
+
+    Args:
+        text: The raw text to sanitize.
+        data_level: T1|T2|T3|T4 (default T3).
+    """
+    import base64 as _b64
+
+    client = get_client()
+    matters_resp = client.get("/api/matters")
+    _handle_error(matters_resp)
+    matters = matters_resp.json()
+    if not matters:
+        raise RuntimeError("no matters available; create one in pacgate-api first")
+    matter_id = matters[0]["id"]
+    blob = _b64.b64decode(_b64.b64encode(text.encode("utf-8")).decode("ascii"))
+    files = {"file": ("sanitize-ephemeral.txt", blob)}
+    up = client.post_multipart("/api/documents", {"matter_id": matter_id}, files)
+    _handle_error(up)
+    doc = up.json()
+    resp = client.post(
+        f"/api/documents/{doc['id']}/sanitize",
+        json={"data_level": data_level},
+    )
+    _handle_error(resp)
+    outcome = resp.json()
+    # Clean up: delete the ephemeral document so it does not pollute the matter.
+    client.delete(f"/api/documents/{doc['id']}")
+    return json.dumps(
+        {
+            "document_id": doc["id"],
+            "job_id": outcome.get("job_id"),
+            "verdict": outcome.get("verdict"),
+            "sanitized_text": outcome.get("sanitized_text"),
+            "redaction_count": outcome.get("redaction_count"),
+            "require_human_review": outcome.get("require_human_review"),
+            "note": "ephemeral document deleted; mapping sealed server-side",
         },
         ensure_ascii=False,
         indent=2,

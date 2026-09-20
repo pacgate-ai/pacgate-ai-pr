@@ -58,8 +58,12 @@ if (-not (Test-Path .env)) {
 #   config against new images. See deploy/AIPC-UPDATE-GAP-ANALYSIS.md.
 #
 # SAFETY RULES (this touches a client machine):
-#   - NEVER proceed with a dirty tree. Refuse and name the files. No auto-stash,
-#     no reset, no checkout -- all would discard someone's work.
+#   - NEVER proceed with local changes to TRACKED files. Refuse and name them.
+#     No auto-stash, no reset, no checkout -- all would discard someone's work.
+#   - Untracked files are NOT a reason to block the refresh: git fast-forwards
+#     over them. The ONE exception is a name collision, where the incoming
+#     commit adds a path that is untracked here - git refuses that itself, and
+#     this script pre-checks it so the operator gets an actionable message.
 #   - Fast-forward only. Never create a merge commit on a client machine.
 #   - Missing git, or a non-git checkout (tarball install), is a WARNING not a
 #     failure - the rest of the update still works.
@@ -84,14 +88,35 @@ if ($Update -and -not $SkipRepoPull) {
     else {
         Push-Location $repoRoot
         try {
-            # A dirty tree means someone edited files here. Do NOT touch it.
-            $dirty = git status --porcelain
-            if ($dirty) {
-                Write-Host "[WARN] Repo has local changes - skipping the repo update." -ForegroundColor Yellow
+            # A dirty tree means someone edited TRACKED files. Do NOT touch it.
+            #
+            # TRACKED AND UNTRACKED ARE DIFFERENT RISKS, and treating them the
+            # same was a real defect in the update path:
+            #
+            #   tracked changes   - the pull would have to merge over someone's
+            #                       edits. Refuse. Never auto-stash.
+            #   untracked files   - git will fast-forward happily UNLESS the
+            #                       incoming commit adds a path of the same name,
+            #                       in which case git refuses by itself (see
+            #                       below). A scratch file is not a reason to
+            #                       block the whole repo refresh.
+            #
+            # The old guard was a bare `git status --porcelain`, so ONE leftover
+            # scratch file made every update print "skipping the repo update" and
+            # move only the images. That is a silent lost update: image tags
+            # advance, workflows/patches/nginx.conf silently stay old, and
+            # nothing surfaces the gap. The dev box for this project hit exactly
+            # that state (2 untracked files, repo refresh skipped), which is how
+            # this was found.
+            #
+            # `--untracked-files=no` is what narrows the check to tracked state.
+            $dirty = @(git status --porcelain --untracked-files=no)
+            if ($dirty.Count -gt 0) {
+                Write-Host "[WARN] Repo has local changes to tracked files - skipping the repo update." -ForegroundColor Yellow
                 Write-Host "  Not modifying anything, because that could discard work. Changed files:" -ForegroundColor Yellow
                 $dirty | Select-Object -First 10 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkYellow }
-                if (@($dirty).Count -gt 10) {
-                    Write-Host "    ... and $((@($dirty).Count) - 10) more" -ForegroundColor DarkYellow
+                if ($dirty.Count -gt 10) {
+                    Write-Host "    ... and $($dirty.Count - 10) more" -ForegroundColor DarkYellow
                 }
                 Write-Host "  Resolve them (commit, or restore) and re-run to pick up repo updates." -ForegroundColor Yellow
             }
@@ -117,28 +142,78 @@ if ($Update -and -not $SkipRepoPull) {
                         Write-Host "[OK] Repo already current at $($before.Substring(0,7))" -ForegroundColor Green
                     }
                     else {
-                        # --ff-only: refuse rather than create a merge commit. If
-                        # the local branch has diverged (commits made on the
-                        # machine), this fails loudly instead of quietly
-                        # rewriting history under the operator.
-                        git pull --ff-only --quiet origin $branch
-                        if ($LASTEXITCODE -ne 0) {
-                            Write-Host "[WARN] Repo has diverged from $remoteRef - not fast-forwardable." -ForegroundColor Yellow
-                            Write-Host "  Local commits exist that the remote does not have. Not merging." -ForegroundColor Yellow
-                            Write-Host "  The rest of the update continues; repo content stays as-is." -ForegroundColor Yellow
+                        # ── Untracked-file collision pre-check ──────────────────
+                        # Do not let git abort mid-pull. Detect the one untracked
+                        # case that genuinely cannot proceed, name those files,
+                        # and skip the repo refresh - so the operator gets an
+                        # actionable message instead of a git error.
+                        #
+                        # ONLY a genuine collision blocks. An untracked file that
+                        # the incoming commit does NOT touch is left alone: git
+                        # fast-forwards over it, and refusing would re-create the
+                        # silent-lost-update defect described above.
+                        #
+                        # Detection is by PATH COMPARISON, not by matching git's
+                        # error text. The message ("would be overwritten by
+                        # merge") is localized and unstable across git versions,
+                        # so parsing it is a trap; the file lists are not.
+                        #
+                        # -c core.quotepath=false is required: without it git
+                        # C-quotes non-ASCII paths ("\346\263\225...") and the
+                        # comparison against the real name silently fails. This
+                        # repo contains Chinese-named files, so that is not
+                        # hypothetical. ls-files is used instead of status
+                        # because status COLLAPSES whole untracked directories to
+                        # "dir/" and the names would never match.
+                        $untracked = @(git -c core.quotepath=false ls-files --others --exclude-standard 2>$null | Where-Object { $_ })
+                        $collisions = @()
+                        if ($untracked.Count -gt 0) {
+                            $incoming = @(git -c core.quotepath=false diff --name-only --diff-filter=A "$before" "$remoteRef" 2>$null | Where-Object { $_ })
+                            $collisions = @($untracked | Where-Object { $incoming -contains $_ })
+                        }
+
+                        if ($collisions.Count -gt 0) {
+                            Write-Host "[WARN] Cannot refresh the repo: $($collisions.Count) untracked file(s) would be overwritten." -ForegroundColor Yellow
+                            Write-Host "  The incoming update adds files with the same names. Git will not" -ForegroundColor Yellow
+                            Write-Host "  destroy untracked work, and neither will this installer. Files:" -ForegroundColor Yellow
+                            $collisions | Select-Object -First 10 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkYellow }
+                            if ($collisions.Count -gt 10) {
+                                Write-Host "    ... and $($collisions.Count - 10) more" -ForegroundColor DarkYellow
+                            }
+                            Write-Host "  Move, rename, or commit them, then re-run to pick up repo updates." -ForegroundColor Yellow
+                            Write-Host "  Only Docker images are being updated in the meantime." -ForegroundColor Yellow
                         }
                         else {
-                            $after = (git rev-parse HEAD).Trim()
-                            Write-Host "[OK] Repo updated $($before.Substring(0,7)) -> $($after.Substring(0,7)) ($behind commit(s))" -ForegroundColor Green
+                            # Report the untracked files that are being KEPT, so
+                            # proceeding is never silent - the same principle as
+                            # naming the changed files below.
+                            if ($untracked.Count -gt 0) {
+                                Write-Host "[OK] $($untracked.Count) untracked file(s) present; none are touched by this update." -ForegroundColor Green
+                            }
 
-                            # Name what changed, so an update is never silent. This
-                            # is the same principle as the config render below.
-                            $changed = git diff --name-only "$before" "$after" 2>$null
-                            if ($changed) {
-                                Write-Host "     Files changed in this update:" -ForegroundColor DarkGray
-                                $changed | Select-Object -First 12 | ForEach-Object { Write-Host "       $_" -ForegroundColor DarkGray }
-                                if (@($changed).Count -gt 12) {
-                                    Write-Host "       ... and $((@($changed).Count) - 12) more" -ForegroundColor DarkGray
+                            # --ff-only: refuse rather than create a merge commit. If
+                            # the local branch has diverged (commits made on the
+                            # machine), this fails loudly instead of quietly
+                            # rewriting history under the operator.
+                            git pull --ff-only --quiet origin $branch
+                            if ($LASTEXITCODE -ne 0) {
+                                Write-Host "[WARN] Repo has diverged from $remoteRef - not fast-forwardable." -ForegroundColor Yellow
+                                Write-Host "  Local commits exist that the remote does not have. Not merging." -ForegroundColor Yellow
+                                Write-Host "  The rest of the update continues; repo content stays as-is." -ForegroundColor Yellow
+                            }
+                            else {
+                                $after = (git rev-parse HEAD).Trim()
+                                Write-Host "[OK] Repo updated $($before.Substring(0,7)) -> $($after.Substring(0,7)) ($behind commit(s))" -ForegroundColor Green
+
+                                # Name what changed, so an update is never silent. This
+                                # is the same principle as the config render below.
+                                $changed = git diff --name-only "$before" "$after" 2>$null
+                                if ($changed) {
+                                    Write-Host "     Files changed in this update:" -ForegroundColor DarkGray
+                                    $changed | Select-Object -First 12 | ForEach-Object { Write-Host "       $_" -ForegroundColor DarkGray }
+                                    if (@($changed).Count -gt 12) {
+                                        Write-Host "       ... and $((@($changed).Count) - 12) more" -ForegroundColor DarkGray
+                                    }
                                 }
                             }
                         }
@@ -303,6 +378,87 @@ if (Test-Path $dfTemplate) {
             }
         }
     }
+
+# 4c. Derive GATEWAY_CORS_ORIGINS (browser sign-in/register gate).
+#
+# The gateway rejects auth POSTs whose Origin header is not in this list
+# (csrf_middleware is_allowed_auth_origin). Browsers ALWAYS send Origin on
+# POST, so a user browsing http://<machine-host>:8089 gets 403 "Cross-site
+# auth request denied." on EVERY sign-in and registration attempt when the
+# list is localhost-only - the compose default. Verified 2026-09-20:
+#   POST /api/v1/auth/login/local with Origin http://192.168.8.88:8089 -> 403
+#   same POST with Origin http://localhost:8089 -> 401 (gate passed)
+# The same-origin escape does NOT work behind our ingress chain (nginx ->
+# Next.js rewrite -> gateway): Next.js rewrites Host to the gateway's
+# authority, so the gateway can never see the browser's LAN host.
+#
+# This step auto-derives the machine's own browser origins and appends them
+# to .env when the operator has not set GATEWAY_CORS_ORIGINS. Existing
+# values are NEVER overwritten - a machine whose operator deliberately set
+# the list keeps it; a localhost-only value earns a loud warning instead.
+$gwCors = if ($envVars.ContainsKey('GATEWAY_CORS_ORIGINS')) { $envVars['GATEWAY_CORS_ORIGINS'] } else { $null }
+if ([string]::IsNullOrWhiteSpace($gwCors)) {
+    # Derive this machine's browser origins. The browser may reach the
+    # ingress via ANY of: hostname, every non-loopback IPv4, or localhost.
+    # Each is http://<host>:<nginx-host-port>. The port must be DERIVED
+    # (docker compose port nginx 80), not hardcoded - this dev box publishes
+    # 8081 while compose declares 8089, and an AIPC may have either.
+    $corsPort = $null
+    try {
+        $corsPortOut = (docker compose -f compose.prod.yaml port nginx 80 2>$null | Out-String).Trim()
+        if ($corsPortOut -match ':(\d+)\s*$') { $corsPort = $Matches[1] }
+    } catch { $corsPort = $null }
+    if (-not $corsPort) { $corsPort = '8089' }
+
+    $corsHosts = New-Object System.Collections.Generic.List[string]
+    $corsHosts.Add('localhost')
+    try { $corsHosts.Add(([System.Net.Dns]::GetHostName()).ToLower()) } catch { }
+    try {
+        $lanIps = [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces() |
+            Where-Object { $_.OperationalStatus -eq 'Up' -and $_.NetworkInterfaceType -ne 'Loopback' } |
+            ForEach-Object { $_.GetIPProperties().UnicastAddresses } |
+            Where-Object { $_.Address.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork } |
+            ForEach-Object { $_.Address.ToString() } |
+            Where-Object { $_ -notmatch '^(127\.|169\.254\.)' }
+        foreach ($ip in $lanIps) { if (-not $corsHosts.Contains($ip)) { $corsHosts.Add($ip) } }
+    } catch { }
+
+    $derivedOrigins = ($corsHosts | ForEach-Object { "http://$_`:$corsPort" }) -join ','
+    # Compose reads ${GATEWAY_CORS_ORIGINS:-...} - the value must be SET in
+    # .env so it overrides the compose default, which is localhost-only.
+    $rawEnv = [System.IO.File]::ReadAllText((Resolve-Path $envPath))
+    $prefix = if ($rawEnv.Length -eq 0 -or $rawEnv.EndsWith("`n")) { '' } else { "`r`n" }
+    [System.IO.File]::AppendAllText(
+        (Resolve-Path $envPath),
+        "$prefix" + "GATEWAY_CORS_ORIGINS=$derivedOrigins`r`n",
+        [System.Text.UTF8Encoding]::new($false)
+    )
+    $envVars['GATEWAY_CORS_ORIGINS'] = $derivedOrigins
+    Write-Host "[OK] Derived GATEWAY_CORS_ORIGINS for this machine: $derivedOrigins" -ForegroundColor Green
+    Write-Host "     Browser sign-in/register now accepts this machine's hostname and LAN IP." -ForegroundColor Gray
+    if ($corsPort -ne '8089') {
+        Write-Host "     NOTE: the ingress port is $corsPort (not the default 8089); origins use it." -ForegroundColor Gray
+    }
+}
+else {
+    $corsSet = $gwCors.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    $onlyLocal = ($corsSet.Count -gt 0) -and -not ($corsSet | Where-Object { $_ -notmatch '^http://(localhost|127\.0\.0\.1)' })
+    if ($onlyLocal) {
+        # Loud, specific, actionable: this exact value produces the 403 that
+        # looks like a broken auth service. The check cannot auto-fix it -
+        # an operator who SET the value may be deliberately restricting access.
+        Write-Host "[WARN] GATEWAY_CORS_ORIGINS is localhost-only ($gwCors)." -ForegroundColor Yellow
+        Write-Host "       Users browsing http://<machine-host>:8089 will get 403 on sign-in" -ForegroundColor Yellow
+        Write-Host "       and registration ('Cross-site auth request denied.')." -ForegroundColor Yellow
+        Write-Host "       Fix: add this machine's browser origin to .env, e.g." -ForegroundColor Yellow
+        $fixHost = try { [System.Net.Dns]::GetHostName().ToLower() } catch { '<machine-host>' }
+        Write-Host "         GATEWAY_CORS_ORIGINS=http://${fixHost}:8089,$gwCors" -ForegroundColor Gray
+        Write-Host "       then re-run this script." -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "[OK] GATEWAY_CORS_ORIGINS set: $gwCors" -ForegroundColor Green
+    }
+}
 
 # 5. Pull models (first install only)
 if (-not $Update) {
