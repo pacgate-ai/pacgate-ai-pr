@@ -132,8 +132,8 @@ npm exec qm -- sandbox build  # 必须成功构建
 ### 3.2 拉取 Ollama 模型
 
 ```powershell
-ollama pull deepseek-v4-flash:0731-cloud
-ollama pull deepseek-v4-pro:0813-cloud
+ollama pull gemma4:12b-it-q8_0
+ollama pull deepseek-v4.1-flash:cloud
 ollama pull nomic-embed-text:latest
 ollama list   # 验证
 ```

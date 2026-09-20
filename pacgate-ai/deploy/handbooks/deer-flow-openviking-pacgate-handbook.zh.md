@@ -88,11 +88,14 @@ cd backend && uv run --no-sync uvicorn app.gateway.app:app --host 0.0.0.0 --port
 
 | 模型 | 说明 | 用途 |
 |---|---|---|
-| `ornith-1.5:9b` | Ornith 1.5 9B（本地，默认） | 快速非推理模型，默认研究模型 |
+| `gemma4:12b-it-q8_0` | Gemma 4 12B（本地，默认） | 默认研究模型；处理 json_schema 语法最稳定 |
+| `ornith-1.5:9b` | Ornith 1.5 9B（本地） | 快速非推理模型，研究备用 |
 | `ornith-1.5:35b` | Ornith 1.5 35B（本地） | 复杂研究任务 |
 | `nemotron-3.5-lightning:30b-a3b` | Nemotron 3.5 Lightning 30B（本地，1M 上下文） | 法律推理与长上下文 |
-| `gemma4:12b-it-q8_0` | Gemma 4 12B（本地） | 草稿生成 |
-| `qwen3.5:9b-q8_0` | Qwen 3.5 9B（本地） | 通用任务 |
+| `gemma4:26b-a4b-it-q8_0` | Gemma 4 26B（本地） | 复杂推理，全本地不出网 |
+| `deepseek-v4.1-flash:cloud` | DeepSeek V4.1 Flash（云端，含视觉） | 快速研究迭代与大批量起草 |
+| `deepseek-v4-pro:cloud` | DeepSeek V4 Pro（云端） | 复杂研究与法律推理 |
+| `glm-5.3-flash:cloud` | GLM 5.3 Flash（云端，含视觉） | 自动路由的云端模型 |
 
 > **注意**：`deploy/deer-flow-pacgate/config.yaml`（云路由 deepseek-v4、qwen3.8:27b、gemma4:26b）是**开发/CI 参考**，并非客户 AIPC 运行时使用的配置。客户部署通过 `compose.prod.yaml` 挂载 `deploy/client-bundle/deer-flow-config.yaml`。
 

@@ -1,31 +1,38 @@
 # Pacgate-ai required Ollama models
-# Pulled automatically by install.ps1 on first run.
+# Pulled automatically by install.ps1 on first run (non-# lines only).
 # Keep this list in sync with:
-#   - plans/007-aipc1-kickoff-prompt.md Stage 3.5 (tier verification)
 #   - deploy/client-bundle/deer-flow-config.yaml (active research models)
 #   - deploy/qm-pacgate/qm.config.jsonc (MODEL_NAME)
+#
+# VERIFIED 2026-09-20 against the live AIPC #1 `ollama list`. Earlier revisions
+# named tags that were never published (gemma4:12b-it-qat,
+# qwen3.8:27b-mtp-q4_K_M, nemotron3:33b, qwen3.6:27b, qwen3.5:9b) — a fresh
+# install would have failed on every one of them.
 
-# --- pacgate-api workflow tiers (Appendix A model-overrides SQL) ---
-# Main + Low tier: fast legal execution, local GPU/NPU
-gemma4:12b-it-qat
-# Mid tier: heavier reasoning, local GPU
-qwen3.8:27b-mtp-q4_K_M
+# --- Local research + workflow tier models ---
+# Default research model and the pacgate-api Main tier. Handles the json_schema
+# grammar used by the deep-research "follow-up questions" step, so it must stay
+# FIRST in deer-flow-config.yaml.
+gemma4:12b-it-q8_0
 
-# --- RAG embeddings (required by pacgate-api, no alternative) ---
+# --- RAG embeddings (required by pacgate-api and openviking, no alternative) ---
 nomic-embed-text:latest
 
-# --- deer-flow active model + qm harness model ---
-# Cloud-tagged: routed through ollama.com. Requires `ollama signin`
-# on the AIPC before install.ps1 runs, and a network path to ollama.com.
-# If the client forbids cloud routing, reorder deer-flow-config.yaml to
-# put a local model first and set qm MODEL_NAME to a local tag instead.
+# --- Alternative local models (selectable in the picker, not the default) ---
+ornith-1.5:9b
+ornith-1.5:35b
+nemotron-3.5-lightning:30b-a3b
+gemma4:26b-a4b-it-q8_0
+
+# --- Cloud-routed models (via ollama.com / `ollama signin`) ---
+# Cloud-tagged: routed through ollama.com. Requires `ollama signin` on the AIPC
+# before install.ps1 runs, and a network path to ollama.com. If the client
+# forbids cloud routing, reorder deer-flow-config.yaml to put a local model
+# first and set qm MODEL_NAME to a local tag instead.
 # NOTE: cloud tags have no weight layers on disk (size "-"). They appear in
 # `ollama list` but never in `ollama ps`; inference routes via ollama.com.
 # The deployed deer-flow-config.yaml (client-bundle) lists these as OPTIONAL
 # choices in the model picker; the local default (gemma4-12b-local) stays first.
-deepseek-v4-flash:0731-cloud
+deepseek-v4.1-flash:cloud
 deepseek-v4-pro:cloud
-
-# --- Alternative local models (do NOT enable for Main tier) ---
-# nemotron-3.5-lightning:30b-a3b  <- reasoning-mode, breaks workflow tiers
-# gemma4:26b-a4b-it-qat           <- heavier than AIPC NPU budget for Main
+glm-5.3-flash:cloud

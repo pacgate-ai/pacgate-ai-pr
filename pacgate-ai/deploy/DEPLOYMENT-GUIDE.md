@@ -359,15 +359,31 @@ Write-Host "  .\install.ps1 -Update                            (update to new ve
 
 ```text
 # Pacgate-ai required Ollama models
-# Pull these before starting the stack:
-#   ollama pull nemotron3:33b
-#   ollama pull qwen3.6:27b
-#   ollama pull qwen3.5:9b
+# Pulled automatically by install.ps1 on first run (non-# lines only).
+# Verified against the live AIPC `ollama list` on 2026-09-20.
 
-nemotron3:33b
-qwen3.6:27b
-qwen3.5:9b
+# Local research + workflow tier models
+gemma4:12b-it-q8_0
+
+# RAG embeddings (required, no alternative)
+nomic-embed-text:latest
+
+# Alternative local models (selectable, not the default)
+ornith-1.5:9b
+ornith-1.5:35b
+nemotron-3.5-lightning:30b-a3b
+gemma4:26b-a4b-it-q8_0
+
+# Cloud-routed models (require `ollama signin`; no weight layers on disk)
+deepseek-v4.1-flash:cloud
+deepseek-v4-pro:cloud
+glm-5.3-flash:cloud
 ```
+
+> **Note:** an earlier revision of this file listed `nemotron3:33b`,
+> `qwen3.6:27b`, and `qwen3.5:9b` — none of which exist in the registry. A
+> fresh install would have failed on all three. The list above is the
+> verified set.
 
 ## Part 3: Deploy to client AI PC
 

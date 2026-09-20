@@ -38,16 +38,6 @@ models:
     max_tokens: 8192
     temperature: 0.1
 
-  - name: qwen3.5-9b-local
-    display_name: Qwen 3.5 9B (Local)
-    description: Local Qwen model.
-    use: langchain_openai:ChatOpenAI
-    model: qwen3.5:9b-q8_0
-    api_key: ollama
-    base_url: http://host.docker.internal:11434/v1
-    max_tokens: 8192
-    temperature: 0.1
-
   # Nemotron 3.5 Lightning 30B — longest-context local model (1M context window).
   # Supports tools + thinking. Heavier (32.9B, Q4_K_M) so it is NOT the default;
   # select it in the chat model picker for long-context research runs.
@@ -85,16 +75,17 @@ models:
   # ollama.com. Auth rides the `ollama signin` OAuth session — no API key. Add
   # them as OPTIONS so users can pick local OR cloud per workload; local stays
   # default. Requires `ollama signin` on the AIPC.
-  - name: deepseek-v4-flash-0731-cloud
-    display_name: DeepSeek V4 Flash 0731 (Cloud)
-    description: Fast cloud model for quick research iterations and high-throughput drafting.
+  - name: deepseek-v4.1-flash-cloud
+    display_name: DeepSeek V4.1 Flash (Cloud)
+    description: Newest fast cloud model for quick research iterations and high-throughput drafting. VLM-capable (vision) so view_image is registered. 1M context. Cloud-tagged via Ollama.
     use: langchain_openai:ChatOpenAI
-    model: deepseek-v4-flash:0731-cloud
+    model: deepseek-v4.1-flash:cloud
     api_key: ollama
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 8192
     temperature: 0.1
     supports_thinking: true
+    supports_vision: true
     stream_chunk_timeout: 120
 
   - name: deepseek-v4-pro-cloud

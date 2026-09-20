@@ -134,8 +134,8 @@ npm exec qm -- sandbox build  # must build successfully
 ### 3.2 Pull Ollama models
 
 ```powershell
-ollama pull deepseek-v4-flash:0731-cloud
-ollama pull deepseek-v4-pro:0813-cloud
+ollama pull gemma4:12b-it-q8_0
+ollama pull deepseek-v4.1-flash:cloud
 ollama pull nomic-embed-text:latest
 ollama list   # verify
 ```
@@ -364,7 +364,7 @@ npm exec qm -- check    # validate config
 
 ```powershell
 curl http://localhost:8089/health    # check API is healthy
-ollama show deepseek-v4-flash:0731-cloud  # check model is valid
+ollama show deepseek-v4.1-flash:cloud  # check model is valid
 docker compose -f compose.prod.yaml logs deer-flow  # check logs
 ```
 
