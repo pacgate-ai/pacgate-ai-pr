@@ -211,6 +211,20 @@ async fn main() -> anyhow::Result<()> {
     };
     let agent_loop = Arc::new(AgentLoop::new(router.clone(), dispatcher.clone()));
 
+    // OpenViking long-term memory bridge (optional). Requires a user/admin API
+    // key (the ROOT key is rejected for data APIs). When unset, workflow runs
+    // are persisted to matter memory only.
+    let memory = match pacgate_memory::OpenVikingClient::from_env() {
+        Ok(client) => {
+            tracing::info!("OpenViking memory bridge initialized");
+            Some(Arc::new(client))
+        }
+        Err(e) => {
+            tracing::warn!(error = ?e, "OpenViking memory bridge unavailable; long-term memory disabled");
+            None
+        }
+    };
+
     // Build application state
     let state = AppState {
         agent_loop,
@@ -223,6 +237,7 @@ async fn main() -> anyhow::Result<()> {
         auth,
         search,
         rag,
+        memory,
         db: pool,
     };
 

@@ -54,6 +54,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/matters/:id/memory", get(matters::get_matter_memory))
         .route("/api/matters/:id/memory", post(matters::save_matter_memory))
         .route(
+            "/api/matters/:id/workflow-runs",
+            get(workflows::list_workflow_runs),
+        )
+        .route(
             "/api/matters/:id/documents",
             get(matters::list_matter_documents),
         )

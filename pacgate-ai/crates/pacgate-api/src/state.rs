@@ -23,6 +23,9 @@ pub struct AppState {
     /// Optional RAG store — only available when Postgres is connected.
     /// When None, the `/api/kb/search` endpoint returns 503.
     pub rag: Option<Arc<RagStore>>,
+    /// Optional OpenViking long-term memory bridge. When None (no user API key
+    /// configured), workflow runs are persisted to matter memory only.
+    pub memory: Option<Arc<pacgate_memory::OpenVikingClient>>,
     pub db: sqlx::PgPool,
 }
 

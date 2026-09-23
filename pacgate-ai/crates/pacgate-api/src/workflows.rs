@@ -201,6 +201,109 @@ pub struct ExecuteStepResult {
     pub tools_used: Vec<String>,
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Workflow run persistence (long-term memory for workflow executions)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Each workflow execution is appended to a per-matter JSON log so the firm has
+// a durable, queryable history of what each workflow did (steps, tools, citations,
+// final output). This is the first layer of "long-term persistent memory" for
+// pacgate-ai workflows and metadata — scoped per matter, stored on disk under
+// the tenant/matter directory (same pattern as matter memory.json).
+
+/// A single persisted workflow run record.
+#[derive(Debug, Serialize)]
+struct WorkflowRunRecord {
+    workflow_id: String,
+    workflow_name: String,
+    matter_id: String,
+    executed_at: String,
+    steps: Vec<WorkflowRunStep>,
+    final_content: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct WorkflowRunStep {
+    step_name: String,
+    tool: String,
+    content: Option<String>,
+    citations: Vec<pacgate_core::CitationRef>,
+    tools_used: Vec<String>,
+}
+
+/// Path to the per-matter workflow-runs log.
+fn workflow_runs_path(
+    data_dir: &std::path::Path,
+    tenant_id: &TenantId,
+    matter_id: &MatterId,
+) -> std::path::PathBuf {
+    pacgate_tenant::matter_dir(data_dir, tenant_id, matter_id).join("workflow-runs.json")
+}
+
+/// Append a workflow run record to the matter's run log (create if absent).
+fn append_workflow_run(
+    data_dir: &std::path::Path,
+    tenant_id: &TenantId,
+    matter_id: &MatterId,
+    record: &WorkflowRunRecord,
+) -> Result<(), ApiError> {
+    let path = workflow_runs_path(data_dir, tenant_id, matter_id);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| ApiError::internal(format!("failed to prepare workflow-runs dir: {e}")))?;
+    }
+
+    let mut runs: Vec<serde_json::Value> = if path.exists() {
+        let bytes = std::fs::read(&path)
+            .map_err(|e| ApiError::internal(format!("failed to read workflow-runs: {e}")))?;
+        serde_json::from_slice(&bytes).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    runs.push(
+        serde_json::to_value(record)
+            .map_err(|e| ApiError::internal(format!("failed to serialize workflow run: {e}")))?,
+    );
+
+    let bytes = serde_json::to_vec_pretty(&runs)
+        .map_err(|e| ApiError::internal(format!("failed to serialize workflow-runs: {e}")))?;
+    std::fs::write(&path, bytes)
+        .map_err(|e| ApiError::internal(format!("failed to write workflow-runs: {e}")))?;
+
+    Ok(())
+}
+
+/// List persisted workflow runs for a matter.
+///
+/// `GET /api/matters/:id/workflow-runs`
+pub async fn list_workflow_runs(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let matter_id: MatterId = id
+        .parse()
+        .map_err(|e| ApiError::bad_request(format!("invalid matter id: {e}")))?;
+    let tenant_id = claims_to_tenant_id(&claims)?;
+
+    state
+        .matter_store
+        .get(&tenant_id, &matter_id)
+        .await
+        .map_err(|_| ApiError::not_found("matter not found"))?;
+
+    let path = workflow_runs_path(&state.config.data_dir, &tenant_id, &matter_id);
+    if !path.exists() {
+        return Ok(Json(serde_json::json!([])));
+    }
+
+    let bytes = std::fs::read(&path)
+        .map_err(|e| ApiError::internal(format!("failed to read workflow-runs: {e}")))?;
+    let runs: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::json!([]));
+    Ok(Json(runs))
+}
+
 /// Execute a workflow: load the template, run each step through AgentLoop.
 ///
 /// POST /api/workflows/:id/execute
@@ -285,6 +388,62 @@ pub async fn execute_workflow(
         )
         .await
         .map_err(ApiError::from)?;
+
+    // Persist the run to the matter's workflow-runs log (long-term memory).
+    // Best-effort: a persistence failure must not fail the workflow itself.
+    let run_record = WorkflowRunRecord {
+        workflow_id: workflow_id.to_string(),
+        workflow_name: result.workflow_name.clone(),
+        matter_id: matter_id.to_string(),
+        executed_at: chrono::Utc::now().to_rfc3339(),
+        steps: result
+            .steps
+            .iter()
+            .map(|s| WorkflowRunStep {
+                step_name: s.step_name.clone(),
+                tool: s.tool.clone(),
+                content: s.content.clone(),
+                citations: s.citations.clone(),
+                tools_used: s.tools_used.clone(),
+            })
+            .collect(),
+        final_content: result.final_content.clone(),
+    };
+    if let Err(e) = append_workflow_run(&state.config.data_dir, &tenant_id, &matter_id, &run_record)
+    {
+        tracing::warn!(error = ?e, "failed to persist workflow run (continuing)");
+    }
+
+    // Also persist a summary to OpenViking long-term memory (best-effort).
+    // This makes workflow outcomes semantically recallable across matters,
+    // not just stored as a per-matter JSON log.
+    if let Some(memory) = &state.memory {
+        let summary = format!(
+            "Workflow \"{}\" executed on matter {} ({} steps). Final output: {}",
+            result.workflow_name,
+            matter_id,
+            result.steps.len(),
+            result
+                .final_content
+                .as_deref()
+                .map(|c| {
+                    let mut s = c.chars().take(500).collect::<String>();
+                    if c.chars().count() > 500 {
+                        s.push_str("…");
+                    }
+                    s
+                })
+                .unwrap_or_else(|| "(no final content)".to_string()),
+        );
+        let uri = format!(
+            "viking://user/pacgate/memories/workflows/{}-{}.md",
+            workflow_id,
+            chrono::Utc::now().timestamp_millis()
+        );
+        if let Err(e) = memory.write(&uri, &summary, "create").await {
+            tracing::warn!(error = ?e, "failed to persist workflow run to OpenViking (continuing)");
+        }
+    }
 
     Ok(Json(ExecuteWorkflowResponse {
         workflow_name: result.workflow_name,

@@ -12,6 +12,7 @@ members = [
     "crates/pacgate-template",
     "crates/pacgate-tenant",
     "crates/pacgate-auth",
+    "crates/pacgate-memory",
     "wasm-crates/pacgate-doc-validator",
     "wasm-crates/pacgate-rule-engine",
     "wasm-crates/pacgate-citation-check",

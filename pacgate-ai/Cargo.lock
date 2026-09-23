@@ -1672,6 +1672,7 @@ dependencies = [
  "pacgate-core",
  "pacgate-docx",
  "pacgate-llm",
+ "pacgate-memory",
  "pacgate-persona",
  "pacgate-rag",
  "pacgate-search",
@@ -1805,6 +1806,18 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
+ "tracing",
+]
+
+[[package]]
+name = "pacgate-memory"
+version = "0.1.7"
+dependencies = [
+ "pacgate-core",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
  "tracing",
 ]
 

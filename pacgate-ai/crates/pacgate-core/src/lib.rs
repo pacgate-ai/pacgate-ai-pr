@@ -129,7 +129,7 @@ impl ModelConfig {
                 provider: LlmProvider::Ollama {
                     base_url: base_url.to_string(),
                 },
-                model_name: "nemotron3:33b".into(),
+                model_name: "deepseek-v4-pro:cloud".into(),
                 max_tokens: 16384,
                 temperature: 0.1,
             },
@@ -138,7 +138,7 @@ impl ModelConfig {
                 provider: LlmProvider::Ollama {
                     base_url: base_url.to_string(),
                 },
-                model_name: "qwen3.6:27b".into(),
+                model_name: "deepseek-v4-flash:0731-cloud".into(),
                 max_tokens: 8192,
                 temperature: 0.1,
             },
@@ -147,7 +147,7 @@ impl ModelConfig {
                 provider: LlmProvider::Ollama {
                     base_url: base_url.to_string(),
                 },
-                model_name: "qwen3.5:9b".into(),
+                model_name: "gemma4:12b-it-q8_0".into(),
                 max_tokens: 4096,
                 temperature: 0.2,
             },

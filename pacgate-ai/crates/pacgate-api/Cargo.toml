@@ -22,6 +22,7 @@ pacgate-workflow = { path = "../pacgate-workflow" }
 pacgate-persona = { path = "../pacgate-persona" }
 pacgate-rag = { path = "../pacgate-rag" }
 pacgate-search = { path = "../pacgate-search" }
+pacgate-memory = { path = "../pacgate-memory" }
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
