@@ -54,19 +54,56 @@ pacgate-law/                      ← LOCAL docs wrapper (no remote, no commits)
 
 ## Runtime stack — spread across SIX compose projects
 
-Only **14 of 25** running containers trace back to `pacgate-ai-pr`. The rest
+Only **14 of 25** running containers trace back to the pacgate platform repo. The rest
 belong to separate sibling clones under `C:\Users\pacga\github-pr\`. There is no
 single repo that describes the whole running stack.
 
+> **⚠️ The live pacgate stack runs from THIS MONOREPO, not `C:\pacgate-ai-pr`.**
+> Verified 2026-09-23 from live container labels: project `pacgate-ai-bundle`,
+> working dir `pacgate-law\pacgate-ai\deploy\client-bundle`, config
+> `compose.bundle.yaml`. The old `deploy/` paths in the table below are **stale** —
+> `C:\pacgate-ai-pr` still exists but owns no container.
+
 | Compose project | # | Compose file |
 |---|---|---|
-| `pacgate-ai-bundle` | 7 | `C:\pacgate-ai-pr\deploy\client-bundle\compose.bundle.yaml` |
-| `qm-pacgate` | 7 | `C:\pacgate-ai-pr\deploy\qm-pacgate\compose.qm.yaml` |
+| `pacgate-ai-bundle` | 7 | `pacgate-law\pacgate-ai\deploy\client-bundle\compose.bundle.yaml` |
+| `qm-pacgate` | 7 | `pacgate-law\pacgate-ai\deploy\qm-pacgate\compose.qm.yaml` |
 | `odysseus` | 4 | `C:\Users\pacga\github-pr\odysseus\docker-compose.yml` |
 | `hermes-agent` | 3 | `C:\Users\pacga\github-pr\hermes-agent\docker-compose.upstream.yml` |
 | `ironclawai-survey` | 1 | `C:\Users\pacga\github-pr\ironclawai-survey\docker-compose.yml` |
 | `dockhand` | 1 | `C:\Users\pacga\github-pr\dockhand-dash\docker-compose.yaml` |
 | *(unmanaged)* | 2 | `cloudflare`, `open-webui` — bare `docker run`, no compose owner |
+
+### ⚠️ Running `install.ps1` / the update path — verified protocol
+
+**`install.ps1` fails on this machine with exit code 1**, for two independent reasons:
+
+1. `docker compose -f compose.prod.yaml pull` (its L477) returns exit 1 because
+   **`docker.io` / `registry-1.docker.io` is UNREACHABLE here** (the VPN does not proxy
+   it) — `nginx:1.27-alpine` and `pgvector/pgvector:pg16` cannot resolve. The script sets
+   `$ErrorActionPreference="Stop"`, so it terminates there, before `up -d`. `ghcr.io` IS
+   reachable. Nothing gets recreated when this happens.
+2. It prints `[WARN] <repo>\pacgate-ai is not a git checkout - cannot refresh` — it looks
+   for `.git` at `pacgate-ai/`, but the real git root is `pacgate-law/`. Its repo-refresh
+   step is a no-op here.
+
+**🚨 Back up `deer-flow-extensions-config.json` before running it.** The render step
+regenerates that file from `deer-flow-extensions-config.template.json`, which is a
+**3-server stub** (openviking/pacgate/officecli). That silently wipes the **27 legal-database
+connectors** (firecrawl, yuandian-*, 11x pkulaw-*, 11x qcc-*, vaquill, ansvar) and reports
+only `MCP servers REMOVED: firecrawl - check the template`. Restore byte-exact from the
+`.bak.<timestamp>` it leaves behind.
+
+To apply a compose **env or volume** change, `up -d` alone is NOT enough — Compose does not
+recreate on an env-only change. Use:
+
+```powershell
+docker compose -f <abs>\compose.bundle.yaml up -d --force-recreate --no-deps <service>
+```
+
+This is safe for bind-mounted state and named volumes, and avoids touching `pacgate-db`.
+Confirm with `docker inspect <svc> | ConvertFrom-Json` and read `.Config.Env` / `.Mounts`.
+(`docker inspect -f '{{index .Config.Labels "..."}}'` breaks under PS 5.1.)
 
 **To regenerate the pinned inventory** (records image digests, flags floating
 refs and unmanaged containers):
@@ -93,7 +130,12 @@ produce **different** project names:
 | File | `name:` key | Derived project | Volume created |
 |---|---|---|---|
 | `compose.bundle.yaml` | `pacgate-ai-bundle` | `pacgate-ai-bundle` | `pacgate-ai-bundle_pacgate-db-data` |
-| `compose.prod.yaml` (used by `install.ps1`) | *none* | `client-bundle` (from dir) | `client-bundle_pacgate-db-data` |
+| `compose.prod.yaml` (used by `install.ps1`) | **`pacgate-ai-bundle`** (added 2026-09-23) | `pacgate-ai-bundle` | same volume |
+
+**Fixed 2026-09-23.** `compose.prod.yaml` previously had **no `name:`**, so it derived
+`client-bundle` from the directory and would have created a second, empty
+`client-bundle_pacgate-db-data`. It is now pinned to `pacgate-ai-bundle`, so both files
+converge on the live volume. **Do not remove that key.**
 
 **Both volumes exist right now** (created 2026-09-01 and 2026-09-02). The running
 `pacgate-db` is attached to `pacgate-ai-bundle_pacgate-db-data`; the
