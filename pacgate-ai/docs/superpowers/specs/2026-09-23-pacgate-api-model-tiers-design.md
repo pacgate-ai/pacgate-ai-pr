@@ -128,35 +128,70 @@ B fixes *the next* one automatically.
 
 ---
 
-## 3. Separate finding — ocr-service is PDF-only
+## 3. Separate finding — the sanitizer lane is PDF-only (measured per format)
 
-**Reported, not fixed** (needs an image change, not a config change).
+**Reported, not fixed** (needs an ocr-service change, not a config change).
 
-`ocr-service` handles PDFs and images. Any other format silently yields
-`incomplete=true`, and `pacgate-api`'s fail-closed guard then rejects the document —
-**which can then never be sanitized.**
+> **Correction to an earlier draft of this document.** It claimed Word files could
+> not be uploaded/read at all. **That was wrong** — the mistake was testing
+> pacgate-api's machine-to-machine API and assuming it was the user path. In the real
+> user path (browser → deer-flow) **`.docx` works and is converted to markdown**.
+> The claim is corrected below to what is actually measured.
+
+### There are TWO document lanes, and only one of them handles Word
+
+| Lane | Entry | Word support | Measured |
+|---|---|---|---|
+| **A. Upload / read (user-facing)** | `POST /api/threads/{id}/uploads` → deer-flow | ✅ **yes** | `.docx` → 200, `markdown_file=s3c-sample.md` produced automatically |
+| **B. Sanitization gate (the red line)** | `POST /pacgate/api/documents` → pacgate-api → ocr-service | ❌ **no** | `.docx` → extract `incomplete=true, text_len=0` → sanitize **500** |
+
+Lane A uses deer-flow's own converter (`markitdown` + `pymupdf4llm`, supporting
+`.docx/.pptx/.xlsx/.pdf`) — `deerflow/utils/file_conversion.py`,
+`CONVERTIBLE_EXTENSIONS`. Lane B is a different service and does **not** use it.
+
+### Measured, per format (both through the sanitizer lane)
+
+| Input | upload | extract | incomplete | text_len | sanitize |
+|---|---|---|---|---|---|
+| real `.pdf` | 200 | 200 | `false` | 797 | **200** ✅ `verdict=pass` |
+| real `.docx` | 200 | 200 | **`true`** | **0** | **500** ❌ `extraction incomplete; document stays pending` |
+| `.txt` (`pacgate_sanitize_text`) | 200 | 200 | `true` | 0 | **500** ❌ |
+
+### Mechanism
 
 `crates/pacgate-api/src/extract.rs` L125 uploads the bytes as
-`file_name("document")` — no extension, so ocr-service defaults the suffix to `.pdf`.
-Its `_prepare_pages()` then follows the **else** branch (`ocr-app.py` L114: a PDF with a
-`.pdf` suffix) and hands the raw bytes to `pdf2image.convert_from_path` → `PDFPageCountError`
-→ `return [(first, None)]` → page marked failed → `incomplete: true` → 500
-`"extraction incomplete; document stays pending"`.
+`file_name("document")` — **no extension**. ocr-service then defaults the suffix to
+`.pdf` (`app.py`: `os.path.splitext(...)[1] or ".pdf"`), takes its pdf2image branch,
+and rasterisation fails → the page is marked failed → `incomplete: true`. For a
+non-PDF that still carries a suffix, `_prepare_pages` falls through to
+`return [(1, tmp_path)]` — i.e. it hands the raw file to **PaddleOCR as if it were an
+image**, OCR throws, the page is marked failed, and `text` comes back **empty**. Either
+way `pacgate-api`'s fail-closed guard rejects it:
 
-Measured:
+```
+// Fail closed: an OCR error must not yield text we treat as complete.
+"ocr-service returned {status}; extraction is incomplete, document stays pending"
+```
 
-| Input | extract | incomplete | sanitize |
-|---|---|---|---|
-| real `.pdf` | 200 | `false` | **200** ✅ |
-| `.md` | 200 | `true` | **500** ❌ stuck forever |
+The document is then pinned at `incomplete=true` and **can never be sanitized**.
 
-This matters because DD intake is mostly `.docx`. The data model already treats
-`docx`/`pdf`/`txt`/`markdown` as first-class (`documents.rs` L32-37) and upload accepts
-them — only extraction is PDF-only.
+### Impact — and the second defect this exposes
 
-Closing it needs an ocr-service dependency (`python-docx`, or wire the already-installed
-host `markitdown`) plus an image rebuild. A cheap partial fix is to reject unsupported
-formats at upload with a clear message instead of failing silently later.
+`pacgate_sanitize_text` is the MCP bridge tool that sanitizes **raw text**. It uploads
+its input as `sanitize-ephemeral.txt` (`pacgate-mcp/server.py` L678) — a non-PDF — so
+**it fails 100% of the time**, and it is the only tool that could sanitize text the
+agent already holds (e.g. markdown converted from a Word file in lane A).
+
+Net effect: **a Word document can be uploaded, converted and read by the agent, but the
+sanitization gate cannot process it — nor any plain-text content.** Only PDFs can be
+sanitized today. Since due-diligence intake is mostly `.docx`, this is a real gap.
+
+Closing it needs either an ocr-service text path (`python-docx`, or reuse the
+markitdown already present in the deer-flow image) plus an image rebuild, or — cheaper
+and immediate — teaching `extract.rs` to bypass OCR for text formats and read the bytes
+directly. A defensive minimum is to reject unsupported formats at upload with a clear
+message instead of failing silently later.
+
 
 ---
 

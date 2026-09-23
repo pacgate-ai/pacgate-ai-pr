@@ -155,18 +155,17 @@ if ($docId) {
     if ($r.Code -eq 200) { Ok 'sanitize-status -> 200' } else { No ("sanitize-status -> HTTP " + $r.Code) }
 } else { Sk 'sanitization (no document)' }
 
-# Non-PDF input: a KNOWN LIMITATION, reported but not failed.
-# ocr-service rasterises with pdf2image and handles ONLY pdf/images; every other
-# suffix is handed to PaddleOCR as if it were an image, so the page fails, the
-# service answers 200 with incomplete=true, and pacgate-api's fail-closed check
-# rejects it - the document can then NEVER be sanitized. The data model and the
-# upload path both accept docx/txt/markdown, so this is a real gap, but closing
-# it needs an ocr-service dependency + image rebuild, not a config change.
+# Non-PDF input. CORRECTED 2026-09-23: an earlier version of this lane asserted
+# "Word cannot be uploaded", which was WRONG - that test hit pacgate-api's
+# machine-to-machine API and mistook it for the user path. In the real user path
+# (browser -> deer-flow) .docx uploads AND is converted to markdown automatically.
+# The measured gap is narrower and more useful: the SANITIZER lane is PDF-only, so
+# docx/txt can never be sanitized. That is reported here, not failed.
 Hd 'L6b  NON-PDF INPUT  (known limitation - reported, not failed)'
 if ($matterId) {
-    $tmpNon = Join-Path $env:TEMP 'pg-e2e-nonpdf.md'
-    [System.IO.File]::WriteAllText($tmpNon, "# Engagement Letter`n`nClient: Acme Holdings Ltd. Contact zhang.wei@example.com.`n", (New-Object System.Text.UTF8Encoding($false)))
-    $o = & curl.exe -sS -o $script:outTmp -w '%{http_code}' -X POST -H "Authorization: Bearer $tok" -F "matter_id=$matterId" -F "file=@$tmpNon;filename=nonpdf-probe.md" "$API/api/documents" 2>&1
+    $tmpNon = Join-Path $env:TEMP 'pg-e2e-nonpdf.txt'
+    [System.IO.File]::WriteAllText($tmpNon, "Engagement letter. Client: Acme Holdings Ltd. Contact zhang.wei@example.com.", (New-Object System.Text.UTF8Encoding($false)))
+    $o = & curl.exe -sS -o $script:outTmp -w '%{http_code}' -X POST -H "Authorization: Bearer $tok" -F "matter_id=$matterId" -F "file=@$tmpNon;filename=nonpdf-probe.txt" "$API/api/documents" 2>&1
     $c1 = [int](($o | Out-String).Trim())
     $bid = ''
     try { $bid = ([System.IO.File]::ReadAllText($script:outTmp, [System.Text.Encoding]::UTF8) | ConvertFrom-Json).id } catch {}
@@ -177,8 +176,9 @@ if ($matterId) {
         $s2 = CurlJson 'POST' "$API/api/documents/$bid/sanitize" ($H + @('Content-Type: application/json')) @{ data_level = 'T3' } 300
         Write-Host ("       upload=$c1  extract=$($e2.Code) incomplete=$inc  sanitize=$($s2.Code)")
         if ($s2.Code -ne 200) {
-            Write-Host '       KNOWN LIMITATION: non-PDF cannot be sanitized (ocr-service is PDF-only).' -ForegroundColor Yellow
-            Write-Host '       Needs: ocr-service dependency (e.g. python-docx/markitdown) + image rebuild.' -ForegroundColor Yellow
+            Write-Host '       KNOWN LIMITATION: the SANITIZER lane is PDF-only (ocr-service).' -ForegroundColor Yellow
+            Write-Host '       Word/text CAN be uploaded and read via deer-flow, but cannot be sanitized.' -ForegroundColor Yellow
+            Write-Host '       This also breaks the pacgate_sanitize_text MCP tool (it uploads .txt).' -ForegroundColor Yellow
             $script:known++
         } else { Ok 'non-PDF extraction + sanitize -> 200 (limitation may be resolved)' }
     } else { Sk ('non-PDF probe upload failed (http ' + $c1 + ')') }
@@ -294,7 +294,8 @@ Write-Host '############################ E2E SUMMARY ###########################
 Write-Host ("  PASS = " + $script:pass + "   FAIL = " + $script:fail + "   SKIP = " + $script:skip + "   KNOWN = " + $script:known) -ForegroundColor $(if ($script:fail -eq 0) { 'Green' } else { 'Red' })
 if ($script:known -gt 0) {
     Write-Host "  KNOWN (reported, not counted as failures): $($script:known)" -ForegroundColor Yellow
-    Write-Host '    - ocr-service is PDF-only: docx/txt/markdown extract as incomplete and can never be sanitized.' -ForegroundColor Yellow
+    Write-Host '    - The SANITIZER lane is PDF-only. Word/text uploads+reads fine via deer-flow,' -ForegroundColor Yellow
+    Write-Host '      but cannot be sanitized; this also breaks the pacgate_sanitize_text MCP tool.' -ForegroundColor Yellow
 }
 if ($script:fail -gt 0) {
     Write-Host '  FAILURES:' -ForegroundColor Red
