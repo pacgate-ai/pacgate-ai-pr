@@ -110,27 +110,57 @@ class PacgateApi:
             headers["Authorization"] = f"Bearer {self.jwt_token}"
         return headers
 
+    def _relogin(self) -> None:
+        """Force a fresh login (the previous JWT expired or was revoked)."""
+        self.jwt_token = self._login()
+
     def get(self, path: str, params: dict[str, Any] | None = None) -> httpx.Response:
-        return self._client.get(
+        resp = self._client.get(
             f"{self.base_url}{path}", params=params, headers=self._headers()
         )
+        if resp.status_code == 401 and self.email and self.password:
+            # The JWT is stale (pacgate-api issues 24h tokens). Re-authenticate
+            # once and retry - without this the MCP server serves 401s forever
+            # after the first token expiry, because it only logs in at startup.
+            self._relogin()
+            resp = self._client.get(
+                f"{self.base_url}{path}", params=params, headers=self._headers()
+            )
+        return resp
 
     def post(self, path: str, json: dict[str, Any] | None = None) -> httpx.Response:
-        return self._client.post(
+        resp = self._client.post(
             f"{self.base_url}{path}", json=json, headers=self._headers()
         )
+        if resp.status_code == 401 and self.email and self.password:
+            self._relogin()
+            resp = self._client.post(
+                f"{self.base_url}{path}", json=json, headers=self._headers()
+            )
+        return resp
 
     def delete(self, path: str) -> httpx.Response:
-        return self._client.delete(f"{self.base_url}{path}", headers=self._headers())
+        resp = self._client.delete(f"{self.base_url}{path}", headers=self._headers())
+        if resp.status_code == 401 and self.email and self.password:
+            self._relogin()
+            resp = self._client.delete(f"{self.base_url}{path}", headers=self._headers())
+        return resp
 
     def post_multipart(
         self, path: str, data: dict[str, Any], files: dict[str, Any]
     ) -> httpx.Response:
         """POST multipart/form-data (used by pacgate-api document upload)."""
         headers = {"Authorization": f"Bearer {self.jwt_token}"} if self.jwt_token else {}
-        return self._client.post(
+        resp = self._client.post(
             f"{self.base_url}{path}", data=data, files=files, headers=headers
         )
+        if resp.status_code == 401 and self.email and self.password:
+            self._relogin()
+            headers = {"Authorization": f"Bearer {self.jwt_token}"}
+            resp = self._client.post(
+                f"{self.base_url}{path}", data=data, files=files, headers=headers
+            )
+        return resp
 
 
 # Instantiate lazily so the MCP server can start even if pacgate-api is not yet
