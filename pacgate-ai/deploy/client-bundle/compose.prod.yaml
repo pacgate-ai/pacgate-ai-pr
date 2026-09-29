@@ -213,6 +213,13 @@ services:
       # Python logging rejects lowercase level names.
       OCR_LOG_LEVEL: INFO
       OCR_USE_GPU: "0"
+    volumes:
+      # PaddleOCR downloads its PP-OCRv4 det/rec/cls weights (~18 MB) into
+      # /root/.paddleocr on FIRST extraction. Without this volume that cache
+      # lives in the container's writable layer and is LOST on every recreate,
+      # so each recreate re-downloads (and fails offline - bcebos is the only
+      # source). Named volume = the download happens once per machine.
+      - paddleocr-models:/root/.paddleocr
     restart: unless-stopped
 
   openviking:
@@ -238,3 +245,4 @@ services:
 
 volumes:
   pacgate-db-data:
+  paddleocr-models:
