@@ -17,7 +17,8 @@ USAGE
 
     Options:
       --tag <x.y.z>    image tag to build (required)
-      --user <login>   required account login (default: pacgate-ai)
+      --user <login>   account login that must be signed in
+                       (default: the owner of this checkout's origin remote)
       --profile <dir>  persistent browser profile (keeps you signed in)
       --headless       hide the window (you still must already be signed in)
 """
@@ -26,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 import time
 
@@ -34,7 +36,44 @@ try:
 except ImportError:
     sys.exit("playwright is not installed. python -m pip install playwright")
 
-FORK = "pacgate-ai/pacgate-ai-pr"
+# The repo to dispatch is a property of THIS CHECKOUT, not of this script.
+#
+# It was hardcoded as "pacgate-ai/pacgate-ai-pr". That is now the READ-ONLY
+# MIRROR, which publishes NO images: per .github/workflows/build-ghcr.yml
+# (2026-09-18), `jzkk720` is the release authority for both code and images, and
+# `pacgate-ai` is a read-only mirror. Dispatching against the mirror starts a run
+# that fails at the verify step, because `secrets.GITHUB_TOKEN` can only push to
+# the namespace of the account that runs the workflow.
+#
+# Deriving it from the origin remote means the value cannot go stale when the
+# remote moves again - the same failure mode as hardcoding a model tag in a crate
+# while the machines carried something else.
+FALLBACK_FORK = "JZKK720/pacgate-ai-pr"
+
+
+def resolve_fork() -> str:
+    """Return 'owner/repo' for the checkout this script is running inside."""
+    try:
+        out = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        url = (out.stdout or "").strip()
+        # https://github.com/owner/repo(.git) and git@github.com:owner/repo(.git)
+        m = re.search(r"github\.com[:/]+([^/]+)/([^/]+?)(?:\.git)?$", url)
+        if m:
+            return f"{m.group(1)}/{m.group(2)}"
+    except Exception:
+        pass
+    print(f"[dispatch-release] WARNING: could not read the origin remote; using {FALLBACK_FORK}")
+    return FALLBACK_FORK
+
+
+FORK = resolve_fork()
+FORK_OWNER = FORK.split("/", 1)[0]
 WORKFLOW_URL = f"https://github.com/{FORK}/actions/workflows/build-ghcr.yml"
 ACTIONS_URL = f"https://github.com/{FORK}/actions"
 
@@ -126,13 +165,31 @@ def latest_run_ids(page) -> set[str]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag", required=True, help="image tag, e.g. 0.1.12")
-    ap.add_argument("--user", default="pacgate-ai")
+    ap.add_argument(
+        "--user",
+        default=FORK_OWNER,
+        help=f"account login that must be signed in (default: {FORK_OWNER}, the repo owner)",
+    )
     ap.add_argument("--profile", default=".playwright-profile")
     ap.add_argument("--headless", action="store_true")
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="fill the form and stop before the confirm click; dispatches nothing",
+    )
+    ap.add_argument(
+        "--wait-seconds",
+        type=int,
+        default=300,
+        help="how long to wait for a human to sign in (default 300)",
+    )
     args = ap.parse_args()
 
     if not re.fullmatch(r"\d+\.\d+\.\d+", args.tag):
         return _fail(f"--tag must look like 0.1.12 (got {args.tag!r})")
+
+    log(f"repository: {FORK}  (derived from the origin remote)")
+    log(f"expecting sign-in as: {args.user}")
 
     with sync_playwright() as p:
         ctx = p.chromium.launch_persistent_context(
@@ -141,17 +198,53 @@ def main() -> int:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
 
         # ── 1. Sign-in check ────────────────────────────────────────────────
+        #
+        # HUMAN-ASSIST STEP. This waits for a person to sign in rather than
+        # exiting, which is the whole point of the persistent profile: you sign in
+        # once and the cookie survives, so later runs need no human at all.
+        #
+        # It waits rather than failing because a signed-out first run is the
+        # EXPECTED first run. Exiting with "sign in, then re-run" made the human
+        # do the work twice - once to sign in, once to re-invoke - and the window
+        # had already closed by the time they could act.
         goto_settled(page, WORKFLOW_URL)
         login = signed_in_login(page)
-        if not login:
-            log("Not signed in. Open the window and sign in, then re-run.")
-            log("  https://github.com/login")
+        if not login and args.headless:
+            # A headless window cannot be signed into, so waiting the full timeout
+            # would burn 5 minutes to reach the same conclusion. Fail immediately
+            # and say why.
+            log("Not signed in, and --headless prevents signing in.")
+            log("Run once WITHOUT --headless to sign in (the profile keeps it for later runs).")
             ctx.close()
             return 2
+        if not login:
+            log("")
+            log("=== HUMAN STEP: SIGN IN ===")
+            log(f"A browser window is open at the workflow page, signed OUT.")
+            log(f"Sign in as '{args.user}' in that window now.")
+            log(f"Waiting up to {args.wait_seconds}s; the run continues on its own once it sees you.")
+            log("")
+            deadline = time.time() + args.wait_seconds
+            while time.time() < deadline:
+                time.sleep(5)
+                try:
+                    page.goto(WORKFLOW_URL, wait_until="domcontentloaded")
+                except Exception:
+                    continue
+                login = signed_in_login(page)
+                if login:
+                    break
+                remaining = int(deadline - time.time())
+                if remaining % 30 < 5:
+                    log(f"  still signed out ({remaining}s left)...")
+            if not login:
+                log("TIMED OUT waiting for sign-in. Nothing was changed.")
+                ctx.close()
+                return 2
         log(f"signed in as: {login}")
         if login.lower() != args.user.lower():
             log(f"REFUSING: signed in as {login!r}, expected {args.user!r}.")
-            log("Nothing was changed. Sign out and sign in as the fork owner.")
+            log("Nothing was changed. Sign out and sign in as the release authority.")
             ctx.close()
             return 3
 
@@ -207,8 +300,28 @@ def main() -> int:
         tag_input.fill(args.tag)
         log(f"filled tag = {args.tag}")
 
-        # Leave namespace empty: it resolves to the fork owner (pacgate-ai),
-        # which is what the compose pins reference.
+        # Leave namespace empty on purpose. It resolves to the workflow's pinned
+        # `GHCR_NAMESPACE`, which is the release authority (`jzkk720`) and what
+        # every compose pin references. Filling it would override that with a
+        # value that is not validated against compose anywhere.
+        #
+        # This comment used to say it "resolves to the fork owner (pacgate-ai)" -
+        # stale from before plans/016 inverted the roles on 2026-09-18. pacgate-ai
+        # is the READ-ONLY MIRROR and publishes no images, so that was wrong twice
+        # over.
+        if args.dry_run:
+            log("")
+            log("=== DRY RUN: stopping before the confirm click ===")
+            log(f"  repository  : {FORK}  (from the origin remote)")
+            log(f"  tag input   : {args.tag}   (filled, not submitted)")
+            log(f"  namespace   : left empty -> GHCR_NAMESPACE, i.e. {FORK_OWNER}")
+            log("  would next  : click the confirm 'Run workflow' and watch for a new run")
+            log("Nothing was dispatched. Re-run without --dry-run to release.")
+            page.screenshot(path="dispatch-dry-run.png", full_page=True)
+            log("  screenshot  : dispatch-dry-run.png")
+            ctx.close()
+            return 0
+
         confirm = find_control(page, "Run workflow")
         if not confirm:
             log("Could not find the confirm button. Screenshot saved.")
@@ -229,14 +342,24 @@ def main() -> int:
                 log(f"VERIFIED: new run started -> {sorted(new)[0]}")
                 log(f"  https://github.com/{FORK}/actions/runs/{sorted(new)[0]}")
                 log("")
-                log("Watch it go green (this should be the FIRST successful run -")
-                log("every previous run failed at the verify step).")
+                log("Watch it go green (~12-13 min on recent evidence). The run's own")
+                log("last step verifies an anonymous manifest HEAD for every image, so")
+                log("a private or unpushed image fails the run rather than shipping.")
                 log("")
-                log("Then, once green, flip the new packages to Public in the UI:")
+                log("Then make any NEW package public. This is a required MANUAL step:")
+                log("the workflow cannot do it, because the API /visibility route 404s")
+                log("even with write:packages - visibility is UI-only for a personal")
+                log("account. The run's own error text says so: 'If 401: the package")
+                log("exists but is private - flip it to public in the GHCR UI.'")
+                log("")
                 log("  profile -> Packages -> each pacgate image -> Package settings")
                 log("  -> Visibility -> Public")
-                log("Verified with:")
-                log(f"  pwsh -NoProfile -File ./scripts/check-ghcr-pull.ps1 -Targets 'pacgate-ai/pacgate-api:{args.tag}'")
+                log("")
+                log("Verify from the repo:")
+                log(f"  python scripts/check-ghcr-anon.py {args.tag}      # expect 5 PUBLIC")
+                log("  pwsh -NoProfile -File scripts/run-all-checks.ps1  # expect 24 GATES")
+                log("")
+                log("The three version gates that fail pre-release should flip on their own.")
                 ctx.close()
                 return 0
             log(f"  attempt {attempt}: no new run yet")

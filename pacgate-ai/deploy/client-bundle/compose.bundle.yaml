@@ -28,7 +28,7 @@ services:
     restart: unless-stopped
 
   pacgate-api:
-    image: ghcr.io/jzkk720/pacgate-api:0.1.20
+    image: ghcr.io/jzkk720/pacgate-api:0.1.24
     container_name: pacgate-api
     depends_on: [pacgate-db]
     # Memory ceiling as defence in depth behind the in-process admission bound
@@ -40,6 +40,11 @@ services:
     environment:
       DATABASE_URL: postgres://pacgate:${PACGATE_DB_PASSWORD}@pacgate-db:5432/pacgate
       DATA_DIR: /data/tenants
+      # Self-registration gate. CLOSED on the client stack. Mirrors
+      # compose.prod.yaml - both files define this service, so both need it, or
+      # the file that is not running will silently diverge.
+      # See deploy/DEFECT-pacgate-api-open-registration.md.
+      PACGATE_ALLOW_REGISTRATION: "false"
       PACGATE_JWT_SECRET: ${PACGATE_JWT_SECRET}
       PACGATE_DEFAULT_TENANT: ${PACGATE_TENANT_ID:-default-firm}
       # NER weights are baked into the image at /app/models/ner (SHA-256 verified
@@ -85,7 +90,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/jzkk720/deer-flow-pacgate:0.1.20
+    image: ghcr.io/jzkk720/deer-flow-pacgate:0.1.24
     container_name: deer-flow
     depends_on: [pacgate-api, openviking, pacgate-mcp]
     environment:
@@ -106,18 +111,15 @@ services:
       # client's actual access origin (e.g. http://192.168.1.10:8089) or login
       # fails with "Cross-site auth request denied" (403). Comma-separated.
       GATEWAY_CORS_ORIGINS: ${GATEWAY_CORS_ORIGINS:-http://localhost:8089,http://localhost:8090}
-      # Pacgate: local self-registration gate (upstream #4311 port). Default
-      # false — the firm provisions accounts via the SQLite provisioning tool
-      # (runtime/deerflow-provision-user.py). Set to "true" in .env to reopen.
-      AUTH_ALLOW_REGISTRATION: ${AUTH_ALLOW_REGISTRATION:-false}
+      # Pacgate (silent-no-reply fix 2026-10-06): bound the first-exchange title
+      # generation so a stalled Ollama cloud read cannot leave the pregel loop
+      # frozen mid-run with zero user-visible output (run c2a0ced4 evidence in
+      # .env comments). Value comes from .env: DEERFLOW_TITLE_INVOKE_TIMEOUT_S.
+      DEERFLOW_TITLE_INVOKE_TIMEOUT_S: ${DEERFLOW_TITLE_INVOKE_TIMEOUT_S:-8}
     volumes:
       - ./data:/data
       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
-      # NOTE: ./workflows is deliberately NOT mounted here. GET /api/workflows is
-      # owned by pacgate-api, and deer-flow carries zero references to
-      # /app/workflows (verified in-container) - the mount was inert. Moved, not
-      # duplicated. See deploy/DEFECT-workflow-mount-wrong-service.md.
       # Pacgate: add a unified generated-outputs listing endpoint
       # (GET /api/threads/{id}/outputs). Mounted so it survives container
       # recreation without rebuilding the image.
@@ -130,6 +132,9 @@ services:
       # response and enrich the upload listing with markdown metadata + original
       # filename, so clients can read/analyze converted docs reliably.
       - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro
+      # Pacgate: gate self-registration (mirrors upstream 2.1.0 auth.local.allow_registration)
+      - ./patches/deer-flow-auth.py:/app/backend/app/gateway/routers/auth.py:ro
+      - ./patches/deer-flow-auth-errors.py:/app/backend/app/gateway/auth/errors.py:ro
       # Pacgate: require `description` on write_file/str_replace in the agent
       # system prompt, so the model never drops a required arg and loops on
       # "description: Field required".
@@ -145,6 +150,10 @@ services:
       # multi-step research runs (cloud), instead of relying only on the constant
       # tool-schema count.
       - ./patches/deer-flow-worker.py:/app/backend/packages/harness/deerflow/runtime/runs/worker.py:ro
+      # Pacgate (hang fix 2026-10-06): bound the non-streaming title ainvoke()
+      # and make CancelledError fall back instead of freezing the pregel loop
+      # (run df600939: no output for 11 minutes; only STOP recovered it).
+      - ./patches/deer-flow-title-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/title_middleware.py:ro
       # Pacgate: run sync tool invocations on a single shared background event
       # loop. The stock wrapper calls asyncio.run() per call (new loop each
       # time), so parallel tool calls to the same stdio MCP server (e.g. two
@@ -157,15 +166,6 @@ services:
       # "yuandian_law_yuandian_rh_ft_search", causing "not a valid tool" loops.
       # Function names must be underscore-separated for reliable tool-calling.
       - ./patches/langchain-mcp-tools.py:/app/backend/.venv/lib/python3.12/site-packages/langchain_mcp_adapters/tools.py:ro
-      # Pacgate: close local self-registration (port of upstream #4311). The
-      # v2.0.0 base image predates the gate, so POST /api/v1/auth/register was
-      # unconditionally open on the public URL. The patch gates /register on
-      # AUTH_ALLOW_REGISTRATION (default false) and reports
-      # registration_enabled from /setup-status so the login page hides the
-      # signup entry. errors.py is mounted to add the registration_disabled
-      # error code. /initialize (first admin) is deliberately NOT gated.
-      - ./patches/deer-flow-auth.py:/app/backend/app/gateway/routers/auth.py:ro
-      - ./patches/deer-flow-auth-errors.py:/app/backend/app/gateway/auth/errors.py:ro
       # Persist deer-flow's own SQLite state (threads/runs/admin account) across
       # container recreation. Without this, every `docker compose up -d` resets
       # the deer-flow admin account and chat history (first-boot each time).
@@ -173,7 +173,7 @@ services:
     restart: unless-stopped
 
   deer-flow-frontend:
-    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.20
+    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.24
     container_name: deer-flow-frontend
     depends_on: [deer-flow]
     environment:
@@ -185,7 +185,7 @@ services:
     restart: unless-stopped
 
   pacgate-mcp:
-    image: ghcr.io/jzkk720/pacgate-mcp:0.1.20
+    image: ghcr.io/jzkk720/pacgate-mcp:0.1.24
     container_name: pacgate-mcp
     depends_on: [pacgate-api]
     environment:
@@ -200,18 +200,18 @@ services:
   # ocr-service: PaddleOCR extraction (plan 019). First-class from 0.1.16.
   # The ~1.5GB PaddleOCR model downloads on FIRST EXTRACTION, not at build.
   ocr-service:
-    image: ghcr.io/jzkk720/ocr-service:0.1.20
+    image: ghcr.io/jzkk720/ocr-service:0.1.24
     container_name: ocr-service
     environment:
       # Python logging rejects lowercase level names.
       OCR_LOG_LEVEL: INFO
       OCR_USE_GPU: "0"
+    # PaddleOCR downloads its PP-OCRv4 det/rec/cls weights (~18 MB) into
+    # /root/.paddleocr on FIRST extraction - they are NOT baked into the image.
+    # Without this volume the cache lives in the container's writable layer, so
+    # every recreate re-downloads from paddleocr.bj.bcebos.com (the only source)
+    # and an offline recreate leaves extraction failing closed.
     volumes:
-      # PaddleOCR downloads its PP-OCRv4 det/rec/cls weights (~18 MB) into
-      # /root/.paddleocr on FIRST extraction. Without this volume that cache
-      # lives in the container's writable layer and is LOST on every recreate,
-      # so each recreate re-downloads (and fails offline - bcebos is the only
-      # source). Named volume = the download happens once per machine.
       - paddleocr-models:/root/.paddleocr
     restart: unless-stopped
 
@@ -237,6 +237,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  pacgate-db-data:
+  # Persists PaddleOCR's downloaded model weights across container recreation.
   paddleocr-models:
+  pacgate-db-data:
 

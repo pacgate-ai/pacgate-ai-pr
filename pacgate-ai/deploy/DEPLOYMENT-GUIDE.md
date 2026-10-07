@@ -3,9 +3,12 @@
 > For Cubecloud engineers deploying to client AI PCs
 > Phase 1 — two-machine pilot
 
-> **VERIFIED AGAINST 0.1.14 (2026-09-18).** The pins in this guide were reset
+> **VERIFIED AGAINST `0.1.22` (2026-09-21).** The pins in this guide were reset
 > from the 0.1.3 era, when the namespace was `ghcr.io/pacgate-ai/*`. The release
-> authority is now **`ghcr.io/jzkk720/*`** and every pin is `0.1.14`.
+> authority is now **`ghcr.io/jzkk720/*`** and every pin is `0.1.19`, derived
+> from `pacgate-ai/Cargo.toml` rather than hand-typed. Confirm the current value
+> before using this guide; `scripts/bump-release-version.ps1` keeps the four pin
+> surfaces consistent.
 >
 > One pin had genuinely rotted: `deer-flow-frontend-pacgate:0.1.0` returns **404**
 > to an anonymous pull, so an engineer copying the old compose example would have
@@ -53,7 +56,7 @@ This document describes the target client runtime bundle. It does not reflect th
 cd c:\Users\cubecloud-io\github-pr\pacgate-ai-pr
 
 # Build the Rust binary in Docker (multi-stage)
-docker build -t ghcr.io/jzkk720/pacgate-api:0.1.14 `
+docker build -t ghcr.io/jzkk720/pacgate-api:0.1.22 `
   -f pacgate-ai/Dockerfile `
   ./pacgate-ai
 ```
@@ -68,18 +71,20 @@ produces the `pacgate-server` binary.
 ```powershell
 # Create the wrapper Dockerfile
 # deploy/deer-flow-pacgate/Dockerfile:
-#   FROM ghcr.io/bytedance/deer-flow-backend:2.1.0
+#   FROM ghcr.io/bytedance/deer-flow-backend@sha256:e7c503a803c99a039e08da61359932877a9e0d0196799429698244117338af13
 #   COPY pacgate-adapters/python /app/adapters
 #   RUN pip install --no-cache-dir /app/adapters
-#   # Install the Pacgate adapter package, then opt in from DeerFlow config.yaml:
+#   # Install the Pacgate adapter package, then opt in from DeerFlow config.yaml.
+#   # NOTE: this is the v2.0.0 schema we currently run. Upstream 2.1.0 replaces
+#   # memory.storage_class with memory.manager_class + memory.backend_config and
+#   # moves the base class; see deploy/MULTI-USER-ARCHITECTURE-PLAN.md and
+#   # plans/023-deer-flow-2.1-upgrade.md before changing this.
 #   # memory:
-#   #   manager_class: deermem
-#   #   backend_config:
-#   #     storage_class: pacgate_deerflow_adapter.storage:PacgateMemoryStorage
+#   #   storage_class: pacgate_deerflow_adapter.storage.PacgateMemoryStorage
 #   ENV PACGATE_API_URL=http://pacgate-api:8080
 #   CMD ["sh", "-c", "cd backend && PYTHONPATH=. uv run --no-sync uvicorn app.gateway.app:app --host 0.0.0.0 --port 8001"]
 
-docker build -t ghcr.io/jzkk720/deer-flow-pacgate:0.1.14 `
+docker build -t ghcr.io/jzkk720/deer-flow-pacgate:0.1.22 `
   -f deploy/deer-flow-pacgate/Dockerfile `
   .
 ```
@@ -96,12 +101,14 @@ script in the client bundle for first-run bootstrap. There is no
 namespace.
 
 ```powershell
-# deploy/qm-pacgate/Dockerfile:
-#   FROM ghcr.io/yc-software/qm/core:latest
-#   COPY pacgate-adapters/typescript /app/adapters
-#   ENV PACGATE_API_URL=http://pacgate-api:8080
-#   ENV PACGATE_TENANT_ID=default-firm
-#   CMD ["node", "src/index.ts"]
+# There is NO wrapper Dockerfile for qm. qm runs from the PUBLISHED upstream
+# images pinned by digest in deploy/qm-pacgate/qm.config.jsonc / compose.qm.yaml
+# (ghcr.io/yc-software/qm/{core,web-ui,portal,auth,admin}). The Pacgate side is
+# not an image: it is the sandbox layer (deploy/qm-pacgate/sandbox/{skills,tools})
+# mounted in at /layer. See QM-BRINGUP-RUNBOOK.md for the compose bring-up.
+#
+# The pacgate-adapters/typescript package is consumed by the sandbox tool, not
+# by a qm image.
 ```
 
 ### 1.4 Push to GHCR
@@ -110,11 +117,13 @@ namespace.
 # Login (first time only)
 echo $env:GHCR_TOKEN | docker login ghcr.io -u pacgate-ai --password-stdin
 
-# Push the images (qm runs via qm up, not as a Docker image)
-docker push ghcr.io/jzkk720/pacgate-api:0.1.14
-docker push ghcr.io/jzkk720/pacgate-mcp:0.1.14
-docker push ghcr.io/jzkk720/deer-flow-pacgate:0.1.14
-docker push ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.14
+# Push the images (qm runs via docker compose, not as a Docker image)
+# Version comes from pacgate-ai/Cargo.toml (currently 0.1.19) - do not hand-type it;
+# scripts/bump-release-version.ps1 updates all four pin surfaces together.
+docker push ghcr.io/jzkk720/pacgate-api:<version>
+docker push ghcr.io/jzkk720/pacgate-mcp:<version>
+docker push ghcr.io/jzkk720/deer-flow-pacgate:<version>
+docker push ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.22
 ```
 
 ## Part 2: Prepare the client bundle
@@ -150,7 +159,7 @@ services:
     restart: unless-stopped
 
   pacgate-api:
-    image: ghcr.io/jzkk720/pacgate-api:0.1.14
+    image: ghcr.io/jzkk720/pacgate-api:0.1.22
     container_name: pacgate-api
     depends_on: [pacgate-db]
     environment:
@@ -164,7 +173,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/jzkk720/deer-flow-pacgate:0.1.14
+    image: ghcr.io/jzkk720/deer-flow-pacgate:0.1.22
     container_name: deer-flow
     depends_on: [pacgate-api]
     environment:
@@ -179,7 +188,7 @@ services:
     # NOTE: this image does not exist and was never published. qm runs via
     # `qm up` from deploy/qm-pacgate/ (see §1.3 above), NOT as a compose service.
     # This stanza is retained only to document the abandoned approach.
-    image: ghcr.io/jzkk720/qm-pacgate:0.1.0
+    image: ghcr.io/jzkk720/qm-pacgate:0.1.22
     container_name: qm
     depends_on: [pacgate-api]
     environment:
@@ -359,31 +368,15 @@ Write-Host "  .\install.ps1 -Update                            (update to new ve
 
 ```text
 # Pacgate-ai required Ollama models
-# Pulled automatically by install.ps1 on first run (non-# lines only).
-# Verified against the live AIPC `ollama list` on 2026-09-20.
+# Pull these before starting the stack:
+#   ollama pull nemotron3:33b
+#   ollama pull qwen3.6:27b
+#   ollama pull qwen3.5:9b
 
-# Local research + workflow tier models
-gemma4:12b-it-q8_0
-
-# RAG embeddings (required, no alternative)
-nomic-embed-text:latest
-
-# Alternative local models (selectable, not the default)
-ornith-1.5:9b
-ornith-1.5:35b
-nemotron-3.5-lightning:30b-a3b
-gemma4:26b-a4b-it-q8_0
-
-# Cloud-routed models (require `ollama signin`; no weight layers on disk)
-deepseek-v4.1-flash:cloud
-deepseek-v4-pro:cloud
-glm-5.3-flash:cloud
+nemotron3:33b
+qwen3.6:27b
+qwen3.5:9b
 ```
-
-> **Note:** an earlier revision of this file listed `nemotron3:33b`,
-> `qwen3.6:27b`, and `qwen3.5:9b` — none of which exist in the registry. A
-> fresh install would have failed on all three. The list above is the
-> verified set.
 
 ## Part 3: Deploy to client AI PC
 
@@ -454,15 +447,23 @@ cd C:\pacgate
 
 ```powershell
 # 1. Update wrapper Dockerfile FROM lines
-#    deploy/deer-flow-pacgate/Dockerfile: FROM ghcr.io/bytedance/deer-flow-backend:2.2.0
-#    deploy/qm-pacgate/Dockerfile: FROM ghcr.io/yc-software/qm/core:latest
-
+#    deploy/deer-flow-pacgate/Dockerfile: FROM ghcr.io/bytedance/deer-flow-backend@sha256:<new-digest>
+#    (pin the DIGEST, not a tag - the base image is currently pinned by digest.
+#     Check what tags exist before using one: `docker buildx imagetools inspect`.
+#     Note `2.1.0` / `v2.1.0` / `v2.2.0` do NOT exist as of 2026-09-21; only
+#     v2.0.0 and v2.1.0-rc0 do. There is no deploy/qm-pacgate/Dockerfile in this
+#     repo - qm runs from published upstream images via qm.config.jsonc.)
+#
 # 2. Rebuild + push
-docker build -t ghcr.io/jzkk720/deer-flow-pacgate:0.1.15 -f deploy/deer-flow-pacgate/Dockerfile .
-docker push ghcr.io/jzkk720/deer-flow-pacgate:0.1.15
+#    (use the version from pacgate-ai/Cargo.toml - currently 0.1.19 - rather than
+#     hand-typing it; scripts/bump-release-version.ps1 derives it from the pins)
+docker build -t ghcr.io/jzkk720/deer-flow-pacgate:<version> -f deploy/deer-flow-pacgate/Dockerfile .
+docker push ghcr.io/jzkk720/deer-flow-pacgate:<version>
 
-# 3. Update compose.prod.yaml version pins
-#    image: ghcr.io/jzkk720/deer-flow-pacgate:0.1.15
+# 3. Update compose.prod.yaml version pins (and Cargo.toml/Cargo.lock;
+#    scripts/bump-release-version.ps1 does all four surfaces and refuses to
+#    finish if the pins moved but Cargo.toml did not)
+#    image: ghcr.io/jzkk720/deer-flow-pacgate:0.1.22
 
 # 4. Ship new bundle to client (or just the updated compose.prod.yaml)
 # 5. Client runs: .\install.ps1 -Update
@@ -595,6 +596,8 @@ python -m graphify cluster-only pacgate-ai/crates --backend ollama
 
 ### Output
 
+The generator writes to `pacgate-ai/crates/graphify-out/` (gitignored):
+
 ```
 pacgate-ai/crates/graphify-out/
 ├── graph.json          ← knowledge graph (nodes, edges, communities, layers, tour)
@@ -603,6 +606,11 @@ pacgate-ai/crates/graphify-out/
 ├── manifest.json       ← corpus manifest
 └── cache/              ← extraction cache (for incremental updates)
 ```
+
+> **Retired copies.** `deploy/graph.html`, `deploy/GRAPH_REPORT.md`,
+> `deploy/graphify-graph.json` and `deploy/knowledge-graph.json` were a stale
+> 2026-08-28 output snapshot committed at the `deploy/` root. They are not read
+> by any tool and are now in `deploy/archive/`. Regenerate rather than reuse them.
 
 ### Incremental updates
 

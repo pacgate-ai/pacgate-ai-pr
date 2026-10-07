@@ -97,7 +97,9 @@ fn collect_text_files(dir: &Path) -> Vec<PathBuf> {
                     .map(|e| e.eq_ignore_ascii_case("md") || e.eq_ignore_ascii_case("txt"))
                     .unwrap_or(false);
                 let excluded = EXCLUDE_FILENAMES.iter().any(|x| name == *x)
-                    || EXCLUDE_SUFFIXES.iter().any(|s| name.to_lowercase().ends_with(s));
+                    || EXCLUDE_SUFFIXES
+                        .iter()
+                        .any(|s| name.to_lowercase().ends_with(s));
                 if is_text && !excluded {
                     out.push(path);
                 }
@@ -155,7 +157,9 @@ async fn main() -> anyhow::Result<()> {
             t
         }
         Err(_) => {
-            let t = tenant_store.create(&opts.tenant_name, &opts.tenant_slug).await?;
+            let t = tenant_store
+                .create(&opts.tenant_name, &opts.tenant_slug)
+                .await?;
             tracing::info!("created tenant {}", t.slug);
             t
         }
@@ -172,6 +176,18 @@ async fn main() -> anyhow::Result<()> {
             "seed@pacgate.local",
             "seed-password-123",
             "admin",
+            // NOT a platform admin. `system_role` is deliberately "user".
+            //
+            // This account has a COMPILED-IN password (`seed-password-123`) and
+            // `pacgate-seed` is built into the published image, so granting it
+            // admin would mean any deployment where the seeder runs has a
+            // known-password principal able to call POST /api/auth/users and mint
+            // further accounts. The within-tenant `role` of "admin" is kept
+            // because the seed owns the rows it creates and needs the same
+            // restore authority those rows' ACLs assume (sanitize.rs
+            // role_may_restore accepts admin|partner) - but that is a TENANT
+            // scope, and it is not the platform role that gates provisioning.
+            "user",
             Some("Seed Service Account"),
         )
         .await
@@ -218,13 +234,15 @@ async fn main() -> anyhow::Result<()> {
 
     if opts.purge {
         // Delete all documents for the matter (cascades to kb_chunks).
-        let docs = doc_store
-            .list_for_matter(&matter.id)
-            .await?;
+        let docs = doc_store.list_for_matter(&matter.id).await?;
         for doc in &docs {
             doc_store.delete_document_family(&doc.id).await?;
         }
-        tracing::info!("purged {} document(s) for matter {}", docs.len(), matter.name);
+        tracing::info!(
+            "purged {} document(s) for matter {}",
+            docs.len(),
+            matter.name
+        );
         return Ok(());
     }
 
@@ -237,7 +255,11 @@ async fn main() -> anyhow::Result<()> {
     let embed_svc = pacgate_rag::EmbeddingService::with_defaults();
     let ingestor = ChunkIngestor::new(pool.clone(), embed_svc);
     let files = collect_text_files(&opts.assets_dir);
-    tracing::info!("found {} text file(s) in {}", files.len(), opts.assets_dir.display());
+    tracing::info!(
+        "found {} text file(s) in {}",
+        files.len(),
+        opts.assets_dir.display()
+    );
 
     let mut total_chunks = 0u32;
     let mut ingested = 0u32;

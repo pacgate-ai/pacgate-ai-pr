@@ -49,6 +49,18 @@ async fn main() -> anyhow::Result<()> {
         ocr_service_url: std::env::var("OCR_SERVICE_URL").ok().filter(|s| !s.is_empty()),
         ner_model_dir: std::env::var("PACGATE_NER_MODEL_DIR").ok().filter(|s| !s.is_empty()),
         workflows_dir,
+        // Unauthenticated account creation. Compose ships PACGATE_ALLOW_REGISTRATION=false
+        // to clients (this closed a real exposure - see auth.rs). The parse is
+        // permissive in the SAFE direction: anything other than an explicit
+        // true/1/yes leaves registration disabled, so a typo cannot re-open it.
+        allow_registration: matches!(
+            std::env::var("PACGATE_ALLOW_REGISTRATION")
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase()
+                .as_str(),
+            "true" | "1" | "yes"
+        ),
     });
 
     // Create Postgres connection pool
@@ -85,8 +97,23 @@ async fn main() -> anyhow::Result<()> {
         pool.clone(),
     ));
 
-    // Create LLM router with default local config, honoring OLLAMA_BASE_URL
-    let model_configs = pacgate_core::ModelConfig::default_local_with_base_url(&ollama_url);
+    // Create LLM router with default local config, honoring OLLAMA_BASE_URL and
+    // the per-tier model overrides (PACGATE_MODEL_MAIN / _MID / _LOW).
+    //
+    // The tier tags are read from the environment because the model roster is a
+    // property of the machine, not of this binary. Hardcoding them meant the
+    // source and the AIPC disagreed the moment either one changed, and a tag no
+    // local Ollama serves returns HTTP 404 with no fallback — so one stale pin
+    // failed every `/api/workflows/:id/execute` at once.
+    let model_configs = pacgate_core::ModelConfig::from_env(&ollama_url);
+    tracing::info!(
+        "LLM tiers: {}",
+        model_configs
+            .iter()
+            .map(|c| format!("{:?}={}", c.tier, c.model_name))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
     let api_keys = std::collections::HashMap::new();
     let router = Arc::new(LlmRouter::new(model_configs, api_keys));
 
@@ -227,6 +254,12 @@ async fn main() -> anyhow::Result<()> {
         rag,
         embedding: embed_svc,
         db: pool,
+        // Admission control for the NER detector allocation. Built once and
+        // shared by every request through the Arc in AppState. See
+        // SANITIZE_MAX_CONCURRENT for the arithmetic behind the count.
+        sanitize_slots: Arc::new(tokio::sync::Semaphore::new(
+            pacgate_api::SANITIZE_MAX_CONCURRENT,
+        )),
     };
 
     // Build and start the Axum server

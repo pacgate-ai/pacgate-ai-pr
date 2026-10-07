@@ -59,27 +59,34 @@ graph TB
 ```powershell
 cd c:\Users\cubecloud-io\github-pr\pacgate-ai-pr
 
+# 命名空间/版本于 2026-09-22 更正：发布位置为 ghcr.io/jzkk720，版本 0.1.19。
+# 旧写法使用 pacgate-ai 的 0.1.3，且前端推送的 0.1.0 标签从未创建，该推送只能失败。
+
 # 构建 pacgate-api（Rust 1.94 多阶段）
-docker build -t ghcr.io/pacgate-ai/pacgate-api:0.1.3 -f pacgate-ai/Dockerfile ./pacgate-ai
+docker build -t ghcr.io/jzkk720/pacgate-api:0.1.22 -f pacgate-ai/Dockerfile ./pacgate-ai
 
 # 构建 pacgate-mcp 桥接镜像
-docker build -t ghcr.io/pacgate-ai/pacgate-mcp:0.1.3 -f deploy/pacgate-mcp/Dockerfile ./deploy/pacgate-mcp
+docker build -t ghcr.io/jzkk720/pacgate-mcp:0.1.22 -f deploy/pacgate-mcp/Dockerfile ./deploy/pacgate-mcp
 
 # 构建 deer-flow 包装镜像
-docker build -t ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3 -f deploy/deer-flow-pacgate/Dockerfile .
+docker build -t ghcr.io/jzkk720/deer-flow-pacgate:0.1.22 -f deploy/deer-flow-pacgate/Dockerfile .
+
+# 构建 ocr-service（自 0.1.16 起为一等镜像）
+docker build -t ghcr.io/jzkk720/ocr-service:0.1.22 -f deploy/ocr-service/Dockerfile ./deploy/ocr-service
 
 # 构建 deer-flow 前端（构建时烘焙网关地址）
 .\deploy\build-frontend.ps1 -Push
 
 # 推送
-docker push ghcr.io/pacgate-ai/pacgate-api:0.1.3
-docker push ghcr.io/pacgate-ai/pacgate-mcp:0.1.3
-docker push ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3
-docker push ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0
+docker push ghcr.io/jzkk720/pacgate-api:0.1.22
+docker push ghcr.io/jzkk720/pacgate-mcp:0.1.22
+docker push ghcr.io/jzkk720/deer-flow-pacgate:0.1.22
+docker push ghcr.io/jzkk720/ocr-service:0.1.22
+docker push ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.22
 
 # 验证可拉取
-docker pull ghcr.io/pacgate-ai/pacgate-api:0.1.3
-docker pull ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3
+docker pull ghcr.io/jzkk720/pacgate-api:0.1.22
+docker pull ghcr.io/jzkk720/deer-flow-pacgate:0.1.22
 ```
 
 注意：qm 没有 Docker 镜像，它通过 `deploy/qm-pacgate/` 目录里的 `qm up` 独立运行。
@@ -132,8 +139,8 @@ npm exec qm -- sandbox build  # 必须成功构建
 ### 3.2 拉取 Ollama 模型
 
 ```powershell
-ollama pull gemma4:12b-it-q8_0
-ollama pull deepseek-v4.1-flash:cloud
+ollama pull deepseek-v4-flash:0731-cloud
+ollama pull deepseek-v4-pro:0813-cloud
 ollama pull nomic-embed-text:latest
 ollama list   # 验证
 ```
@@ -372,10 +379,11 @@ docker compose -f compose.prod.yaml logs deer-flow  # 查看日志
 
 | 镜像 | 内容 | 基础镜像 |
 |---|---|---|
-| `ghcr.io/pacgate-ai/pacgate-api:0.1.3` | Rust 二进制（pacgate-server）+ SQL migrations | `rust:1.94-bookworm` → `debian:bookworm-slim` |
-| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3` | deer-flow 后端 + Python 适配器（176 行） | `ghcr.io/bytedance/deer-flow-backend`（固定 SHA） |
-| `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` | pacgate-api MCP 桥接（10 个工具） | `python:3.12-slim` |
-| `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` | deer-flow Next.js 检索界面 | `node:22-alpine` |
+| `ghcr.io/jzkk720/pacgate-api:0.1.22` | Rust 二进制（pacgate-server）+ SQL migrations | `rust:1.94-bookworm` → `debian:bookworm-slim` |
+| `ghcr.io/jzkk720/deer-flow-pacgate:0.1.22` | deer-flow 后端 + Python 适配器（176 行） | `ghcr.io/bytedance/deer-flow-backend`（固定 SHA） |
+| `ghcr.io/jzkk720/pacgate-mcp:0.1.22` | pacgate-api MCP 桥接（10 个工具） | `python:3.12-slim` |
+| `ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.22` | deer-flow Next.js 检索界面 | `node:22-alpine` |
+| `ghcr.io/jzkk720/ocr-service:0.1.22` | PaddleOCR 抽取服务 | `python:3.12-slim` |
 
 ### 8.2 数据流
 

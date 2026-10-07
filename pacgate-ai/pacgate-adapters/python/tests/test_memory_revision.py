@@ -6,11 +6,33 @@ runnable with plain unittest:
     python -m unittest discover -s pacgate-adapters/python/tests -v
 """
 
+import importlib.util
 import sys
 import types
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+# The adapter imports httpx (client.py). The suite is stdlib-only by design,
+# so stub httpx like deerflow: every call the tests make goes through
+# unittest.mock.patch on the storage/client objects, never through a real
+# HTTP client, and production runs inside the deer-flow image where the real
+# module exists.
+if importlib.util.find_spec("httpx") is None:
+    _httpx_stub = types.ModuleType("httpx")
+    _httpx_stub.HTTPError = type("HTTPError", (Exception,), {})
+    _httpx_stub.Response = type("Response", (), {})
+    _httpx_stub.Client = type(
+        "Client",
+        (),
+        {
+            "__init__": lambda self, *a, **k: None,
+            "get": lambda self, *a, **k: MagicMock(),
+            "post": lambda self, *a, **k: MagicMock(),
+            "delete": lambda self, *a, **k: MagicMock(),
+        },
+    )
+    sys.modules.setdefault("httpx", _httpx_stub)
 
 # The adapter imports deerflow, which is a dependency of the deer-flow runtime,
 # not of this repo's venv. Stub it before import so the storage class's
@@ -42,6 +64,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pacgate_deerflow_adapter.storage import (  # noqa: E402
     MatterMemoryConflict,
+    MatterMemoryOutOfScope,
     PacgateMemoryStorage,
 )
 
@@ -126,6 +149,34 @@ class RevisionTrackingTests(unittest.TestCase):
             storage.save({"facts": []})
 
         self.assertIsNone(storage._revision)
+
+    def test_a_422_raises_out_of_scope_and_is_distinct_from_a_conflict(self):
+        # The two must NOT be collapsed: a 409 means "reload and retry", a 422
+        # means "this content can never be accepted". A caller that treated them
+        # alike would spin retrying a payload the server will always refuse.
+        storage = self._storage()
+        response = MagicMock()
+        response.status_code = 422
+        response.text = "memory may hold process, not matter facts"
+        storage.client.post.return_value = response
+
+        with self.assertRaises(MatterMemoryOutOfScope):
+            storage.save({"facts": [{"content": "Client ID 11010519491231002X"}]})
+
+    def test_an_out_of_scope_write_does_not_clear_the_revision(self):
+        # Unlike a conflict, the revision is still valid - the refusal was about
+        # CONTENT. Clearing it would force a pointless reload on the next write.
+        storage = self._storage()
+        storage._revision = 4
+        response = MagicMock()
+        response.status_code = 422
+        response.text = "out of scope"
+        storage.client.post.return_value = response
+
+        with self.assertRaises(MatterMemoryOutOfScope):
+            storage.save({"facts": []})
+
+        self.assertEqual(storage._revision, 4)
 
 
 if __name__ == "__main__":

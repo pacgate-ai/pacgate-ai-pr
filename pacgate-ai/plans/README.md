@@ -37,6 +37,9 @@ delivery **and** release engineering.
 | 020 | Sanitize jobs, vault, gates, MCP tools | P1 | **DONE** — job API + restore + download gate + MCP tools (2026-09-19) |
 | 021 | Sanitizer agent + review panel | P1 | **DONE** — SOUL + provisioning + review panel in agent chat (2026-09-19) |
 | 022 | Review panel redesign (document identity + job outcome) | P2 | **DONE** — DESIGN.md + doc-identity panel + job outcome via thread metadata (2026-09-19) |
+| 023 | deer-flow 2.1 upgrade (prepare now, execute at GA) | P2 | **PREP IN PROGRESS** — patch stack inventoried (386 lines our delta vs 7,153 upstream); blocked on upstream `v2.1.0` GA. Evidence: `deploy/DEER-FLOW-UPSTREAM-DRIFT-ASSESSMENT-2026-09-21.md` |
+| 024 | v0.1.22 structure audit + full-stack deployment readiness (api+mcp, deer-flow, qm, OpenViking memory lane) | P1 | **EXECUTED 2026-10-04** — core stack UP, smoke 17 pass/0 fail, all gates green, OpenViking round-trip + persistence proven; verdict: GO for core stack (after pwsh 7 prereq doc), NO-GO for qm (sandbox defect + base-image pull failures). See verdict section. **RE-AUDITED 2026-10-04 after upstream re-sync (`17a0ba6`):** sandbox image acquired, qm brought up, full magic-link auth E2E proven (allowlist negative + link delivery + redemption), smoke 18/0, all gates green, nomic-embed pulled. qm auth/web now GO; sandbox launch mechanism remains the sole qm blocker. See re-audit addendum. **+ADDENDUM 2 (2026-10-04):** markitdown (deer-flow 0.1.5 / mcp 0.1.8 + all 4 extras), officecli 1.0.149 (mcp mode), pandoc, OCR gate 7/7, text-native sanitize 59/59, sanitizer E2E 16/17 (1 harness-side seed/register interaction, root-caused) — all document tooling lanes functional. **+ADDENDUM 3 (2026-10-05):** sandbox launch mechanism WIRED + first-ever sandbox E2E passed — see plan 025; qm lane fully GO pending the sandbox-image CRLF rebuild |
+| 025 | Wire the qm sandbox launch mechanism (docker backend inside the core) | P1 | **EXECUTED 2026-10-05** — static docker CLI vendored + socket mounted (first in repo, gid-0 grant measured), sandbox container booted through the core for the first time, bridge tool → live pacgate-api round trip proven; found + fixed the missing qm-bridge account provisioning; CRLF launcher defect (image-baked) diagnosed with fix path. **+SAME-DAY follow-ups executed (`a5a6d41`):** CRLF fixed at source (.gitattributes + Dockerfile strip), sandbox image REBUILT + PUBLISHED (`52e867fc`, anonymous pull re-verified), all 4 digest pins in step, fingerprint recorded + -Check green, bridge auto-provision added to setup-qm.ps1, full native E2E re-proved through the recreated core. Remaining: in-sandbox agent-loop E2E + clean-clone proof |
 
 ### Plan 007 sub-documents
 
@@ -64,18 +67,36 @@ not 007. 007 remains the stage log and Appendix A.
 4. `011-ghcr-master-release.md` — the release itself (DONE: 0.1.12 live).
 5. `007-*` — per-machine delivery history and the model-override SQL.
 
-## End-goal status (2026-09-16)
+## End-goal status (updated 2026-09-21; was written 2026-09-16)
 
 > **Goal:** both AIPCs pick up upstream repo + GHCR updates and run a fully
 > functional runtime with no developer logging into each machine.
 >
-> **Status: NOT MET.** The 0.1.12 release made the *artifacts* correct, but
-> `install.ps1 -Update` cannot deliver them unattended: it never runs `git pull`,
-> the rendered config only refreshes when absent, bind-mounted patch code needs a
-> restart it does not perform, qm is outside the loop, and no staleness marker
-> exists. **9 of 16 bind mounts require a human action.**
+> **Status: CODE-COMPLETE, NOT YET OPERATIONAL — 1 of 2 machines needs the last
+> step.** The 2026-09-16 assessment above is superseded: plan 014 closed the
+> mechanism gaps, and `scripts/audit-aipc-update-coverage.ps1` now reports
+> **11 of 11 components covered by `install.ps1 -Update`, 0 needing a human**
+> (repo fast-forward pull, render-and-compare, explicit `restart deer-flow`,
+> qm runtime re-staging, qm sandbox drift detection, and the `/version`
+> staleness marker all present).
 >
-> Closing this is plan **014**. Evidence: `deploy/AIPC-UPDATE-GAP-ANALYSIS.md`.
+> **What remains is deliberately last: the scheduled task.**
+> `scripts/register-scheduled-update.ps1` is **not registered on either machine**
+> and needs an elevated shell to install. Until it runs, updates still require a
+> human to invoke `install.ps1 -Update` — so the goal is met in *mechanism* but
+> not in *operation*.
+>
+> The original 2026-09-16 defect analysis (below, retained) is still worth
+> reading for the failure modes it documents — especially the PROVEN SILENT LOST
+> UPDATE, which is why step 2 became render-and-compare.
+>
+> > **[SUPERSEDED 2026-09-16 text]** `install.ps1 -Update` cannot deliver them
+> > unattended: it never runs `git pull`, the rendered config only refreshes when
+> > absent, bind-mounted patch code needs a restart it does not perform, qm is
+> > outside the loop, and no staleness marker exists. **9 of 16 bind mounts
+> > require a human action.**
+> >
+> > Closing this is plan **014**. Evidence: `deploy/AIPC-UPDATE-GAP-ANALYSIS.md`.
 
 ## Other plan corpora (not part of this sequence)
 

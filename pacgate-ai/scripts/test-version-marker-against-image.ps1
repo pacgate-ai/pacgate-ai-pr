@@ -24,8 +24,17 @@ param(
     # silently points at an old release would keep passing while proving nothing
     # about what is being shipped.
     [string]$Image = '',
-    # Network to join, so pacgate-db resolves. Defaults to the live stack.
-    [string]$Network = 'client-bundle_default',
+    # Network to join, so pacgate-db resolves.
+    #
+    # Defaults to '' and is DERIVED at runtime from the running stack, not
+    # hardcoded. It was 'client-bundle_default', which is the compose project name
+    # derived from the DIRECTORY - correct only when the repo sits in a folder
+    # literally named `client-bundle`. Any other checkout (a clean-clone proof, a
+    # client machine) runs under a different project name, so the container could
+    # not join the network and the gate failed with "docker run failed" rather
+    # than reporting anything about the version - a misleading failure that looks
+    # like a product fault.
+    [string]$Network = '',
     # Name of an existing container to copy DATABASE_URL from. The value is read
     # at runtime and passed through without ever being printed or written down -
     # guessing a password here would either fail or, worse, put a credential in
@@ -38,7 +47,34 @@ if (-not $Image) {
     $cargo = Get-Content pacgate-ai/Cargo.toml -Raw
     $v = [regex]::Match($cargo, '(?m)^version\s*=\s*"(?<v>\d+\.\d+\.\d+)"').Groups['v'].Value
     if (-not $v) { Write-Host 'ERROR: could not read the workspace version from Cargo.toml' -ForegroundColor Red; exit 1 }
-    $Image = "ghcr.io/pacgate-ai/pacgate-api:$v"
+    # DERIVE the namespace from the compose pins. It was hardcoded as
+    # `ghcr.io/pacgate-ai/...`, which went stale when plan 016 moved publishing to
+    # ghcr.io/jzkk720. A hardcoded registry path makes this test measure the wrong
+    # image the moment the pins move - and it fails as a harness error, which
+    # reads like a product fault. The semver tag in the pattern is what excludes
+    # the digest-pinned third-party image (volcengine/openviking).
+    $ns = [regex]::Match((Get-Content 'deploy/client-bundle/compose.prod.yaml' -Raw),
+          'ghcr\.io/(?<ns>[A-Za-z0-9._-]+)/pacgate-api:\d+\.\d+\.\d+').Groups['ns'].Value
+    if (-not $ns) { Write-Host 'ERROR: could not derive the image namespace from compose.prod.yaml' -ForegroundColor Red; exit 1 }
+    $Image = "ghcr.io/$ns/pacgate-api:$v"
+}
+
+# Derive the network from the RUNNING stack, the same way the namespace above is
+# derived rather than hardcoded. Ask docker which network the live pacgate-api is
+# attached to; that is authoritative regardless of what the directory is called
+# or what COMPOSE_PROJECT_NAME was set to. Fall back to the directory-derived
+# name only if the stack is not up (the caller will then get a clear failure).
+if (-not $Network) {
+    $derived = (& docker inspect pacgate-api --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' 2>$null |
+        Where-Object { $_ } | Select-Object -First 1)
+    if ($derived) {
+        $Network = $derived.Trim()
+        Write-Host "  network derived from the live stack: $Network" -ForegroundColor DarkGray
+    }
+    else {
+        $Network = 'client-bundle_default'
+        Write-Host "  [WARN] no running pacgate-api to derive the network from; assuming $Network" -ForegroundColor Yellow
+    }
 }
 
 $ErrorActionPreference = 'Stop'
@@ -112,10 +148,25 @@ try {
     # Addresses the test container by NAME: Docker's embedded DNS resolves
     # container names on a user-defined network, and the name is stable whereas
     # the IP is not.
-    $code = (& docker run --rm --network $Network curlimages/curl:latest `
+    #
+    # TAKE THE LAST LINE, not the whole blob. `2>&1` merges Docker's stderr into
+    # the capture, and on a COLD CLIENT IMAGE that includes the entire pull
+    # progress ("Unable to find image ... locally", layer lines, "Status:
+    # Downloaded ..."). The real status code is printed last, so the previous
+    # `$code -eq '200'` compared a multi-line blob against '200', failed, and
+    # reported "server never became ready" on a server that had already logged
+    # `Listening on http://0.0.0.0:8080` and was answering 200. Observed
+    # 2026-09-21; it passed on every run after the image was cached, which is
+    # exactly the signature of a first-run-only defect.
+    #
+    # A readiness probe must extract the STATUS, never the transport chatter:
+    # otherwise it measures its own output instead of the target's state.
+    $code = (@(& docker run --rm --network $Network curlimages/curl:latest `
             -s -o /dev/null -w '%{http_code}' `
             --retry 40 --retry-delay 1 --retry-connrefused --max-time 3 `
-            "http://${ctr}:8080/health" 2>&1 | Out-String).Trim()
+            "http://${ctr}:8080/health" 2>&1) | Out-String).Trim() -split "`r?`n" |
+            Where-Object { $_.Trim() } | Select-Object -Last 1
+    $code = $code.Trim()
     $ready = $code -eq '200'
 
     # NOTE: no `return` here on purpose. `return` inside this try block exits the

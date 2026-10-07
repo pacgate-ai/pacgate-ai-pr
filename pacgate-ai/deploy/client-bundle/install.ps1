@@ -15,6 +15,29 @@ param(
 $ErrorActionPreference = "Stop"
 $DataDir = ".\data"
 
+# Resolve the PowerShell to run the two qm helper scripts with. pwsh 7 is
+# PREFERRED (this dev box and the docs assume it), but a client AIPC is not
+# guaranteed to have it and forcing an install just to stage qm was the wrong
+# trade: all three scripts involved parse and run clean under built-in
+# PowerShell 5.1 (verified with the language parser + the Out-File BOM fix in
+# setup-qm.ps1). Fall back to whatever the host is already running.
+#
+# Get-Command pwsh also finds the WindowsApps ALIAS on a machine where PS7 is
+# not actually installed; invoking that alias silently opens the Store. A
+# version check cannot distinguish (a Store-installed PS7 reports 0.0.0.0
+# through the alias), so the discriminator is the install shape itself: only a
+# pwsh OUTSIDE WindowsApps is trusted; anything else falls back - and the
+# fallback is verified-compatible, so a mis-detected PS7 costs nothing but the
+# shell it would have used.
+function Get-QmPowerShell {
+    $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue |
+        Where-Object { $_.Source -notlike '*\WindowsApps\*' } |
+        Select-Object -First 1
+    if ($pwsh) { return 'pwsh' }
+    return 'powershell'
+}
+$QmPowerShell = Get-QmPowerShell
+
 Write-Host "=== Pacgate-ai Installer ===" -ForegroundColor Cyan
 
 # 1. Check Docker
@@ -477,10 +500,337 @@ Write-Host "`nPulling Docker images..." -ForegroundColor Cyan
 docker compose -f compose.prod.yaml pull
 Write-Host "[OK] Images pulled" -ForegroundColor Green
 
+# 6b. Provision the matter that deer-flow's memory adapter is scoped to.
+#
+# WHY THIS EXISTS, and why it runs BEFORE the stack starts.
+#
+# deer-flow selects its memory storage by class path and wraps the instantiation
+# in a bare `except Exception` that substitutes its own FileMemoryStorage. The
+# trip-wire is a missing PACGATE_MATTER_ID: the adapter raises on it, and that
+# exact raise is what the fallback catches. FileMemoryStorage never calls
+# pacgate-api, so it bypasses all three matter-memory guards (the 422 scope rule,
+# the 64 KiB cap, and the If-Match revision guard) - each enforced server-side.
+#
+# So a blank matter id does NOT mean "no memory". It means UNSANITIZED memory,
+# written to disk, with nothing reporting it as wrong. That happened here on
+# 2026-09-19/20 and was only found by reading the files.
+#
+# Ordering matters as much as the value. Running this before `up -d` means
+# deer-flow never starts without a real matter, so the fallback window is zero
+# rather than "briefly, on first boot".
+function Invoke-MatterProvision {
+    param([string]$BaseUrl)
+
+    # Read from $envVars, NOT $env:.
+    #
+    # install.ps1 parses .env into a local $envVars HASHTABLE (step 4b) and never
+    # populates the process environment. The first version of this function read
+    # $env:PACGATE_API_EMAIL, which is therefore ALWAYS empty inside the
+    # installer - so the credential guard below was false, login was never even
+    # attempted, and it reported "Could not authenticate" while the credentials
+    # were sitting in .env and worked perfectly by hand. The failure looked like
+    # a server fault; it was a wrong variable scope.
+    $apiEmail    = if ($envVars.ContainsKey('PACGATE_API_EMAIL'))    { $envVars['PACGATE_API_EMAIL'] }    else { '' }
+    $apiPassword = if ($envVars.ContainsKey('PACGATE_API_PASSWORD')) { $envVars['PACGATE_API_PASSWORD'] } else { '' }
+    $existing    = if ($envVars.ContainsKey('PACGATE_MATTER_ID'))    { $envVars['PACGATE_MATTER_ID'] }    else { '' }
+
+    # PACGATE_MATTER_ID may already name a real matter (a re-run, or an operator
+    # who set it deliberately). Verify before creating a duplicate.
+    $H = $null
+    if ($apiEmail -and $apiPassword) {
+        # RETRY, because /version answering is not the same as being ready to
+        # authenticate. The first version polled /version for readiness and then
+        # tried login exactly ONCE, which failed on the first real E2E run: the
+        # container had just been recreated, nginx answered, and the API was
+        # still applying migrations (they are applied at startup and logged
+        # AFTER the listener binds). A single attempt turned a transient race
+        # into a permanent "could not authenticate", and provisioning was
+        # skipped - leaving the placeholder in place, which is the exact state
+        # this whole step exists to prevent.
+        #
+        # 30 attempts x 4s = 120s, comfortably past the observed startup, and it
+        # exits the moment one succeeds rather than always sleeping.
+        $attempts = 30
+        for ($i = 1; $i -le $attempts; $i++) {
+            foreach ($p in @("$BaseUrl/api/auth/login", "$BaseUrl/auth/login")) {
+                try {
+                    $body = @{ email = $apiEmail; password = $apiPassword } | ConvertTo-Json -Compress
+                    $login = Invoke-RestMethod -Uri $p -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 20
+                    if ($login.token) { $H = @{ Authorization = "Bearer $($login.token)" }; break }
+                } catch { }
+            }
+            if ($H) { break }
+            if ($i -lt $attempts) { Start-Sleep -Seconds 4 }
+        }
+    }
+
+    if (-not $H) {
+        # Do not silently continue: an unauthenticated run cannot provision, and
+        # continuing would leave the blank value in place - the exact state this
+        # step exists to prevent.
+        Write-Host "  [WARN] Could not authenticate to the API, so no matter could be provisioned." -ForegroundColor Yellow
+        Write-Host "         deer-flow will refuse to start its memory adapter and fall back to" -ForegroundColor Yellow
+        Write-Host "         writing UNSANITIZED memory to disk. Set PACGATE_MATTER_ID in .env to" -ForegroundColor Yellow
+        Write-Host "         a real matter id, or fix the API credentials, then re-run." -ForegroundColor Yellow
+        return $false
+    }
+
+    if ($existing -and $existing.Trim().Length -gt 0) {
+        try {
+            $null = Invoke-RestMethod -Uri "$BaseUrl/api/matters/$existing" -Headers $H -TimeoutSec 20
+            Write-Host "  [OK] PACGATE_MATTER_ID already names a real matter ($existing)" -ForegroundColor Green
+            return $true
+        } catch {
+            Write-Host "  [WARN] PACGATE_MATTER_ID=$existing does not resolve to a matter the API knows." -ForegroundColor Yellow
+            Write-Host "         Provisioning a real one instead." -ForegroundColor Yellow
+        }
+    }
+
+    try {
+        $matter = Invoke-RestMethod -Uri "$BaseUrl/api/matters" -Method Post -Headers $H -TimeoutSec 20 `
+            -ContentType 'application/json' `
+            -Body (@{ name = 'default'; description = 'Default matter for this deployment (created by install.ps1)' } | ConvertTo-Json -Compress)
+    } catch {
+        Write-Host "  [WARN] matter create failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        return $false
+    }
+    if (-not $matter.id) {
+        Write-Host "  [WARN] matter create returned no id" -ForegroundColor Yellow
+        return $false
+    }
+
+    # Write it into .env so every subsequent compose run resolves the real id.
+    # Rewrite in place: preserve every other line, including comments and secrets.
+    $envPath = Join-Path (Get-Location) '.env'
+    $lines = Get-Content $envPath
+    $found = $false
+    $out = foreach ($line in $lines) {
+        if ($line -match '^\s*PACGATE_MATTER_ID\s*=') {
+            $found = $true
+            "PACGATE_MATTER_ID=$($matter.id)"
+        } else { $line }
+    }
+    if (-not $found) { $out += "PACGATE_MATTER_ID=$($matter.id)" }
+    # No BOM: docker compose chokes on a BOM in .env, and Set-Content adds one by
+    # default on Windows PowerShell.
+    [System.IO.File]::WriteAllLines($envPath, $out, [System.Text.UTF8Encoding]::new($false))
+
+    # Update BOTH the local map and the process env. The map is what the rest of
+    # this script reads from (step 4b parses .env once); the process env is what
+    # docker compose inherits for its `${PACGATE_MATTER_ID}` substitution in this
+    # same run, so the deer-flow container starts with the value rather than
+    # needing a recreate afterwards.
+    $envVars['PACGATE_MATTER_ID'] = $matter.id
+    $env:PACGATE_MATTER_ID = $matter.id
+    Write-Host "  [OK] Provisioned matter $($matter.id) and wrote it to .env" -ForegroundColor Green
+
+    # Prove it. A write that is merely attempted is not a write that works, and
+    # this whole file exists because "looks configured" hid a broken lane.
+    try {
+        $probe = Invoke-RestMethod -Uri "$BaseUrl/api/matters/$($matter.id)/memory" -Headers $H -TimeoutSec 20
+        Write-Host "  [OK] memory endpoint reachable (revision $($probe.revision))" -ForegroundColor Green
+    } catch {
+        Write-Host "  [WARN] the matter exists but its memory endpoint did not answer: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    return $true
+}
+
+# 6a. Bootstrap the default tenant and the admin user.
+#
+# WHY THIS IS HERE, and why it runs BEFORE provisioning.
+#
+# Nothing used to do this. A fresh install finished with ZERO users, so:
+#   * login returned 401
+#   * matter provisioning could not authenticate and was skipped
+#   * deer-flow then started with a BLANK PACGATE_MATTER_ID, its adapter raised,
+#     and get_memory_storage() silently substituted FileMemoryStorage
+#   * ...which writes UNSANITIZED matter prose to disk, outside all three
+#     matter-memory guards
+#
+# So "no admin" was not a cosmetic gap - it was the first link in the chain that
+# ends with unredacted client text on disk. Found by the clean-clone proof,
+# because the dev box already had an admin and could never show it.
+#
+# Two details are load-bearing and both were wrong in the handbook:
+#
+#  1. The tenant slug MUST equal PACGATE_DEFAULT_TENANT (default "default-firm").
+#     The handbook inserts slug='pacgate-law', which does not match the lookup in
+#     auth.rs (`get_by_slug(&state.config.default_tenant)`), so registration fails
+#     with "default tenant not found: matter not found: row not found" - an error
+#     that reads like a database fault and is really a naming mismatch.
+#
+#  2. Registration is a POST to /api/auth/register and returns 200 on success.
+#     It is idempotent-safe to attempt: an existing user yields a non-2xx error
+#     which this step treats as "already bootstrapped", not as a failure.
+function Invoke-Bootstrap {
+    param([string]$BaseUrl)
+
+    $tenantSlug = if ($envVars.ContainsKey('PACGATE_TENANT_ID') -and $envVars['PACGATE_TENANT_ID']) {
+        $envVars['PACGATE_TENANT_ID']
+    } else { 'default-firm' }
+    $tenantName = if ($envVars.ContainsKey('PACGATE_TENANT_NAME') -and $envVars['PACGATE_TENANT_NAME']) {
+        $envVars['PACGATE_TENANT_NAME']
+    } else { 'Default Firm' }
+    $apiEmail    = if ($envVars.ContainsKey('PACGATE_API_EMAIL'))    { $envVars['PACGATE_API_EMAIL'] }    else { '' }
+    $apiPassword = if ($envVars.ContainsKey('PACGATE_API_PASSWORD')) { $envVars['PACGATE_API_PASSWORD'] } else { '' }
+
+    if (-not $apiEmail -or -not $apiPassword) {
+        Write-Host "  [WARN] PACGATE_API_EMAIL / PACGATE_API_PASSWORD are not set in .env." -ForegroundColor Yellow
+        Write-Host "         Cannot bootstrap the admin user. Set both and re-run." -ForegroundColor Yellow
+        return $false
+    }
+
+    # (1) The tenant. Created via the API when possible so the row matches what
+    # the API expects; falls back to the documented psql path because the tenant
+    # lookup is what registration needs, and a first-run API may not expose a
+    # tenant-create route at all.
+    #
+    # Match on SLUG, and use the same slug the lookup will use.
+    $sql = "INSERT INTO tenants (name, slug) SELECT '$($tenantName -replace "'","''")', '$($tenantSlug -replace "'","''")' WHERE NOT EXISTS (SELECT 1 FROM tenants WHERE slug = '$($tenantSlug -replace "'","''")');"
+    $seedOut = docker exec pacgate-db psql -U pacgate -d pacgate -t -c $sql 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  [OK] tenant '$tenantSlug' present (created if absent)" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  [WARN] could not ensure the tenant: $($seedOut -join ' ')" -ForegroundColor Yellow
+        return $false
+    }
+
+    # (2) The admin. Retry, because the API may still be applying migrations.
+    $registered = $false
+    $alreadyThere = $false
+    for ($i = 1; $i -le 15; $i++) {
+        $resp = $null
+        try {
+            $resp = Invoke-WebRequest -Uri "$BaseUrl/api/auth/register" -Method Post `
+                -Body (@{ email = $apiEmail; password = $apiPassword } | ConvertTo-Json -Compress) `
+                -ContentType 'application/json' -TimeoutSec 20 -SkipHttpErrorCheck
+        } catch { }
+        if ($resp) {
+            if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 300) { $registered = $true; break }
+            # A duplicate is success for our purpose: the admin exists.
+            if ($resp.StatusCode -eq 409 -or "$($resp.Content)" -match 'already|exists|duplicate') {
+                $alreadyThere = $true; break
+            }
+        }
+        if ($i -lt 15) { Start-Sleep -Seconds 4 }
+    }
+
+    if ($registered) {
+        Write-Host "  [OK] admin '$apiEmail' registered" -ForegroundColor Green
+    }
+    elseif ($alreadyThere) {
+        Write-Host "  [OK] admin '$apiEmail' already exists" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  [WARN] could not register the admin '$apiEmail'." -ForegroundColor Yellow
+        Write-Host "         Matter provisioning will fail without a login. Check the API logs." -ForegroundColor Yellow
+        return $false
+    }
+
+    # (3) ENSURE THE ADMIN CAN ACTUALLY ADMINISTER.
+    #
+    # Existing a login is not the same as holding the admin role, and until
+    # 2026-10-03 this step only checked existence. The register route then
+    # hardcoded role='attorney' and never set system_role at all, so the column
+    # default 'user' applied and EVERY account it created was a non-admin - while
+    # this function logged "[OK] admin '<email>' registered". Verified on the dev
+    # box: all four accounts there read system_role='user'.
+    #
+    # Fixing that in the API only helps a FRESH first user; an account created by
+    # an earlier release keeps system_role='user' forever, and with it can never
+    # use POST /api/auth/users. So the upgrade path has to exist here.
+    #
+    # Why direct SQL rather than an API call: promoting an account requires an
+    # admin, and on an upgrade there is no admin yet - that is the whole problem.
+    # The installer is the trusted actor that breaks the cycle, exactly as it
+    # already does for the tenant row above.
+    #
+    # Guarded to the configured service account only. It never touches another
+    # user, and it reports what it changed.
+    $emailLiteral = $apiEmail -replace "'", "''"
+    $roleBefore = (docker exec pacgate-db psql -U pacgate -d pacgate -t -A -c `
+        "SELECT system_role FROM users WHERE email = '$emailLiteral';" 2>&1 | Out-String).Trim()
+
+    if ($roleBefore -eq 'admin') {
+        Write-Host "  [OK] '$apiEmail' holds the platform admin role" -ForegroundColor Green
+    }
+    elseif ($roleBefore -eq 'user') {
+        Write-Host "  [INFO] '$apiEmail' exists but is NOT a platform admin (system_role='user')." -ForegroundColor Yellow
+        Write-Host "         Promoting it: without this the provisioning route is unreachable," -ForegroundColor Yellow
+        Write-Host "         because no principal on this machine would hold the admin role." -ForegroundColor Yellow
+        $upd = docker exec pacgate-db psql -U pacgate -d pacgate -t -A -c `
+            "UPDATE users SET system_role = 'admin' WHERE email = '$emailLiteral' RETURNING email;" 2>&1 | Out-String
+        if ($upd -match [regex]::Escape($apiEmail)) {
+            Write-Host "  [OK] '$apiEmail' promoted to platform admin" -ForegroundColor Green
+        }
+        else {
+            Write-Host "  [WARN] could not promote '$apiEmail': $($upd.Trim())" -ForegroundColor Yellow
+            Write-Host "         Run by hand: UPDATE users SET system_role='admin' WHERE email='$apiEmail';" -ForegroundColor Yellow
+        }
+    }
+    else {
+        # Empty (the account vanished between the two queries) or an unexpected
+        # value. Do not guess; say what was found.
+        Write-Host "  [WARN] could not read '$apiEmail's platform role (got '$roleBefore')." -ForegroundColor Yellow
+        Write-Host "         Verify manually: SELECT email, role, system_role FROM users;" -ForegroundColor Yellow
+    }
+
+    return $true
+}
+
+Write-Host "`nBootstrapping the default tenant and admin user..." -ForegroundColor Cyan
+# Same nginx-fronted path as provisioning: the API publishes no host port.
+$bootstrapped = $false
+docker compose -f compose.prod.yaml up -d pacgate-api pacgate-db nginx 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+$apiUp = $false
+foreach ($attempt in 1..30) {
+    try {
+        $null = Invoke-RestMethod -Uri "http://localhost:8089/version" -TimeoutSec 5
+        $apiUp = $true; break
+    } catch { Start-Sleep -Seconds 2 }
+}
+if ($apiUp) {
+    $bootstrapped = Invoke-Bootstrap -BaseUrl 'http://localhost:8089/pacgate'
+}
+else {
+    Write-Host "  [WARN] the API did not become reachable in 60s; skipping bootstrap." -ForegroundColor Yellow
+}
+
+# 6b. Provision the matter deer-flow's memory adapter is scoped to.
+#
+# Runs AFTER 6a by necessity: provisioning authenticates, and before the bootstrap
+# there is no admin to authenticate as. The ordering is the point - see the note
+# at the top of 6a for the chain that a missing admin sets off.
+Write-Host "`nProvisioning the matter for deer-flow memory..." -ForegroundColor Cyan
+$provisioned = $false
+if ($apiUp) {
+    $provisioned = Invoke-MatterProvision -BaseUrl 'http://localhost:8089/pacgate'
+}
+else {
+    Write-Host "  [WARN] the API is not reachable, so no matter could be provisioned." -ForegroundColor Yellow
+    Write-Host "         Re-run .\install.ps1 -Update once the stack is healthy." -ForegroundColor Yellow
+}
+
 # 7. Start stack
 Write-Host "`nStarting Pacgate-ai..." -ForegroundColor Cyan
 docker compose -f compose.prod.yaml up -d
 Write-Host "[OK] Stack running" -ForegroundColor Green
+
+# 7a. Prove deer-flow is on the SANITIZED lane, not the fallback. This is the
+# only check that observes the running container rather than the configuration.
+if ($provisioned) {
+    $lane = docker exec deer-flow sh -c 'echo $PACGATE_MATTER_ID' 2>$null
+    if ($lane -and $lane.Trim().Length -gt 0) {
+        Write-Host "[OK] deer-flow has PACGATE_MATTER_ID=$($lane.Trim())" -ForegroundColor Green
+    }
+    else {
+        Write-Host "[WARN] deer-flow is running with a BLANK PACGATE_MATTER_ID." -ForegroundColor Yellow
+        Write-Host "       Its adapter raises on that, and deer-flow silently falls back to" -ForegroundColor Yellow
+        Write-Host "       FileMemoryStorage - UNSANITIZED memory on disk. Check that .env" -ForegroundColor Yellow
+        Write-Host "       has the value and that the container was recreated, not just restarted." -ForegroundColor Yellow
+    }
+}
 
 # 7b. Reload nginx config if it changed. The nginx service uses the stock
 # nginx:1.27-alpine image with a BIND-MOUNTED ./nginx/default.conf, so `git
@@ -538,7 +888,7 @@ if ($Update) {
     # Only meaningful if this machine actually runs qm.
     if ((Test-Path $qmScript) -and (docker ps --format '{{.Names}}' 2>$null | Select-String -SimpleMatch 'qm-')) {
         Write-Host "`nChecking qm sandbox provenance..." -ForegroundColor Cyan
-        $fpOut = & pwsh -NoProfile -File $qmScript -Json 2>&1
+        $fpOut = & $QmPowerShell -NoProfile -File $qmScript -Json 2>&1
         $fp = $null
         try { $fp = ($fpOut | Out-String).Trim() | ConvertFrom-Json } catch { }
         if ($fp) {
@@ -790,6 +1140,240 @@ if ($Update) {
     }
 }
 
+# 7g. Bring up qm (Runtime 3) on a FIRST install.
+#
+# WHY THIS IS NEW. Until 2026-10-03 the installer deliberately never started qm -
+# every qm step only re-staged config and printed an instruction, because qm was
+# an optional side-lane. The deployment model is now "every AIPC runs all three
+# runtimes", so leaving qm down means the installer ships a stack that is missing
+# a third of its product.
+#
+# WHY ONLY ON FIRST INSTALL, NOT -Update. A restart of the co-working stack is
+# user-visible (qm is where staff work), and the R4 contention between `qm up` and
+# compose.qm.yaml means an automated path has to pick one and be right. On a FIRST
+# install nobody is mid-session, so there is nothing to interrupt; on -Update the
+# operator may be in it. -Update therefore keeps the existing print-the-command
+# behaviour, and this block only runs when the stack is not already up.
+#
+# The bridge is a SEPARATE, least-privilege service account. It is NOT the
+# deployment's own PACGATE_API_EMAIL: the sandbox runs model-directed tool calls,
+# so it gets its own attorney-scoped credential. Because self-registration is
+# first-user-only, this block provisions that account through POST /api/auth/users
+# using the admin the installer bootstrapped in step 6a.
+if (-not $Update) {
+    $qmDir  = Join-Path $PSScriptRoot 'qm-pacgate'
+    $qmRuntimeEnv = Join-Path $qmDir '.env'
+    $qmSetup = Join-Path $PSScriptRoot 'setup-qm.ps1'
+
+    Write-Host "`nBringing up qm (Runtime 3 - co-working workspace)..." -ForegroundColor Cyan
+
+    # Detect a RUNNING STACK, not the presence of a directory.
+    #
+    # The first attempt tested `Test-Path $qmDir` and treated "the directory does
+    # not exist" as "this is a first install". That is a different question, and it
+    # is the wrong one twice over:
+    #   * the directory is created by setup-qm.ps1 when it stages, so bootstrap and
+    #     staging were the same branch - meaning the stage-only path below could
+    #     never run, and the bridge identity would never be written;
+    #   * `docker ps | Select-String 'qm-'` counts CONTAINERS, and the substring
+    #     also matches `qm-mailpit`, so a lone mailpit container reported "qm is
+    #     already running" and skipped everything.
+    # Ask the actual question: has qm been bootstrapped AND is it up?
+    $qmRunning = @(docker ps --filter 'name=qm-pacgate-' --format '{{.Names}}' 2>$null).Count -ge 6
+    if ($qmRunning) {
+        Write-Host "[OK] qm is already running - left untouched" -ForegroundColor Green
+    }
+    elseif (-not (Test-Path $qmSetup)) {
+        Write-Host "[WARN] setup-qm.ps1 not found; skipping Runtime 3." -ForegroundColor Yellow
+    }
+    else {
+        # Two INDEPENDENT questions, deliberately not nested:
+        #   (1) does the bridge account need creating? (bootstrap - needs an admin)
+        #   (2) does the qm runtime config need staging? (setup-qm.ps1, stage only)
+        # The first attempt answered both from `$qmDir exists`, which conflated them
+        # and made the 409 recovery path unreachable (it looked for an `.env` that
+        # could not exist in a branch that only ran when the directory did not).
+        $needsBootstrap = -not (Test-Path $qmRuntimeEnv)
+        $bridgeEmail = 'qm-bridge@pacgate.local'
+        $bridgePass  = ''
+        $bridgeReady = $false
+
+        $qmAdmin     = if ($envVars.ContainsKey('PACGATE_API_EMAIL'))    { $envVars['PACGATE_API_EMAIL'] }    else { '' }
+        $qmAdminPass = if ($envVars.ContainsKey('PACGATE_API_PASSWORD')) { $envVars['PACGATE_API_PASSWORD'] } else { '' }
+
+        if ($needsBootstrap) {
+            # The bridge is a SEPARATE, least-privilege service account, per the
+            # deployment handbooks ("Pacgate bridge - a service account in
+            # pacgate-api, used by the sandbox tool"). The sandbox runs
+            # model-directed tool calls, so it gets its own attorney-scoped
+            # credential instead of the deployment's own identity.
+            #
+            # Provisioning it needs an administrator, so this block:
+            #   1. logs in as the admin the installer just bootstrapped,
+            #   2. creates the bridge account via POST /api/auth/users (the route
+            #      that exists precisely because self-registration is
+            #      first-user-only),
+            #   3. hands the credential to setup-qm.ps1 below.
+            # If any step fails it says so and leaves Runtime 3 to a manual run
+            # rather than guessing a credential, because a wrong bridge password
+            # surfaces much later as a 401 inside a sandbox tool call.
+            if (-not $qmAdmin -or -not $qmAdminPass) {
+                Write-Host "[WARN] PACGATE_API_EMAIL / PACGATE_API_PASSWORD are not set in .env -" -ForegroundColor Yellow
+                Write-Host "       cannot provision the bridge account. Run .\setup-qm.ps1 by hand." -ForegroundColor Yellow
+            }
+            else {
+                Write-Host "  provisioning the qm bridge account ('$bridgeEmail')..." -ForegroundColor Gray
+                $BaseUrl = 'http://localhost:8089/pacgate'
+                try {
+                    $loginBody = @{ email = $qmAdmin; password = $qmAdminPass } | ConvertTo-Json -Compress
+                    $login = Invoke-RestMethod -Uri "$BaseUrl/api/auth/login" -Method Post `
+                        -Body $loginBody -ContentType 'application/json' -TimeoutSec 20
+                    $tok = $login.token
+                    if (-not $tok) { throw "login returned no token" }
+
+                    # 32 bytes of CSPRNG hex, byte-for-byte the same construction as
+                    # setup-qm.ps1's New-SecretHex.
+                    #
+                    # NOT inlined as a clever one-liner. The first attempt here was
+                    # `-join ((New-Object byte[] 32) | ForEach-Object { RNG.GetBytes($_); $_ } |
+                    # ForEach-Object { $_.ToString('x2') })`, which looked reasonable
+                    # and produced SIXTY-FOUR ZEROS - the pipeline bound the byte
+                    # array as a single item, so it was never filled element-wise and
+                    # `.ToString('x2')` on the array yielded "0" repeated. That would
+                    # have silently set a fixed all-zero bridge password. Verified by
+                    # running it, not by reading it.
+                    $rngBytes = New-Object byte[] 32
+                    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($rngBytes)
+                    $bridgePass = -join ($rngBytes | ForEach-Object { $_.ToString('x2') })
+                    if ($bridgePass.Length -ne 64 -or $bridgePass -match '^0+$') {
+                        # Refuse to ship a credential that failed to generate. An
+                        # all-zero or short password is indistinguishable from a
+                        # working one until an authentication fails elsewhere.
+                        throw "bridge password generation produced an invalid value (length $($bridgePass.Length))"
+                    }
+
+                    $hdr = @{ Authorization = "Bearer $tok" }
+                    $createBody = @{ email = $bridgeEmail; password = $bridgePass; role = 'attorney' } | ConvertTo-Json -Compress
+                    try {
+                        Invoke-RestMethod -Uri "$BaseUrl/api/auth/users" -Method Post -Headers $hdr `
+                            -Body $createBody -ContentType 'application/json' -TimeoutSec 20 | Out-Null
+                        Write-Host "  [OK] bridge account created" -ForegroundColor Green
+                        $bridgeReady = $true
+                    }
+                    catch {
+                        # 409 = the account already exists, which is not an error
+                        # (re-running the installer is expected) but also means the
+                        # stored password is unknown. A NEW password must not be
+                        # written to .env for it, or the account and the config
+                        # would disagree - so this is reported, not papered over.
+                        #
+                        # `?.` is PS7-only and install.ps1 must parse under the
+                        # Windows built-in PowerShell 5.1 too (the AIPC runbook
+                        # invokes .\install.ps1 without a pwsh prerequisite, and
+                        # a parse error kills the whole installer). Expand it
+                        # for both PS 5.1 and 7+: a DNS failure,
+                        # connection-refused, or timeout leaves Response null;
+                        # without the null guard the property access throws and
+                        # the operator sees a null-reference error instead of
+                        # the transport failure.
+                        $code = $null
+                        if ($_.Exception.Response) { $code = $_.Exception.Response.StatusCode.value__ }
+                        if ($code -eq 409) {
+                            Write-Host "  [OK] bridge account already exists" -ForegroundColor Green
+                            Write-Host "       its password is whatever was set when it was created." -ForegroundColor Gray
+                            Write-Host "       setup-qm.ps1 will prompt for it below." -ForegroundColor Gray
+                        }
+                        elseif ($null -eq $code) {
+                            throw "could not reach $BaseUrl (transport failure, not a duplicate)"
+                        }
+                        else {
+                            throw "create_user returned HTTP $code"
+                        }
+                    }
+                }
+                catch {
+                    # `ErrorDetails.Message` carries the API's JSON body; for an
+                    # HTTP error, `Exception.Message` is only
+                    # "Response status code does not indicate success: 401 ...".
+                    # The whole premise of this work is that the admin previously
+                    # was not an admin, so a 401/403 here is the LIKELIEST first
+                    # failure and the operator needs the reason, not the status.
+                    $detail = $_.ErrorDetails.Message
+                    if (-not $detail) { $detail = $_.Exception.Message }
+                    Write-Host "[WARN] could not provision the bridge account: $detail" -ForegroundColor Yellow
+                    Write-Host "       Runtime 3 will need '.\setup-qm.ps1' run by hand." -ForegroundColor Yellow
+                }
+            }
+        }
+
+        # Stage + start. setup-qm.ps1 is called in BOTH cases, because it owns the
+        # staging into $qmDir - so on a first install this is also what creates the
+        # directory. It is idempotent: with an .env present it preserves it and only
+        # refreshes the tracked definition files, which is exactly the re-stage the
+        # -Update path documents.
+        $setupArgs = @('-NoProfile', '-File', $qmSetup, '-AdminEmail', $qmAdmin)
+        if ($bridgeReady) {
+            $setupArgs += @('-BridgeEmail', $bridgeEmail, '-BridgePassword', $bridgePass)
+        }
+        try {
+            if ($bridgeReady) {
+                Write-Host "  staging + bootstrapping qm (bridge=$bridgeEmail)..." -ForegroundColor Gray
+            }
+            else {
+                Write-Host "  staging qm (bridge credentials must be entered when prompted)..." -ForegroundColor Gray
+            }
+            & $QmPowerShell @setupArgs
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[WARN] setup-qm.ps1 exited $LASTEXITCODE - Runtime 3 may not be up." -ForegroundColor Yellow
+                Write-Host "       Re-run it by hand to see the error in full." -ForegroundColor Yellow
+            }
+        }
+        catch {
+            Write-Host "[WARN] setup-qm.ps1 failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+
+        # Start it. `docker compose` and NOT `qm up`: the CLI's which() shells out
+        # to POSIX /bin/sh, which does not exist on native Windows, so `qm up`
+        # cannot run on an AIPC at all. compose bypasses that entirely and is the
+        # path the project already uses (plans/010 migrated to it for this reason).
+        # R4 is respected by picking exactly ONE path - compose - and never mixing.
+        if (Test-Path (Join-Path $qmDir 'compose.qm.yaml')) {
+            # External network/volumes are declared `external: true`, so they must
+            # exist before compose will start; compose does not create them.
+            docker network create qm-pacgate *>$null
+            docker volume create qm-pacgate-coredata *>$null
+            docker volume create qm-pacgate-pgdata *>$null
+
+            Push-Location $qmDir
+            try {
+                docker compose -f compose.qm.yaml up -d
+                if ($LASTEXITCODE -eq 0) {
+                    Start-Sleep -Seconds 15
+                    # Same container filter as the guard above: `qm-pacgate-` counts
+                    # the six stack services and excludes qm-mailpit.
+                    $qmUp = @(docker ps --filter 'name=qm-pacgate-' --format '{{.Names}}' 2>$null).Count
+                    if ($qmUp -ge 6) {
+                        Write-Host "[OK] qm running ($qmUp containers)" -ForegroundColor Green
+                    }
+                    else {
+                        Write-Host "[WARN] only $qmUp qm container(s) up (expected 6)." -ForegroundColor Yellow
+                        Write-Host "       A crash-looping container is usually a config value:" -ForegroundColor Yellow
+                        Write-Host "         docker logs qm-pacgate-auth --tail 30" -ForegroundColor Gray
+                    }
+                }
+                else {
+                    Write-Host "[WARN] 'docker compose -f compose.qm.yaml up -d' exited $LASTEXITCODE." -ForegroundColor Yellow
+                }
+            }
+            finally { Pop-Location }
+        }
+        else {
+            Write-Host "[WARN] qm was not staged ($qmDir\compose.qm.yaml is missing) - Runtime 3 is NOT up." -ForegroundColor Yellow
+            Write-Host "       Run .\setup-qm.ps1 by hand, then: cd qm-pacgate; docker compose -f compose.qm.yaml up -d" -ForegroundColor Yellow
+        }
+    }
+}
+
 # 8. Wait for health
 Write-Host "`nWaiting for services to start..." -ForegroundColor Cyan
 Start-Sleep -Seconds 10
@@ -804,10 +1388,31 @@ Write-Host "  /          - Landing page" -ForegroundColor Gray
 Write-Host "  /api/      - Metadata API (internal)" -ForegroundColor Gray
 Write-Host "  /research/  - Legal research (deer-flow)" -ForegroundColor Gray
 Write-Host ""
-Write-Host "QM (co-working workspace) runs separately:" -ForegroundColor Cyan
-Write-Host "  1. Run .\setup-qm.ps1 to bootstrap qm" -ForegroundColor Gray
-Write-Host "  2. Then: cd qm-pacgate && npm exec qm -- up" -ForegroundColor Gray
-Write-Host "  3. Access: http://localhost:8182" -ForegroundColor Gray
+# This block described qm as a manual, separate step. Step 7g now brings it up on
+# a first install, so telling the operator to run anything by hand is stale - and
+# it was wrong twice over: `qm up` cannot run on Windows (its which() shells out to
+# POSIX /bin/sh), and 8182 is the web-ui, not the sign-in front door. Both mistakes
+# sent the reader somewhere that does not work. Describe what actually happened
+# instead of prescribing steps the installer already took.
+Write-Host "QM (co-working workspace):" -ForegroundColor Cyan
+if (Test-Path (Join-Path $PSScriptRoot 'qm-pacgate/compose.qm.yaml')) {
+    $qmCount = @(docker ps --filter 'name=qm-pacgate-' --format '{{.Names}}' 2>$null).Count
+    if ($qmCount -ge 6) {
+        Write-Host "  Running ($qmCount containers). Sign in at http://localhost:8181" -ForegroundColor Gray
+        Write-Host "  (8181 is the portal FRONT DOOR - it proxies to web-ui 8182 and" -ForegroundColor Gray
+        Write-Host "   admin 8183. Opening 8182 directly skips auth.)" -ForegroundColor Gray
+    }
+    else {
+        Write-Host "  NOT running ($qmCount of 6 containers up). To bring it up:" -ForegroundColor Yellow
+        Write-Host "    cd qm-pacgate" -ForegroundColor Gray
+        Write-Host "    docker compose -f compose.qm.yaml up -d" -ForegroundColor Gray
+        Write-Host "  Do NOT use 'qm up' - it needs a POSIX shell and cannot run here." -ForegroundColor Yellow
+    }
+}
+else {
+    Write-Host "  Not staged. Run .\setup-qm.ps1, then:" -ForegroundColor Yellow
+    Write-Host "    cd qm-pacgate; docker compose -f compose.qm.yaml up -d" -ForegroundColor Gray
+}
 Write-Host ""
 Write-Host "Manage:" -ForegroundColor Cyan
 Write-Host "  docker compose -f compose.prod.yaml logs -f    (view logs)" -ForegroundColor Gray

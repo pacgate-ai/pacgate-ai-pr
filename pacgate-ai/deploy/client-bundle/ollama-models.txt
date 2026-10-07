@@ -1,38 +1,48 @@
 # Pacgate-ai required Ollama models
-# Pulled automatically by install.ps1 on first run (non-# lines only).
+# Pulled automatically by install.ps1 on first run.
 # Keep this list in sync with:
+#   - plans/007-aipc1-kickoff-prompt.md Stage 3.5 (tier verification)
 #   - deploy/client-bundle/deer-flow-config.yaml (active research models)
 #   - deploy/qm-pacgate/qm.config.jsonc (MODEL_NAME)
-#
-# VERIFIED 2026-09-20 against the live AIPC #1 `ollama list`. Earlier revisions
-# named tags that were never published (gemma4:12b-it-qat,
-# qwen3.8:27b-mtp-q4_K_M, nemotron3:33b, qwen3.6:27b, qwen3.5:9b) — a fresh
-# install would have failed on every one of them.
 
-# --- Local research + workflow tier models ---
-# Default research model and the pacgate-api Main tier. Handles the json_schema
-# grammar used by the deep-research "follow-up questions" step, so it must stay
-# FIRST in deer-flow-config.yaml.
-gemma4:12b-it-q8_0
+# --- pacgate-api workflow tiers (Appendix A model-overrides SQL) ---
+# Main + Low tier: fast legal execution, local GPU/NPU
+gemma4:12b-it-qat
+# Mid tier: heavier reasoning, local GPU
+qwen3.8:27b-mtp-q4_K_M
 
-# --- RAG embeddings (required by pacgate-api and openviking, no alternative) ---
+# --- RAG embeddings (required by pacgate-api, no alternative) ---
 nomic-embed-text:latest
 
-# --- Alternative local models (selectable in the picker, not the default) ---
-ornith-1.5:9b
-ornith-1.5:35b
-nemotron-3.5-lightning:30b-a3b
-gemma4:26b-a4b-it-q8_0
-
-# --- Cloud-routed models (via ollama.com / `ollama signin`) ---
-# Cloud-tagged: routed through ollama.com. Requires `ollama signin` on the AIPC
-# before install.ps1 runs, and a network path to ollama.com. If the client
-# forbids cloud routing, reorder deer-flow-config.yaml to put a local model
-# first and set qm MODEL_NAME to a local tag instead.
+# --- deer-flow active model + qm harness model ---
+# Cloud-tagged: routed through ollama.com. Requires `ollama signin`
+# on the AIPC before install.ps1 runs, and a network path to ollama.com.
+# If the client forbids cloud routing, reorder deer-flow-config.yaml to
+# put a local model first and set qm MODEL_NAME to a local tag instead.
 # NOTE: cloud tags have no weight layers on disk (size "-"). They appear in
 # `ollama list` but never in `ollama ps`; inference routes via ollama.com.
 # The deployed deer-flow-config.yaml (client-bundle) lists these as OPTIONAL
 # choices in the model picker; the local default (gemma4-12b-local) stays first.
-deepseek-v4.1-flash:cloud
+deepseek-v4-flash:0731-cloud
 deepseek-v4-pro:cloud
-glm-5.3-flash:cloud
+
+# --- Alternative local models (do NOT enable for Main tier) ---
+# nemotron-3.5-lightning:30b-a3b  <- reasoning-mode, breaks workflow tiers
+# gemma4:26b-a4b-it-qat           <- heavier than AIPC NPU budget for Main
+
+# --- deer-flow model-picker options (NOT defaults, NOT workflow tiers) ---
+# Added 2026-09-21: deer-flow-config.yaml offers these in the model picker, and
+# they were installed by hand on both AIPCs, but they were absent from this list.
+# That left the two artifacts inconsistent: a run works TODAY because the weights
+# exist, but any rebuild or re-image relying on install.ps1 alone would come up
+# without them and the agent would fail at runtime with `model '<tag>' not found`
+# (ollama returns HTTP 404, with no fallback). scripts/audit-model-tags.ps1 guards
+# this class of drift.
+#
+# COST: ~53 GB of extra pre-pull (ornith-1.5:9b 6.6 GB, ornith-1.5:35b 22 GB,
+# nemotron 25 GB). If that is unwanted on the client machines, the correct
+# alternative is to REMOVE/commented-out the matching entries in
+# deer-flow-config.yaml - do not simply delete these lines, or the drift returns.
+ornith-1.5:9b
+ornith-1.5:35b
+nemotron-3.5-lightning:30b-a3b

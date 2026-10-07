@@ -172,6 +172,52 @@ Assert-True ($nsBlock.Success -and
              [regex]::Match($nsBlock.Value, 'ns_lc=\$\(.*lower').Success -and
              [regex]::Match($nsBlock.Value, 'owner_lc=\$\(.*lower').Success) `
     'the owner/namespace compare is case-insensitive (GHCR usernames are)'
+
+# ── no local script may hardcode the mirror namespace ───────────────────────
+#
+# `GHCR_NAMESPACE` is the declared single source of truth and README-BUILD.md says
+# every compose pin must match it. The compose side is enforced above. These
+# scripts were NOT, and that gap was live: `deploy/build-images.ps1` and
+# `deploy/build-frontend.ps1` tagged and PUSHED `ghcr.io/pacgate-ai/*`, which per
+# plans/016 is the read-only mirror that publishes no images. `-Push` would have
+# sent a release to a namespace no compose file pulls from - successfully, and
+# therefore silently. They were written 2026-09-16, one day before the inversion,
+# and nothing re-checked them afterwards.
+#
+# This is the same class as the `elif` and `tr` traps noted above: the check must
+# assert the PROPERTY (no hardcoded namespace in the build path), not one
+# spelling of it. It also permits the string inside a COMMENT, because the
+# comments now deliberately record the old value - deleting the history to
+# satisfy a linter would lose the reason the fix exists.
+$buildScripts = @(
+    'deploy/build-images.ps1',
+    'deploy/build-frontend.ps1'
+)
+foreach ($bs in $buildScripts) {
+    if (-not (Test-Path $bs)) {
+        Assert-True $false "build script $bs must exist (namespace guard cannot check what is missing)"
+        continue
+    }
+    # Strip line comments before scanning, so documenting the old namespace is
+    # not itself a failure.
+    $codeLines = Get-Content $bs | ForEach-Object { ($_ -split '#')[0] }
+    $code = ($codeLines -join "`n")
+    $hardcoded = [regex]::Matches($code, 'ghcr\.io/([A-Za-z0-9_-]+)/')
+    $wrong = @($hardcoded | ForEach-Object { $_.Groups[1].Value } |
+        Where-Object { $_ -ne 'jzkk720' } | Sort-Object -Unique)
+    # Label states the CONDITION being asserted, not the failure. Phrasing it as
+    # the failure made a PASS print "hardcodes a GHCR namespace other than
+    # jzkk720 (found: )" - which reads as a failure and briefly did fool this
+    # run's own output. A gate whose success message describes the defect it is
+    # checking for is unreadable at exactly the moment it matters.
+    Assert-True ($wrong.Count -eq 0) `
+        "$bs uses only the jzkk720 GHCR namespace"
+    if ($wrong.Count -ne 0) {
+        Write-Host "         found: $($wrong -join ', ') - read the namespace from GHCR_NAMESPACE instead" -ForegroundColor DarkGray
+    }
+    Assert-True ($code -match 'GHCR_NAMESPACE' -or $code -match 'Resolve-GhcrNamespace') `
+        "$bs reads GHCR_NAMESPACE so its tags follow the release authority"
+}
 Write-Output ''
 
 if ($StaticOnly) {
@@ -225,9 +271,45 @@ echo "`$ns|`$src|`$warn|`$cred|`$cwarn"
     # LF endings: CRLF in a mounted .sh gives 'not found' / syntax errors in sh.
     [System.IO.File]::WriteAllText($tmp, ($sh -replace "`r`n", "`n"), [System.Text.UTF8Encoding]::new($false))
 
-    $out = & docker run --rm --mount "type=bind,source=$tmp,target=/t.sh,readonly" alpine:3.20 sh /t.sh 2>&1
+    # Feed the script on STDIN rather than bind-mounting the file.
+    #
+    # WHY THIS CHANGED (2026-10-03). The mount form was:
+    #   docker run --rm --mount "type=bind,source=$tmp,target=/t.sh,readonly" alpine:3.20 sh /t.sh
+    # It binds a WINDOWS temp path into a Linux container, which depends on Docker
+    # Desktop's file-sharing translation. Under load that fails intermittently:
+    # this suite failed 41/1 inside run-all-checks while passing 42/0 standalone,
+    # three separate times. The failure was reported as a NAMESPACE assertion
+    # failure, which is misleading - nothing was wrong with the workflow; the
+    # container never ran the script.
+    #
+    # stdin has no file-sharing surface and no quoting surface: the script is not
+    # a CLI argument (which is what broke the earlier inline attempt with
+    # 'unexpected elif'), and it is not a mounted file. One fewer moving part.
+    $prevEnc = $OutputEncoding
+    $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+    try {
+        # Retry: a transient container-start hiccup must not read as a logic
+        # failure. The content is identical each attempt, so a retry cannot change
+        # the answer - it only removes infrastructure noise.
+        $out = $null
+        for ($attempt = 1; $attempt -le 3; $attempt++) {
+            $out = ($sh -replace "`r`n", "`n") | & docker run -i --rm alpine:3.20 sh -s 2>&1
+            $probe = ($out | Out-String).Trim()
+            # The script's last line is its answer: 5 pipe-separated fields.
+            if (($probe -split '\|').Count -ge 5) { break }
+            if ($attempt -lt 3) { Start-Sleep -Seconds 2 }
+        }
+    }
+    finally { $OutputEncoding = $prevEnc }
+
     $line = ($out | Out-String).Trim()
     $parts = $line -split '\|'
+    if ($parts.Count -lt 5) {
+        # Could not check. Say so explicitly rather than letting a truncated line
+        # flow into the assertions and surface as "got <docker error text>".
+        Fail "the alpine probe produced no parseable result after 3 attempts - cannot check the docker path. Raw: $line"
+        return [pscustomobject]@{ Ns = ''; Src = ''; Warn = ''; Cred = ''; CredWarn = ''; Raw = $line }
+    }
     return [pscustomobject]@{ Ns = $parts[0]; Src = $parts[1]; Warn = $parts[2]; Cred = $parts[3]; CredWarn = $parts[4]; Raw = $line }
 }
 

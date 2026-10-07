@@ -1,19 +1,21 @@
 # Pacgate AI - Two-AIPC Deployment Handbook
 
 > Clone the repo on each machine, run the same install steps, and both machines become fully operational with deer-flow research and qm collaboration.
-> Version 0.1.4 - 2026-09-04
-> Prerequisites: Docker Desktop, Ollama, Node.js 24+. `install.ps1` pulls the models listed in `ollama-models.txt`.
+> Targets release 0.1.23 — handbook updated 2026-10-05
+> Chinese version: [AIPC-DEPLOYMENT-HANDBOOK-ZH.md](AIPC-DEPLOYMENT-HANDBOOK-ZH.md)
+> Prerequisites: Docker Desktop, Ollama, Node.js 24+. `install.ps1` pulls the models listed in `ollama-models.txt`. PowerShell 7 (`pwsh`) is optional - the installer prefers it and falls back to built-in PowerShell 5.1, which everything it runs is compatible with.
 
 ## ⚠️ Significant findings (2026-09-02) — read before deploying AIPC #2
 
 These were discovered during the AIPC #1 pilot and are **already fixed in this repo**.
 AIPC #2 must pull the **updated** code (see Stage 1) so it gets these fixes.
 
-> **Update 2026-09-15.** Both repos are now **public** and carry **identical trees**
-> (`origin/main` = fork `main`). The earlier warning to avoid "the older
-> `JZKK720/pacgate-ai-pr` main" no longer applies — `origin/main` contains every
-> fork commit plus merge `832d84e`. Clone either. See
-> `plans/012-master-release-namespace.md`.
+> **Update 2026-09-23 (supersedes the 2026-09-15 "clone either" note).** The two
+> repos are **NO LONGER identical** — `pacgate-ai/pacgate-ai-pr` is 26 commits behind
+> and missing the workflow-wiring fixes (`b7fc540`, `039afdc`), so a fork clone serves
+> **10 built-in workflows instead of the firm's 222**, with no error shown anywhere.
+> **Clone `JZKK720/pacgate-ai-pr`** (see Stage 1). Which repo you push a release tag to
+> still decides the GHCR namespace — see `plans/012-master-release-namespace.md`.
 
 1. **deer-flow agent could not query pacgate's legal databases.** Root cause: no tool was
    wired to pacgate-api's `/api/kb/search` (RAG) or `/api/search` (legal connectors), and the
@@ -34,12 +36,14 @@ AIPC #2 must pull the **updated** code (see Stage 1) so it gets these fixes.
    gets 401 and the `/setup` page appears. **Use `docker compose restart deer-flow`** for
    config changes; only recreate if you accept losing the local DB (then re-run `/setup`).
 
-4. **QM sign-in needs a `RESEND_API_KEY`, not Outlook SMTP.** The old SMTP path
+4. **QM sign-in needs an email transport, not Outlook SMTP.** The old SMTP path
    (`smtp.office365.com` + app password) is broken — Microsoft retired Basic Auth / app
    passwords for Exchange Online (Sep 2025). `qm check` failed with
-   `535 5.7.139 Authentication unsuccessful`. **Fix:** qm's auth broker now uses the
-   **Resend** transport (`AUTH_EMAIL_TRANSPORT=resend`). You must supply a `RESEND_API_KEY`
-   in `deploy/qm-pacgate/.env` (see Stage 4).
+   `535 5.7.139 Authentication unsuccessful`. **Fix:** qm's auth broker now supports two
+   transports — **Mailpit SMTP catcher** (pilot; links land at `http://localhost:8025`, no
+   key needed) and **Resend** (production; supply `RESEND_API_KEY`). See Stage 4.
+   *(Originally this item said Resend was the only option; Stage 4's two-transport
+   setup supersedes it.)*
 
 5. **The qm web-ui cannot self-authenticate.** Its server (`/app/server/index.ts`) sets
    `AUTH_MODE = COOKIE_AUTH ? "dev" : "portal"`. Because `CORE_SIGNING_SECRET` is set,
@@ -73,9 +77,10 @@ If you later want shared matter data across both machines, connect them with a p
 
 ## What you need before starting
 
-- GitHub access to the source repo — either `JZKK720/pacgate-ai-pr` or
-  `pacgate-ai/pacgate-ai-pr`. Both are **public**; a plain clone needs no auth at all.
-  A PAT or `gh auth login` is only required if you intend to push.
+- GitHub access to the source repo — **`JZKK720/pacgate-ai-pr`** (public; a plain
+  clone needs no auth). **Do not clone the `pacgate-ai` fork** — it is 26 commits
+  behind and serves 10 workflows instead of 222 (see Stage 1). A PAT or
+  `gh auth login` is only required if you intend to push.
 - Docker Desktop running on both AIPCs
 - Ollama running on both AIPCs (`install.ps1` pulls the models it needs)
 - `ollama signin` completed on each AIPC if the cloud-tagged deepseek models are in use
@@ -85,15 +90,34 @@ If you later want shared matter data across both machines, connect them with a p
 
 ## Stage 0: Runtime images (dev machine, already done)
 
-The runtime is published on GHCR and needs no rebuild on the AIPC:
+The runtime is published on GHCR and needs no rebuild on the AIPC.
+
+**Current versions (the ones to pull):**
 
 | Image | Status |
 |---|---|
-| `ghcr.io/pacgate-ai/pacgate-api:0.1.3` | Published. Fixes the 0.1.1 container-networking bug (LLM router honors `OLLAMA_BASE_URL`, per-tenant model overrides applied). |
-| `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` | Published. Exposes 10 MCP tools to deer-flow (RAG search, connector search, documents, workflow templates, workflow execution). |
-| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3` | Published. Thin wrapper on the upstream deer-flow backend; unchanged. |
-| `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` | Published. Next.js research UI with `DEER_FLOW_INTERNAL_GATEWAY_BASE_URL` baked in (no runtime patch needed). |
+| `ghcr.io/jzkk720/pacgate-api:0.1.23` | Published, public. Adds the matter-workspace rollup (`GET /api/matters/:id/workspace`). |
+| `ghcr.io/jzkk720/pacgate-mcp:0.1.23` | Published, public. Exposes 19 MCP tools to deer-flow (adds `pacgate_get_workspace`, `pacgate_read_memory`, `pacgate_write_memory`). |
+| `ghcr.io/jzkk720/deer-flow-pacgate:0.1.23` | Published, public. |
+| `ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.23` | Published, public. |
+| `ghcr.io/jzkk720/ocr-service:0.1.23` | Published, public. PaddleOCR extraction; first-class since 0.1.16. |
 | `ghcr.io/volcengine/openviking@sha256:46f9e34c…` | Pinned by digest in `compose.prod.yaml`. Upstream public image. |
+
+> Namespace and version corrected 2026-09-22. This table previously listed
+> `ghcr.io/pacgate-ai/*` at 0.1.0/0.1.3. `pacgate-ai` is the legacy mirror; the
+> live namespace is `jzkk720` and publishing moved there in plan 016. The old
+> `pacgate-ai/...-frontend-pacgate:0.1.0` row was also labelled "Published" while
+> returning **404** - it never resolved. All five `jzkk720/*` images at the current
+> pin (0.1.23, table above) return HTTP 200 anonymously.
+
+**Historical release table (retained for provenance, superseded):**
+
+| Image | Status |
+|---|---|
+| `ghcr.io/pacgate-ai/pacgate-api:0.1.3` | Published at the time. Fixed the 0.1.1 container-networking bug. |
+| `ghcr.io/pacgate-ai/pacgate-mcp:0.1.3` | Published at the time. |
+| `ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.3` | Published at the time. |
+| `ghcr.io/pacgate-ai/deer-flow-frontend-pacgate:0.1.0` | **Never published - 404.** Do not use. |
 
 **All Pacgate packages must be set to public visibility on GHCR** so an AIPC can pull
 without registry credentials. Verify before rollout:
@@ -139,10 +163,14 @@ broken:
 
 ```powershell
 cd c:\Users\cubecloud-io\github-pr\pacgate-ai-pr
+# Pattern reads the CURRENT namespace (jzkk720). The old form matched
+# 'pacgate-ai/pacgate-api' and no longer matches any line in compose.prod.yaml,
+# so $tag came back EMPTY and the build/push below silently used a blank tag.
 $tag = (Select-String -Path deploy/client-bundle/compose.prod.yaml `
-        -Pattern 'pacgate-ai/pacgate-api:(\S+)').Matches.Groups[1].Value
-docker build -t ghcr.io/pacgate-ai/pacgate-api:$tag -f pacgate-ai/Dockerfile ./pacgate-ai
-docker push  ghcr.io/pacgate-ai/pacgate-api:$tag
+        -Pattern 'jzkk720/pacgate-api:(\S+)').Matches.Groups[1].Value
+if (-not $tag) { throw 'could not read the image tag from compose.prod.yaml' }
+docker build -t ghcr.io/jzkk720/pacgate-api:$tag -f pacgate-ai/Dockerfile ./pacgate-ai
+docker push  ghcr.io/jzkk720/pacgate-api:$tag
 ```
 
 In practice prefer the `build-ghcr.yml` workflow so all four images stay in step —
@@ -158,14 +186,24 @@ On both machines:
 
 ```powershell
 cd C:\
-git clone https://github.com/pacgate-ai/pacgate-ai-pr.git
+git clone https://github.com/JZKK720/pacgate-ai-pr.git
 cd pacgate-ai-pr
+git remote -v   # origin MUST be JZKK720/pacgate-ai-pr
 ```
 
-> **AIPC #2 note:** both repos are now **identical** (`origin/main` = fork `main`, each
-> carrying all fixes plus merge `832d84e`) and **both are public**, so either clone works.
-> The only difference that matters is which repo you push a release tag to — that decides
-> which GHCR namespace the images publish into. See
+> **AIPC #2 note (CORRECTED 2026-09-23):** the two repos are **NO LONGER IDENTICAL**,
+> so "either clone works" is no longer true. **Clone `JZKK720`.**
+>
+> `pacgate-ai/pacgate-ai-pr` is **26 commits behind** (last checked 2026-09-23) and is
+> missing `b7fc540` and `039afdc`, so it still carries the **original
+> workflow-wiring defect**. The 15 workflow YAMLs are present in the fork but are not
+> wired into `pacgate-api`, so the API serves **10 built-in workflows instead of the
+> firm's 222** — with no error shown anywhere. The identity claim above was accurate
+> when written; the divergence came afterwards, which is exactly why a doc must not
+> assert two things are in sync without a check that can fail.
+>
+> The namespace difference is unchanged — which repo you push a release tag to
+> decides which GHCR namespace the images publish into. See
 > `plans/012-master-release-namespace.md`.
 >
 > Cloning needs no credentials now that the repos are public; a PAT or `gh auth login` is
@@ -225,30 +263,69 @@ Verify the core stack:
 
 ```powershell
 docker compose -f compose.prod.yaml ps
-curl http://localhost:8089/health
+curl http://localhost:8089/version
+curl http://localhost:8089/pacgate/health
 ```
 
-Expected: all five containers running (pacgate-db, pacgate-api, deer-flow, openviking, nginx) and `/health` returns `ok`.
+Expected: all eight containers running (pacgate-db, pacgate-api, deer-flow,
+deer-flow-frontend, pacgate-mcp, ocr-service, openviking, nginx); `/version` returns
+`{"version":"0.1.23","revision":"<git sha>"}` and `/pacgate/health` returns `ok`.
 
-## Stage 3: Seed the tenant and register users (both machines)
+> **Do not probe `/health` at the nginx root.** nginx routes `/` to the deer-flow frontend
+> by design, so `curl http://localhost:8089/health` returns the frontend's 404 page - that
+> reads as a failure but is correct routing. `/version` is also at the root (mapped to the
+> API's `/build-info`); only `/pacgate/*` paths reach the API.
 
-On each machine, seed the default tenant and register the admin user:
+## Stage 3: Seed the tenant and provision accounts (both machines)
+
+> **`install.ps1` now does this automatically (step 6a).** On a current install you
+> do not need to run anything on this page - it is kept for recovery, and the
+> commands below are what the installer runs. Check the install output for
+> `[OK] tenant 'default-firm' present` and `[OK] admin '...' registered`.
+
+### How accounts work since 0.1.22 (read before provisioning people)
+
+- `POST /api/auth/register` is **first-user-only**: it creates exactly one account on a
+  fresh deployment (the bootstrap admin) and refuses afterwards with 403.
+- Every account after the first is created by the admin through
+  **`POST /api/auth/users`** (Bearer = the admin's token).
+- Research workspace sign-in = email + password. Collaboration (qm) sign-in = one-time
+  emailed links allowlisted via `AUTH_ALLOWED_EMAILS`.
+
+On each machine, seed the default tenant, then let the installer bootstrap the admin:
 
 ```powershell
-# Seed the tenant
-docker exec pacgate-db psql -U pacgate -c "INSERT INTO tenants (name, slug) VALUES ('Pacgate Law', 'pacgate-law');"
-
-# Register the admin user
-$body = @{email="admin@pacgate-law.com"; password="<strong-password>"} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+# Seed the tenant (idempotent).
+#
+# THE SLUG MUST MATCH PACGATE_TENANT_ID. It defaults to "default-firm", and the
+# registration below looks the tenant up by that slug. An earlier version of this
+# page used 'pacgate-law', which does not match, so registration failed with:
+#
+#   {"error":{"code":"internal_error",
+#     "message":"default tenant not found: matter not found: row not found"}}
+#
+# That reads like a database fault and is really a naming mismatch. If you set
+# PACGATE_TENANT_ID to something else in .env, use that value here instead.
+docker exec pacgate-db psql -U pacgate -d pacgate -c "INSERT INTO tenants (name, slug) SELECT 'Default Firm', 'default-firm' WHERE NOT EXISTS (SELECT 1 FROM tenants WHERE slug = 'default-firm');"
 ```
 
-Register a qm bridge service account (needed by qm to authenticate with pacgate-api):
+Provision an attorney user (run by the admin once the admin account exists):
 
 ```powershell
-$body = @{email="qm-bridge@pacgate.local"; password="<strong-bridge-password>"} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+$login = Invoke-RestMethod -Uri "http://localhost:8089/pacgate/api/auth/login" -Method Post `
+  -Body '{"email":"admin@pacgate-law.com","password":"<admin-password>"}' `
+  -ContentType "application/json"
+$body = @{email="<attorney-email>"; password="<attorney-password>"; role="attorney"} | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8089/pacgate/api/auth/users" -Method Post `
+  -Headers @{Authorization="Bearer $($login.token)"} -Body $body -ContentType "application/json"
 ```
+
+Register the qm bridge service account (the installer does this; manual for recovery).
+Same admin-provisioned route, same shape as above, with `email="qm-bridge@pacgate-law.com"`.
+
+For the qm collaboration surface: set `AUTH_ALLOWED_EMAILS` (comma-separated) and
+`ADMIN_GRANTS=<email>:org_admin` in `deploy/client-bundle/qm-pacgate/.env`, then re-run
+`setup-qm.ps1`.
 
 ## Stage 3.5: Verify OpenViking memory service (both machines)
 
@@ -292,40 +369,51 @@ The script prompts for:
 - Pacgate bridge email: `qm-bridge@pacgate.local`
 - Pacgate bridge password: the one you registered in Stage 3
 
-The script generates signing secrets, creates `.env` in the qm-pacgate directory, validates the config with `qm check`, and builds the sandbox image with `qm sandbox build`.
+The script generates signing secrets, creates `.env` in the qm-pacgate directory, validates the config with `qm check`, builds the sandbox image with `qm sandbox build`, fetches the static docker CLI the core shells (SHA-256 verified), and builds the `qm-pacgate-sandbox-local` exec-daemon wrapper image.
 
-**QM sign-in requires a Resend API key.** The qm auth broker delivers sign-in magic links
-via **Resend** (`AUTH_EMAIL_TRANSPORT=resend`), not Outlook SMTP (Microsoft retired Basic
-Auth / app passwords for Exchange Online). Before `qm up` will start `portal`+`auth`, set
-`RESEND_API_KEY` in `deploy/qm-pacgate/.env`:
+**QM sign-in needs an email transport.** The qm auth broker delivers sign-in
+one-time links. Two supported transports:
+
+- **Local/pilot topology (Mailpit SMTP catcher):** `SMTP_HOST=mailpit
+  SMTP_PORT=1025 AUTH_EMAIL_TRANSPORT=smtp SMTP_TLS=none`. Links LAND IN THE MAILPIT
+  INBOX — open `http://localhost:8025` to pick up a sign-in link in a pilot. No
+  real email is sent.
+- **Production topology (Resend):** `AUTH_EMAIL_TRANSPORT=resend` with `RESEND_API_KEY`
+  in `deploy/qm-pacgate/.env`, and `AUTH_EMAIL_FROM` set to a Resend-verified sender
+  (an Outlook address is not verified; Microsoft retired Basic Auth/app passwords for
+  Exchange Online, so raw Outlook SMTP is NOT a supported transport):
 
 ```
 RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-Also set `AUTH_EMAIL_FROM` to a **Resend-verified sender** (an Outlook address is not
-verified). Either verify a real domain (e.g. `pacgate-law.com`) in Resend, or use Resend's
-test sender for now:
-```
 AUTH_EMAIL_FROM="PacGate <onboarding@resend.dev>"
 ```
 
 Start qm:
 
 ```powershell
-cd C:\pacgate-ai-pr\deploy\qm-pacgate
-node_modules\.bin\qm.cmd up
+cd C:\pacgate-ai-pr\deploy\client-bundle\qm-pacgate
+docker compose -f compose.qm.yaml up -d
 ```
 
-> **Note:** `npm exec qm -- up` may be blocked by the PowerShell execution policy
-> (`npm.ps1`). Use `node_modules\.bin\qm.cmd up` instead.
+> **Use compose, NOT `qm up`.** The `@yc-software/qm` CLI's docker lifecycle is
+> POSIX-only - its `which()` shells `/bin/sh`, which does not exist on Windows
+> (measured 2026-10-06: `execFileSync("/bin/sh", …)` → `ENOENT`), so `qm up`,
+> `qm down`, and `qm status` die with "docker not found on PATH" on every AIPC.
+> `compose.qm.yaml` describes the same topology (same names, volumes, network)
+> and additionally carries the Pacgate patches: `patch/pi-models.ts` and
+> `patch/local-sandbox.ts` are bind-mounted over the core's source, the static
+> docker CLI and the host docker socket are mounted, and the sandbox wrapper
+> image is wired. Those mounts survive every `down`/`up -d` cycle - the model
+> routing and the sandbox lane are durable through compose. Do NOT run
+> `docker compose -f compose.qm.yaml up -d` and a `qm up` against the same
+> directory (they would fight over the same named volumes and network).
 
 Verify qm:
 
 ```powershell
 # Open http://localhost:8182  (web-ui) — requires a portal identity token
 # Open http://localhost:8181  (portal) — the sign-in front door
-# Sign in with the admin email (magic link via Resend)
+# Sign in with the admin email (magic link via the configured transport; Mailpit in pilot)
 # Send a test message
 # Ask: "List available pacgate workflows"
 ```
@@ -339,8 +427,7 @@ Verify qm:
 > `NODE_ENV=development` + `ALLOW_UNAUTHENTICATED_CORE=1` and **no** `CORE_SIGNING_SECRET`,
 > and `qm-pacgate-web-ui` with **no** `CORE_SIGNING_SECRET`. Then `POST /signin` works
 > directly at `:8182` with `{"user":"<principal>"}` and no Resend key is needed. This is
-> **not** production-correct (no auth) — use it only for a single-user pilot. See
-> `deer-flow/docs/pacgate/QM-WEBUI-8182-SIGNIN-FIX-PLAN.md` for the exact commands.
+> **not** production-correct (no auth) — use it only for a single-user pilot.
 
 ## Stage 5: Verify deer-flow (both machines)
 
@@ -437,7 +524,8 @@ Run this checklist on each AIPC independently.
 ### Core stack
 
 - [ ] `docker compose -f compose.prod.yaml ps` shows 5 services up (incl. openviking)
-- [ ] `curl http://localhost:8089/health` returns `ok`
+- [ ] `curl http://localhost:8089/version` returns the release version + revision JSON
+- [ ] `curl http://localhost:8089/pacgate/health` returns `ok` (NOT `/health` at the root - see Stage 2)
 - [ ] `curl http://localhost:1933/health` returns healthy JSON
 - [ ] Postgres has the `pacgate-law` tenant
 - [ ] Admin user can log in at `http://localhost:8089/api/auth/login`
@@ -477,12 +565,16 @@ docker compose -f compose.prod.yaml up -d
 docker compose -f compose.prod.yaml down
 
 # Start qm
-cd C:\pacgate-ai-pr\deploy\qm-pacgate
-npm exec qm -- up
+cd C:\pacgate-ai-pr\deploy\client-bundle\qm-pacgate
+docker compose -f compose.qm.yaml up -d
 
-# Stop qm
-npm exec qm -- down
+# Stop qm (NO -v: .env and the volumes stay)
+docker compose -f compose.qm.yaml down
 ```
+
+> `qm up` / `qm down` cannot run on Windows (the CLI's `which()` shells
+> `/bin/sh` → ENOENT); compose is the only working qm lifecycle on the AIPC and
+> it carries the patches that keep model routing and the sandbox lane durable.
 
 ### Update to a new version
 
@@ -575,14 +667,24 @@ deer-flow (research workspace):
 2. Restart: `docker compose -f compose.prod.yaml restart deer-flow`
 
 qm (co-working workspace):
-1. Edit `qm-pacgate/qm.config.jsonc` - change `MODEL_NAME`
-2. Restart: `cd qm-pacgate && npm exec qm -- down && npm exec qm -- up`
+1. Edit `deploy/client-bundle/qm-pacgate/qm.config.jsonc` if the model set changes
+2. Recreate core (compose keeps the patch mounts, so the routing stays durable):
+   ```powershell
+   cd C:\pacgate-ai-pr\deploy\client-bundle\qm-pacgate
+   docker compose -f compose.qm.yaml up -d --force-recreate core
+   ```
 
 ### Register new users
 
+`POST /api/auth/register` is **first-user-only** and returns 403 after the bootstrap
+account (see Stage 3). Create every later account through the admin route:
+
 ```powershell
+# /pacgate prefix required - see the note in Stage 3. Bearer = admin's token
+# from POST /pacgate/api/auth/login (see Stage 3 for the login step).
 $body = @{email="<user>@pacgate-law.com"; password="<password>"} | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8089/api/auth/register" -Method POST -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:8089/pacgate/api/auth/users" -Method POST `
+  -Headers @{Authorization="Bearer <admin-token>"} -Body $body -ContentType "application/json"
 ```
 
 ### Backup the database
@@ -600,24 +702,12 @@ docker compose -f compose.prod.yaml logs -f deer-flow
 
 ## Known limitations
 
-- **QM local-model routing is non-durable.** To make QM chat work against local
-  Ollama, a custom model entry (`glm-5.3-flash:cloud`) was added to the QM core's
-  `src/model/pi-models.ts` (in the container's writable layer). **This edit is
-  lost whenever the core container is recreated** (e.g. `qm up` after `qm down`,
-  or a manual `docker rm -f qm-pacgate-core`). After any recreate, `glm-5.3-flash:cloud`
-  disappears from `GET /v1/surface-config` → `webuiModels`, and chat turns return
-  403 "that model isn't available". To re-apply:
-  ```bash
-  # 1. Add the custom entry to MODEL_REGISTRY in /app/src/model/pi-models.ts
-  #    { id: "glm-5.3-flash:cloud", name: "GLM 5.3 Flash (Ollama)", fastMode: false,
-  #      webui: true, base: true,
-  #      custom: { template: "gpt-4.1-mini", baseUrl: "http://host.docker.internal:11434/v1" } }
-  # 2. Extend ModelEntry with optional custom:{template,baseUrl} and handle it in resolveModel()
-  # 3. Ensure OPENAI_API_KEY=ollama-local is set on the core (Ollama ignores the value)
-  # 4. Restart the core
-  ```
-  For a durable fix, commit the change to the qm source repo and rebuild the image,
-  or stand up a proxy (e.g. LiteLLM) that maps the openai provider to Ollama.
+- **`qm up` / `qm down` do not work on Windows.** The qm CLI's docker lifecycle
+  is POSIX-only: its `which()` runs `execFileSync("/bin/sh", …)`, which is
+  `ENOENT` on every Windows AIPC (measured 2026-10-06). Use the compose path
+  above (`docker compose -f compose.qm.yaml up -d`) - same topology, same
+  container names, and it carries the Pacgate patches, so nothing is lost
+  across recreates.
 - Each machine has its own independent Postgres and `./data/tenants/` directory. Matter data is not shared between machines unless you later add a private mesh and a sync or single-authority model.
 - The PkuLaw connector token is expired. Regenerate it at `https://mcp.pkulaw.com` and set `PKULAW_API_KEY` in `.env` if China-law search is needed during the pilot.
 - Four WASM crates (citation-check, clause-parser, doc-validator, rule-engine) remain stubs. These are future-blueprint work and do not affect Phase 1 pilot functionality.
@@ -636,5 +726,3 @@ docker compose -f compose.prod.yaml logs -f deer-flow
 | `deploy/qm-pacgate/qm.config.jsonc` | qm local deployment config |
 | `deploy/SETUP-AND-OPERATIONS.md` | Full 3-day on-site install guide (reference) |
 | `deploy/DEPLOYMENT-GUIDE.md` | Engineer-level deployment details (reference) |
-| `deer-flow/docs/pacgate/QM-WEBUI-8182-SIGNIN-FIX-PLAN.md` | QM sign-in + model-routing fix plan (diagnosis + exact commands) |
-| `deer-flow/docs/pacgate/QM-WEBUI-8182-AUTH-DIAGNOSIS.md` | QM portal-auth bottleneck diagnosis |

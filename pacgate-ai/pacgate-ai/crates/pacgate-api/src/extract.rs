@@ -10,7 +10,9 @@
 //! a job completes.
 
 use axum::http::StatusCode;
-use pacgate_core::{DataLevel, DocumentId, Jurisdiction, MatterId, SourceLevel, TenantId};
+use pacgate_core::{
+    DataLevel, DocumentFormat, DocumentId, Jurisdiction, MatterId, SourceLevel, TenantId,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
@@ -62,22 +64,41 @@ pub async fn extract_document(
     let version: i32 = row.get("version");
     let storage_path: String = row.get("storage_path");
 
-    // Cache check: any spans stored for this exact (document, version) mean
+    // Cache check: a recorded extraction for this exact (document, version) means
     // the extraction already ran.
-    let cached = sqlx::query(
-        "SELECT id, page, x, y, width, height, text FROM document_spans \
+    //
+    // KEYED ON document_extractions, NOT on span-emptiness. A document whose pages
+    // yielded no text has ZERO spans, so keying on spans made that case a
+    // permanent cache miss (re-OCRing on every call) while still being unable to
+    // say it was incomplete. The extraction record exists for every attempt, so
+    // it is the correct cache key and the only place completeness can live.
+    let extraction_state = sqlx::query(
+        "SELECT incomplete, pages FROM document_extractions \
          WHERE tenant_id = $1 AND matter_id = $2 AND document_id = $3 AND document_version = $4 \
-         ORDER BY page, y, x",
+         LIMIT 1",
     )
     .bind(tenant_id.0)
     .bind(matter_id.0)
     .bind(document_id.0)
     .bind(version)
-    .fetch_all(&state.db)
+    .fetch_optional(&state.db)
     .await
     .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    if !cached.is_empty() {
+    if let Some(record) = extraction_state {
+        let cached = sqlx::query(
+            "SELECT id, page, x, y, width, height, text FROM document_spans \
+             WHERE tenant_id = $1 AND matter_id = $2 AND document_id = $3 AND document_version = $4 \
+             ORDER BY page, y, x",
+        )
+        .bind(tenant_id.0)
+        .bind(matter_id.0)
+        .bind(document_id.0)
+        .bind(version)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
         let text = load_cached_text(state, tenant_id, matter_id, document_id).await?;
         let spans = cached
             .iter()
@@ -90,16 +111,120 @@ pub async fn extract_document(
                 text: r.get("text"),
             })
             .collect();
-        let pages = cached
-            .iter()
-            .map(|r| r.get::<Option<i32>, _>("page").unwrap_or(1))
-            .max()
-            .unwrap_or(1) as u32;
+        // `pages` comes from the stored record. `record_extraction` is the only
+        // writer of this table and always supplies it from the OCR response, whose
+        // `pages` is at least 1, so the value is never 0 in practice - the column
+        // has a DEFAULT 0 only so the INSERT can be narrow. A previous revision
+        // fell back to the span maximum here, which was dead code AND wrong if it
+        // ever fired: for a PARTIALLY-read document the highest span page is lower
+        // than the true page count, so the fallback would have undercounted the
+        // exact case this fix exists for. Removed rather than left as a trap.
+        let pages: u32 = record.get::<i32, _>("pages").max(0) as u32;
+
+        // The stored flag, not a literal. This is the line that was the defect.
+        let incomplete: bool = record.get("incomplete");
+
+        // A record that CLAIMS completeness while holding no text is not a
+        // complete extraction, whatever the flag says.
+        //
+        // The write path is three autocommit statements (record -> spans ->
+        // chunks) with no transaction between them. A process death after the
+        // first one leaves a record saying `incomplete = false` with no spans and
+        // no chunks. Because the cache is keyed on that record, the next read
+        // returns `text: ""` and `incomplete: false`; `sanitize.rs` refuses only
+        // on `incomplete == true`, so it would then sanitize "" to a `pass`
+        // verdict, mark the document 'sanitized', and open the egress gate on a
+        // document whose text was never persisted.
+        //
+        // Reconciling the two here is the fix: trust the flag only when the data
+        // it describes is actually present. `text.trim().is_empty()` (rather than
+        // `text.is_empty()`) also covers whitespace-only text, which redacts
+        // nothing and has the same fail-open shape.
+        let incomplete = incomplete || text.trim().is_empty();
+
         return Ok(ExtractedDocument {
             text,
             pages,
             spans,
-            incomplete: false,
+            incomplete,
+        });
+    }
+
+    // Route by format. Text-native documents have their text IN THE FILE, so they
+    // are read directly and never reach ocr-service - OCR would invent coordinates
+    // for content that never was pixels, and document_spans needs x/y/w/h
+    // (spec section 3). Raster input keeps the OCR path unchanged.
+    //
+    // The format strings are the ones `FsDocumentStore::upload_bytes` writes
+    // (verified against the allowlist in pacgate-docx/src/store.rs), not the
+    // `DocumentFormat` serde spellings - this column is written from that map.
+    let doc_format: String = sqlx::query("SELECT format FROM documents WHERE id = $1 LIMIT 1")
+        .bind(document_id.0)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .get("format");
+
+    let text_native = matches!(
+        doc_format.as_str(),
+        "docx" | "xlsx" | "pptx" | "html" | "markdown" | "txt"
+    );
+
+    if text_native {
+        let abs_path = std::path::Path::new(&state.config.data_dir).join(&storage_path);
+        let bytes = std::fs::read(&abs_path).map_err(|e| {
+            ApiError::internal(format!(
+                "failed to read stored document {}: {e}",
+                abs_path.display()
+            ))
+        })?;
+
+        let format = match doc_format.as_str() {
+            "docx" => DocumentFormat::Docx,
+            "xlsx" => DocumentFormat::Xlsx,
+            "pptx" => DocumentFormat::Pptx,
+            "html" => DocumentFormat::Html,
+            "markdown" => DocumentFormat::Markdown,
+            _ => DocumentFormat::Txt,
+        };
+
+        // Never returns Err: a condition that could not be read in full comes back
+        // as `incomplete = true` so the fail-closed contract stays in one place.
+        let out = crate::text_extract::extract_text_native(&format, &bytes);
+
+        // Text-native formats have no raster, so there are no spans. Zero spans is
+        // correct and is NOT "nothing was read" - `document_extractions` records
+        // completeness, which is why the cache must not key on span-emptiness
+        // (a point that cost a defect in the previous plan).
+        //
+        // Same reconciliation as the raster branches: an extractor that reports
+        // completeness while carrying no text is not a complete read.
+        let incomplete = out.incomplete || out.text.trim().is_empty();
+        let pages = 1u32;
+
+        record_extraction(
+            state,
+            tenant_id,
+            matter_id,
+            document_id,
+            version,
+            incomplete,
+            pages,
+            &out.engine,
+        )
+        .await?;
+        // `persist_extraction` is deliberately NOT called: there are no spans to
+        // persist, and calling it with an empty slice is a no-op that only
+        // obscures intent.
+        if !out.text.is_empty() {
+            ingest_text_pending(state, tenant_id, matter_id, document_id, &out.text).await?;
+        }
+
+        return Ok(ExtractedDocument {
+            text: out.text,
+            pages,
+            spans: Vec::new(),
+            incomplete,
         });
     }
 
@@ -155,6 +280,14 @@ pub async fn extract_document(
         .unwrap_or("")
         .to_string();
     let pages = body.get("pages").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+    // The engine label is stored so a future extractor change is detectable:
+    // a cache row whose engine differs from the configured one is stale text,
+    // not a valid cache hit.
+    let engine = body
+        .get("engine")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
 
     let mut spans: Vec<ExtractedSpan> = Vec::new();
     if let Some(arr) = body.get("spans").and_then(|v| v.as_array()) {
@@ -170,7 +303,32 @@ pub async fn extract_document(
         }
     }
 
-    // Persist: spans to document_spans, text to kb_chunks as pending.
+    // Same reconciliation as the cache branch: a response that claims completeness
+    // while carrying no text is not a complete extraction. `sanitize.rs` refuses
+    // only on `incomplete == true`, so without this an empty read reaches a `pass`
+    // verdict and the document is marked 'sanitized' and released.
+    //
+    // This guard must live on the WRITE path too, not only on the read path: the
+    // fresh branch returns before any cache read, and it is the branch that
+    // PERSISTS the record a later read would trust.
+    let incomplete = incomplete || text.trim().is_empty();
+
+    // Persist: spans to document_spans, text to kb_chunks as pending, and the
+    // completeness fact to document_extractions. Order matters for the cache:
+    // the extraction record is written FIRST, so a crash between the two writes
+    // leaves a record with an HONEST flag rather than spans with no record
+    // (which would be a cache miss that re-OCRs).
+    record_extraction(
+        state,
+        tenant_id,
+        matter_id,
+        document_id,
+        version,
+        incomplete,
+        pages,
+        &engine,
+    )
+    .await?;
     persist_extraction(state, tenant_id, matter_id, document_id, version, &spans).await?;
     if !text.is_empty() {
         ingest_text_pending(state, tenant_id, matter_id, document_id, &text).await?;
@@ -182,6 +340,47 @@ pub async fn extract_document(
         spans,
         incomplete,
     })
+}
+
+/// Record extraction completeness for a document version.
+///
+/// Upsert on `(document_id, document_version)` so a re-extraction of the same
+/// version replaces its own record rather than accumulating rows.
+///
+/// The `incomplete` flag is the reason this exists: it is what `sanitize.rs`
+/// reads to decide whether the document may be sanitized at all.
+#[allow(clippy::too_many_arguments)]
+async fn record_extraction(
+    state: &AppState,
+    tenant_id: &TenantId,
+    matter_id: &MatterId,
+    document_id: &DocumentId,
+    version: i32,
+    incomplete: bool,
+    pages: u32,
+    engine: &str,
+) -> Result<(), ApiError> {
+    sqlx::query(
+        "INSERT INTO document_extractions \
+         (tenant_id, matter_id, document_id, document_version, incomplete, engine, pages) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) \
+         ON CONFLICT (document_id, document_version) DO UPDATE SET \
+             incomplete = EXCLUDED.incomplete, \
+             engine = EXCLUDED.engine, \
+             pages = EXCLUDED.pages, \
+             extracted_at = NOW()",
+    )
+    .bind(tenant_id.0)
+    .bind(matter_id.0)
+    .bind(document_id.0)
+    .bind(version)
+    .bind(incomplete)
+    .bind(engine)
+    .bind(pages as i32)
+    .execute(&state.db)
+    .await
+    .map_err(|e| ApiError::internal(format!("failed to record extraction state: {e}")))?;
+    Ok(())
 }
 
 /// Persist spans. `label`/`confidence` are written as NULL here: labelling

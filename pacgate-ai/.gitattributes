@@ -9,3 +9,18 @@
 *.drawio.png binary
 *.woff binary
 *.woff2 binary
+
+# Scripts executed INSIDE Linux containers: always LF, on every platform.
+# These are COPYed into images (qm sandbox launchers, deer-flow patch tasks);
+# a CRLF checkout makes them fail with “env: 'bash\r': No such file or
+# directory” at runtime. Found live 2026-10-05 (plan 025, D-2): the published
+# sandbox image carries CRLF launchers because trees checked out on
+# Windows/macOS fed autocrlf output into the build.
+deploy/qm-pacgate/sandbox/tools/** text eol=lf
+deploy/qm-pacgate/tasks/** text eol=lf
+deploy/qm-pacgate/sandbox/Dockerfile text eol=lf
+# The exec-daemon wrapper (2026-10-05): its Dockerfile COPYs
+# microvm-agent.mjs into the wrapper image and the CMD runs it with node -
+# a CRLF checkout is harmless for node, but keep both files LF so the image
+# is byte-stable across platforms and the file stays diff-friendly.
+deploy/qm-pacgate/sandbox-local/** text eol=lf

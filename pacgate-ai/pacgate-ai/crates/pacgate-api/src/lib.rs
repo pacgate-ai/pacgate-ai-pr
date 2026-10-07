@@ -2,17 +2,27 @@
 
 mod auth;
 mod chat;
-mod extract;
 mod documents;
 mod error;
+mod extract;
 mod matters;
+mod memory_scope;
 mod sanitize;
 mod search;
 mod state;
+mod text_extract;
 mod workflows;
+mod workspace;
 
 pub use error::ApiError;
-pub use state::{AppConfig, AppState};
+pub use memory_scope::{check_memory_scope, MemoryScopeViolation, MEMORY_MAX_BYTES};
+pub use state::{AppConfig, AppState, SANITIZE_MAX_CONCURRENT};
+// Re-exported rather than left module-private so the extractor's public surface is
+// reachable from outside the crate. `mod text_extract;` is private like its
+// neighbours, and an unused private module would warn as dead code until Task 4
+// wires it into `extract.rs`; a facade re-export is the honest fix rather than an
+// `#[allow(dead_code)]` that would hide real dead code later.
+pub use text_extract::{extract_text_native, TextExtraction};
 
 use axum::{
     extract::DefaultBodyLimit,
@@ -48,7 +58,10 @@ pub fn build_router(state: AppState) -> Router {
             get(documents::download_document),
         )
         .route("/api/documents/:id/edit", put(documents::edit_document))
-        .route("/api/documents/:id/extract", post(documents::extract_document_handler))
+        .route(
+            "/api/documents/:id/extract",
+            post(documents::extract_document_handler),
+        )
         .route(
             "/api/documents/:id/sanitize",
             post(sanitize::sanitize_document_handler),
@@ -72,6 +85,13 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/matters/:id/documents",
             get(matters::list_matter_documents),
+        )
+        // Matter workspace — one aggregated view of a matter's documents,
+        // extraction records, and RAG/sanitizer chunk status (design-gap fix
+        // 2026-10-05; see workspace.rs for why this exists).
+        .route(
+            "/api/matters/:id/workspace",
+            get(workspace::get_matter_workspace),
         )
         // Workflows
         .route("/api/workflows", get(workflows::list_workflows))
@@ -98,6 +118,13 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/dd-configs", get(search::list_dd_configs))
         // Auth-protected user info
         .route("/api/auth/me", get(auth::me))
+        // Auth-protected account provisioning. This is the counterpart the
+        // register route's 403 message promises ("An administrator must create
+        // further accounts") - without it, first-user-only would have removed the
+        // ONLY way to create an account and broken the documented qm bridge
+        // install step. Requires a verified admin JWT: unlike /api/auth/register
+        // it sits on the protected router, below the auth middleware.
+        .route("/api/auth/users", post(auth::create_user))
         // Apply auth middleware (verifies JWT, injects Claims)
         // then SOUL resolver (resolves soul_id → SoulPersona, injects into extensions)
         .layer(middleware::from_fn_with_state(
@@ -136,12 +163,15 @@ pub fn build_router(state: AppState) -> Router {
         // middleware, so it is reachable without a token. Verified against the
         // published 0.1.13 image: GET /build-info returns 200. See
         // scripts/test-version-marker-against-image.ps1.
-        .route("/build-info", get(|| async {
-            axum::Json(serde_json::json!({
-                "version": env!("CARGO_PKG_VERSION"),
-                "revision": option_env!("PAC_SOURCE_REVISION").unwrap_or("unknown"),
-            }))
-        }))
+        .route(
+            "/build-info",
+            get(|| async {
+                axum::Json(serde_json::json!({
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "revision": option_env!("PAC_SOURCE_REVISION").unwrap_or("unknown"),
+                }))
+            }),
+        )
         // Auth endpoints (no auth required for login/register)
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/register", post(auth::register))

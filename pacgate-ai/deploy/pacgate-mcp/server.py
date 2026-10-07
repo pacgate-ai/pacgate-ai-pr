@@ -45,6 +45,13 @@ Exposed tools:
                                (GET /api/documents/:id/sanitize-status)
     pacgate_sanitize_text      — sanitize raw text through the job pipeline
                                (POST /api/documents + POST .../sanitize)
+    pacgate_read_memory        — read a matter's working memory
+                               (GET /api/matters/:id/memory)
+    pacgate_write_memory       — write a matter's working memory (revision-guarded)
+                               (POST /api/matters/:id/memory, optional If-Match)
+    pacgate_get_workspace      — one aggregated view of a matter (documents +
+                               extraction records + RAG/sanitizer rollup)
+                               (GET /api/matters/:id/workspace)
 
     (pacgate_restore is deliberately NOT exposed: restore is client-side only,
      design 3.5 - no chat turn can re-hydrate placeholders.)
@@ -104,63 +111,86 @@ class PacgateApi:
         logger.info("Authenticated with pacgate-api")
         return token
 
+    def _relogin(self) -> None:
+        """Re-acquire a JWT after a 401.
+
+        pacgate-api issues 24-hour tokens (pacgate-core/src/lib.rs:
+        `Duration::hours(24)`), but this client authenticates once at startup.
+        Without a re-login every tool call 401s from the 24-hour mark until the
+        container is recreated.
+
+        Only possible when credentials are held: a deployment configured with
+        PACGATE_JWT_TOKEN alone has nothing to log in with, and keeps the old
+        behaviour (surface the 401 rather than spin).
+        """
+        if not (self.email and self.password):
+            return
+        self.jwt_token = self._login()
+
     def _headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
         if self.jwt_token:
             headers["Authorization"] = f"Bearer {self.jwt_token}"
         return headers
 
-    def _relogin(self) -> None:
-        """Force a fresh login (the previous JWT expired or was revoked)."""
-        self.jwt_token = self._login()
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        files: dict[str, Any] | None = None,
+    ) -> httpx.Response:
+        """Send a request; on 401 re-login once and retry exactly once.
+
+        Headers are rebuilt inside `send()` so the retry carries the NEW token -
+        passing a headers dict built by the caller would resend the expired one
+        and 401 again. Retrying is safe because pacgate-api rejects an expired
+        token before the handler runs, so a 401 means nothing was executed.
+        """
+
+        def send() -> httpx.Response:
+            headers = self._headers()
+            if files is not None:
+                # Let httpx generate multipart/form-data WITH its boundary.
+                # Forcing application/json here would break every upload: the
+                # server would parse a multipart body as JSON. The previous
+                # post_multipart never set Content-Type for this reason.
+                headers.pop("Content-Type", None)
+            kwargs: dict[str, Any] = {"headers": headers}
+            if params is not None:
+                kwargs["params"] = params
+            if json is not None:
+                kwargs["json"] = json
+            if data is not None:
+                kwargs["data"] = data
+            if files is not None:
+                kwargs["files"] = files
+            return self._client.request(method, f"{self.base_url}{path}", **kwargs)
+
+        resp = send()
+        if resp.status_code == 401 and self.email and self.password:
+            logger.info("pacgate-api returned 401; re-authenticating and retrying once")
+            self._relogin()
+            resp = send()
+        return resp
 
     def get(self, path: str, params: dict[str, Any] | None = None) -> httpx.Response:
-        resp = self._client.get(
-            f"{self.base_url}{path}", params=params, headers=self._headers()
-        )
-        if resp.status_code == 401 and self.email and self.password:
-            # The JWT is stale (pacgate-api issues 24h tokens). Re-authenticate
-            # once and retry - without this the MCP server serves 401s forever
-            # after the first token expiry, because it only logs in at startup.
-            self._relogin()
-            resp = self._client.get(
-                f"{self.base_url}{path}", params=params, headers=self._headers()
-            )
-        return resp
+        return self._request("GET", path, params=params)
 
     def post(self, path: str, json: dict[str, Any] | None = None) -> httpx.Response:
-        resp = self._client.post(
-            f"{self.base_url}{path}", json=json, headers=self._headers()
-        )
-        if resp.status_code == 401 and self.email and self.password:
-            self._relogin()
-            resp = self._client.post(
-                f"{self.base_url}{path}", json=json, headers=self._headers()
-            )
-        return resp
+        return self._request("POST", path, json=json)
 
     def delete(self, path: str) -> httpx.Response:
-        resp = self._client.delete(f"{self.base_url}{path}", headers=self._headers())
-        if resp.status_code == 401 and self.email and self.password:
-            self._relogin()
-            resp = self._client.delete(f"{self.base_url}{path}", headers=self._headers())
-        return resp
+        return self._request("DELETE", path)
 
     def post_multipart(
         self, path: str, data: dict[str, Any], files: dict[str, Any]
     ) -> httpx.Response:
         """POST multipart/form-data (used by pacgate-api document upload)."""
-        headers = {"Authorization": f"Bearer {self.jwt_token}"} if self.jwt_token else {}
-        resp = self._client.post(
-            f"{self.base_url}{path}", data=data, files=files, headers=headers
-        )
-        if resp.status_code == 401 and self.email and self.password:
-            self._relogin()
-            headers = {"Authorization": f"Bearer {self.jwt_token}"}
-            resp = self._client.post(
-                f"{self.base_url}{path}", data=data, files=files, headers=headers
-            )
-        return resp
+        return self._request("POST", path, data=data, files=files)
 
 
 # Instantiate lazily so the MCP server can start even if pacgate-api is not yet
@@ -290,6 +320,80 @@ def pacgate_list_matters() -> str:
     return json.dumps(results, ensure_ascii=False, indent=2)
 
 
+def _default_matter_id(matter_id: str | None) -> str | None:
+    """Resolve the matter id: explicit arg wins, else PACGATE_MATTER_ID env.
+
+    Models occasionally serialize an omitted optional as the literal strings
+    "None" or "null" instead of leaving it out (observed live 2026-10-05:
+    pacgate_get_workspace got matter_id="None" and the API answered
+    "invalid matter id: invalid character; found `N` at 0"). Treat those and
+    empty strings as unset so the env default still applies.
+    """
+    if matter_id and matter_id.strip().lower() not in ("none", "null", ""):
+        return matter_id.strip()
+    env_value = os.environ.get("PACGATE_MATTER_ID", "").strip()
+    return env_value or None
+
+
+@mcp.tool()
+def pacgate_read_memory(matter_id: str | None = None) -> str:
+    """Read a matter's working memory (procedural notes about the matter).
+
+    Matter memory is NOT the document knowledge base - it is small,
+    revision-controlled working notes scoped to one matter (e.g. task
+    checklists, current status). Prefer this over pacgate_kb_search when the
+    user asks about "matter memory" or what the team has recorded so far.
+
+    Args:
+        matter_id: The UUID of the matter. Defaults to PACGATE_MATTER_ID from
+            the environment (the deployment's scoped matter).
+    """
+    mid = _default_matter_id(matter_id)
+    if not mid:
+        return json.dumps({"error": "no matter_id given and PACGATE_MATTER_ID is not set"})
+    client = get_client()
+    resp = client.get(f"/api/matters/{mid}/memory")
+    _handle_error(resp)
+    return json.dumps(resp.json(), ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def pacgate_write_memory(
+    content: str,
+    matter_id: str | None = None,
+    if_match: int | None = None,
+) -> str:
+    """Write a matter's working memory, with lost-update protection.
+
+    Sends If-Match: <revision> when given; pacgate-api refuses (409) when the
+    memory changed since that revision, refusing to silently overwrite a
+    concurrent editor.
+
+    Args:
+        content: The new memory content (plain text working notes).
+        matter_id: The UUID of the matter. Defaults to PACGATE_MATTER_ID.
+        if_match: The revision previously read via pacgate_read_memory,
+            sent as If-Match. Omit for an unconditional first write.
+    """
+    mid = _default_matter_id(matter_id)
+    if not mid:
+        return json.dumps({"error": "no matter_id given and PACGATE_MATTER_ID is not set"})
+    client = get_client()
+    headers = {"If-Match": str(if_match)} if if_match is not None else {}
+    resp = client.post(
+        f"/api/matters/{mid}/memory",
+        json={"content": content},
+        headers=headers,
+    )
+    if resp.status_code in (409, 422):
+        return json.dumps(
+            {"error": f"pacgate-api {resp.status_code}", "detail": resp.text},
+            ensure_ascii=False,
+        )
+    _handle_error(resp)
+    return json.dumps(resp.json(), ensure_ascii=False, indent=2)
+
+
 @mcp.tool()
 def pacgate_list_documents(matter_id: str) -> str:
     """List documents for a specific matter.
@@ -305,6 +409,29 @@ def pacgate_list_documents(matter_id: str) -> str:
     _handle_error(resp)
     results = resp.json()
     return json.dumps(results, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def pacgate_get_workspace(matter_id: str | None = None) -> str:
+    """Get the unified matter workspace: everything one matter holds in one response.
+
+    The aggregated view (GET /api/matters/:id/workspace): the document list
+    with per-document sanitization state, OCR extraction records (pages,
+    engine, incomplete flag), and the RAG store rollup (chunk counts +
+    sanitization states per document). Use this FIRST to survey what a matter
+    has before picking documents to read or searching the KB.
+
+    Args:
+        matter_id: The UUID of the matter. Defaults to PACGATE_MATTER_ID from
+            the environment (the deployment's scoped matter).
+    """
+    mid = _default_matter_id(matter_id)
+    if not mid:
+        return json.dumps({"error": "no matter_id given and PACGATE_MATTER_ID is not set"})
+    client = get_client()
+    resp = client.get(f"/api/matters/{mid}/workspace")
+    _handle_error(resp)
+    return json.dumps(resp.json(), ensure_ascii=False, indent=2)
 
 
 @mcp.tool()

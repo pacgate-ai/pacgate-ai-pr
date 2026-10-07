@@ -91,6 +91,87 @@ try {
         'pacgate-ai/Cargo.lock' = @(
             '(?ms)(^name = "pacgate[a-z0-9\-]*"\r?\nversion = ")(?<v>\d+\.\d+\.\d+)(")'
         )
+
+        # README release headings. These make a CLAIM about which release this
+        # tree is, so they are pins in the only sense that matters: they can be
+        # wrong. Both sat at v0.1.14 across five releases (0.1.15 - 0.1.19) while
+        # the image pins in the SAME section read 0.1.19, so the first line of the
+        # file contradicted the table forty lines below it.
+        #
+        # Two patterns, and BOTH are required.
+        #
+        # The heading is anchored so a version-shaped string elsewhere (a
+        # changelog entry, "first-class since 0.1.16") is not touched - those are
+        # historical facts, not claims.
+        #
+        # The image list is a CLAIM and must move with it. The first version of
+        # this entry matched only the heading, so a bump to 0.1.20 moved the
+        # heading and left 22 image pins (11 per README) reading 0.1.19 - a
+        # README that contradicted itself two lines apart. Found by auditing the
+        # bump's own output rather than trusting its "all pins now read" line.
+        #
+        # Anchored to the `- <x> image: \`ghcr.io/...:` shape, which only appears
+        # in the release manifest list, so a version cited in prose is untouched.
+        # Two patterns per README, and BOTH are required.
+        #
+        # The heading is anchored so a version-shaped string elsewhere (a
+        # changelog entry, "first-class since 0.1.16") is not touched - those are
+        # historical facts, not claims.
+        #
+        # The image surface is a CLAIM and must move with the heading. It appears
+        # in TWO shapes, and matching only one left the other stale TWICE:
+        #   * a bullet list  (`- pacgate-api image: ghcr.io/...:0.1.19`)
+        #   * a markdown table (`| ghcr.io/...:0.1.19 | ... |`)
+        # Neither is matched by anchoring on a word like "image:", because the ZH
+        # list says `镜像：` and the table has no label at all. So this anchors on
+        # the LINE SHAPE - a version immediately after a jzkk720 tag, at the start
+        # of a list item or table row - which survives both languages and both
+        # layouts. Every miss here produced a README contradicting itself.
+        'README.md' = @(
+            '(?m)^(## Release: v)(?<v>\d+\.\d+\.\d+)',
+            '(?m)^([-|]\s[^\r\n]*?ghcr\.io/jzkk720/[a-z0-9\-]+:)(?<v>\d+\.\d+\.\d+)'
+        )
+        'README-ZH.md' = @(
+            '(?m)^(## 版本：v)(?<v>\d+\.\d+\.\d+)',
+            '(?m)^([-|]\s[^\r\n]*?ghcr\.io/jzkk720/[a-z0-9\-]+:)(?<v>\d+\.\d+\.\d+)'
+        )
+
+        # The five client-facing docs. These were the LOOP: none of them was in
+        # this list, so every bump left all five carrying the previous release,
+        # the freshness audit failed on the same five, and they were corrected by
+        # hand - then the next bump repeated it exactly.
+        #
+        # Each carries several surfaces that must move together: a
+        # "VERIFIED AGAINST `x.y.z`" attestation, an image-pin table, and
+        # `docker build -t ghcr.io/jzkk720/<name>:x.y.z` command lines. All of
+        # them are the shape `ghcr.io/jzkk720/<name>:<version>`, so ONE pattern
+        # covers all three shapes in both languages. That is why this anchors on
+        # the tag rather than on a label like "image:" - the ZH table has no
+        # label at all, and the build commands have no table.
+        #
+        # Deliberately NOT anchored to a line start: the pins appear mid-line in
+        # prose ("every pin is `0.1.19`, derived from..."), in table cells, and
+        # after `-t `. A line-start anchor would have missed most of them.
+        #
+        # The `VERIFIED AGAINST` date is NOT bumped - only the version it names.
+        # The date records when the verification happened; silently advancing it
+        # would assert a re-verification that did not occur.
+        'deploy/DEPLOYMENT-GUIDE.md' = @(
+            '(ghcr\.io/jzkk720/[a-z0-9\-]+:)(?<v>\d+\.\d+\.\d+)',
+            '(VERIFIED AGAINST `)(?<v>\d+\.\d+\.\d+)'
+        )
+        'deploy/AIPC-DEPLOYMENT-HANDBOOK.md' = @(
+            '(ghcr\.io/jzkk720/[a-z0-9\-]+:)(?<v>\d+\.\d+\.\d+)'
+        )
+        'deploy/AIPC-DEPLOYMENT-HANDBOOK-ZH.md' = @(
+            '(ghcr\.io/jzkk720/[a-z0-9\-]+:)(?<v>\d+\.\d+\.\d+)'
+        )
+        'deploy/SETUP-AND-OPERATIONS.md' = @(
+            '(ghcr\.io/jzkk720/[a-z0-9\-]+:)(?<v>\d+\.\d+\.\d+)'
+        )
+        'deploy/SETUP-AND-OPERATIONS-ZH.md' = @(
+            '(ghcr\.io/jzkk720/[a-z0-9\-]+:)(?<v>\d+\.\d+\.\d+)'
+        )
     }
 
     if (-not $From) {
@@ -204,6 +285,37 @@ try {
     if ($stale.Count -gt 0) {
         Write-Output 'FAIL - pins did not all move:'
         $stale | ForEach-Object { Write-Output $_ }
+        exit 1
+    }
+
+    # 4. The README release headings are CLAIMS about which release this tree is.
+    #
+    # Both sat at v0.1.14 across five releases while the image pins in the same
+    # section read 0.1.19 - the first line of the README contradicted the table
+    # below it. Nothing caught that, because the headings were not a bump target.
+    #
+    # Checked rather than assumed: an operator reads the heading first, and a
+    # heading that lags five releases is exactly the kind of stale claim that made
+    # the retired handoff docs dangerous.
+    $headingStale = @()
+    foreach ($rel in @('README.md', 'README-ZH.md')) {
+        $p = Join-Path $repoRoot $rel
+        if (-not (Test-Path -LiteralPath $p)) { continue }
+        $t = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)
+        $m = [regex]::Match($t, '(?m)^## (?:Release: v|版本：v)(?<v>\d+\.\d+\.\d+)')
+        if (-not $m.Success) {
+            $headingStale += "  $rel has no '## Release: vX.Y.Z' / '## 版本：vX.Y.Z' heading to check"
+        }
+        elseif ($m.Groups['v'].Value -ne $To) {
+            $headingStale += "  $rel release heading is v$($m.Groups['v'].Value), expected v$To"
+        }
+    }
+    if ($headingStale.Count -gt 0) {
+        Write-Output ''
+        Write-Output "FAIL - the README release heading did not move to ${To}:"
+        $headingStale | ForEach-Object { Write-Output $_ }
+        Write-Output '  The heading is the first thing an operator reads; a stale one is a'
+        Write-Output '  false claim about which release this tree is.'
         exit 1
     }
 

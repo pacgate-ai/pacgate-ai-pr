@@ -1,8 +1,11 @@
 # Run every local verification script and report a single pass/fail.
 #
-# TWO KINDS OF SCRIPT, and conflating them is a bug I hit on the first run:
+# THREE KINDS OF SCRIPT, and conflating them is a bug I hit on the first run:
 #
 #   GATES        exit 0 = pass, non-zero = a real failure. Nothing to interpret.
+#   LIVE-STACK   exit 0 = pass, 1 = a real failure, 2 = CANNOT CHECK. Same
+#   GATES        assertions as a gate, but they need the stack actually up, so 2
+#                must NOT be read as a failure of the code. See below.
 #   MEASUREMENTS exit code IS the answer. audit-aipc-update-coverage.ps1 exits 1
 #                while plan 014 has open work, by design - that is it correctly
 #                reporting "gaps remain", not a broken script.
@@ -12,10 +15,63 @@
 # when nothing is wrong is a runner people learn to ignore - the same failure
 # mode as the stale tools fixed earlier in this work. Measurements are now
 # reported with their result and never fail the run; only GATES can.
+#
+# THE EXIT-2 CARVE-OUT, and why it is not a way to hide a failure: 2 specifically
+# means "could not check". test-empty-extraction-gate.ps1 needs nginx, the API, the
+# OCR service and credentials; on a developer's clean checkout none of that is
+# running, and a red suite there teaches people to ignore the suite rather than to
+# trust it. So 2 is reported as SKIP CANNOT CHECK and does NOT fail the run, while
+# 0 and 1 keep their exact gate meaning - a real assertion failure is still red.
+#
+# This is a carve-out on the EXIT CODE, not on any assertion: nothing in this
+# runner can turn an observed failure green. Both pre-existing scripts that
+# already exit 2 (test-workflow-compose-wiring, test-handoff-command-safety) use
+# it for the same class of "environment is wrong" error - no compose files found,
+# no docs found - so the reading is consistent, and neither loses coverage.
 [CmdletBinding()]
-param()
+param(
+    # The suite needs an `ocr-service:local` image because several gates build their
+    # PDF fixtures INSIDE it (it is the container that has PIL). Nothing ever built
+    # that tag - it is a hand-made leftover on machines where it happens to exist -
+    # so on any other machine those gates exit 2 (CANNOT CHECK) and are silently
+    # skipped while the suite still reports success. That is the failure mode this
+    # header warns about: coverage that quietly disappears.
+    #
+    # So the suite CREATES it from the published image, which is the same code and
+    # is guaranteed present for the release under test. Tagging an already-pulled
+    # image is free. Pass -SkipOcrTag to opt out.
+    [switch]$SkipOcrTag
+)
 $ErrorActionPreference = 'Continue'
 Set-Location (Split-Path -Parent $PSScriptRoot)
+
+# Ensure `ocr-service:local` exists, derived from the workspace version rather than
+# hardcoded, so it follows the release.
+if (-not $SkipOcrTag) {
+    $haveLocal = @(docker images --format '{{.Repository}}:{{.Tag}}' 2>$null) -contains 'ocr-service:local'
+    if ($haveLocal) {
+        Write-Host 'ocr-service:local present' -ForegroundColor DarkGray
+    }
+    else {
+        $toml = 'pacgate-ai/Cargo.toml'
+        $ver  = if (Test-Path $toml) {
+            (Select-String -Path $toml -Pattern '^version\s*=\s*"([0-9.]+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+        } else { '' }
+        $ref = "ghcr.io/jzkk720/ocr-service:$ver"
+        if (-not $ver) {
+            Write-Host 'WARN: cannot derive the version; fixture-dependent gates may CANNOT CHECK.' -ForegroundColor Yellow
+        }
+        elseif (-not (@(docker images --format '{{.Repository}}:{{.Tag}}' 2>$null) -contains $ref)) {
+            Write-Host "pulling $ref (needed by the fixture-dependent gates)..." -ForegroundColor DarkGray
+            docker pull $ref 2>&1 | Out-Null
+        }
+        if ($ver -and (@(docker images --format '{{.Repository}}:{{.Tag}}' 2>$null) -contains $ref)) {
+            docker tag $ref ocr-service:local 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) { Write-Host "ocr-service:local tagged from $ref" -ForegroundColor DarkGray }
+            else { Write-Host 'WARN: could not create ocr-service:local.' -ForegroundColor Yellow }
+        }
+    }
+}
 
 $gates = @(
     'scripts/test-install-render.ps1'
@@ -23,6 +79,35 @@ $gates = @(
     'scripts/test-update-end-to-end.ps1'
     'scripts/test-scheduled-update.ps1'
     'scripts/test-workflow-namespace.ps1'
+    # The workflow LIBRARY must be served, not the 10 built-in Rust definitions.
+    # This one is STATIC - it reads compose files, needs no containers, no
+    # credentials and no running stack - so it is safe as a gate.
+    #
+    # It exists because fixing one compose file and forgetting another is a real
+    # event in this repo, not a hypothetical: the first fix landed only in
+    # compose.prod.yaml, leaving compose.bundle.yaml carrying the ORIGINAL defect
+    # (mount on deer-flow, no WORKFLOWS_DIR) with nothing objecting. It also
+    # caught a dead workflows mount still sitting on deer-flow in prod.
+    #
+    # The RUNTIME counterpart (asserting the API actually returns 222) is in the
+    # measurements list below, not here: it exits 2 for "cannot check" when the
+    # stack is down, and a gate that goes red on a clean machine is the exact
+    # failure mode this runner's header warns about.
+    'scripts/test-workflow-compose-wiring.ps1'
+    # Runs immediately after, and proves the guard above can actually FAIL. The
+    # injection harness found two real defects a human review did not: a
+    # case-insensitive -match that let a COMMENT satisfy the env check (so the
+    # guard passed a file with the key deleted), and a dead workflows mount still
+    # on deer-flow. Static and safe - it mutates a throwaway temp copy only.
+    'scripts/test-workflow-compose-wiring-mutations.ps1'
+    # Client-facing handoff docs must not instruct a deployable-but-wrong action.
+    # Three docs told the on-site engineer to clone the FORK, and the AIPC
+    # handbook asserted the two repos were "identical ... so either clone works".
+    # That was true when written and became FALSE the next day, when 26 commits
+    # landed on JZKK720 that the fork did not have - so a machine deployed from
+    # the fork silently serves 10 built-in workflows instead of the firm's 222.
+    # Static: reads markdown only, no stack required.
+    'scripts/test-handoff-command-safety.ps1'
     # Structural validity, separate from the string-match checks above. The
     # 0.1.14 release produced NO images because a job-level `if:` referenced the
     # `env` context, which invalidated the entire workflow file - so every run
@@ -46,16 +131,154 @@ $gates = @(
     'scripts/test-qm-sandbox-fingerprint.ps1'
     'scripts/test-version-marker.ps1'
     'scripts/test-version-marker-against-image.ps1'
+    # The Rust layer was entirely un-gated before 2026-09-26: cargo test and
+    # cargo clippy ran nowhere in CI or run-all-checks. That is why a silent
+    # recall miss shipped in four detectors. Scope is deliberately -p
+    # pacgate-redact, which is clean; the workspace has pre-existing clippy
+    # warnings in other crates.
+    'scripts/test-rust-workspace.ps1'
+    # Asserts NER is enabled in every BASE compose file that defines pacgate-api.
+    # An unset PACGATE_NER_MODEL_DIR is not a runtime error - it warns and degrades
+    # to 5 of 15 classes while looking healthy - so only a gate catches it.
+    # Self-contained: reads files, and its docker check self-skips when the image
+    # is absent, so it belongs here rather than in $liveStackGates.
+    'scripts/test-ner-enabled.ps1'
+    # Asserts the NER memory bound at both layers. Neither is self-enforcing: an
+    # unset mem_limit looks like a set one until the container OOMs, and a permit
+    # acquired after the detector build passes every behavioural test while
+    # bounding nothing. Self-contained (reads files; no docker needed).
+    'scripts/test-memory-bound.ps1'
+    # Asserts the matter-memory concurrency guard is CONNECTED. It was dead at
+    # three layers at once while every unit test passed, because each layer was
+    # individually correct - the LINKS between them were missing, and a
+    # source-level check is the only thing that sees links. Self-contained.
+    'scripts/test-memory-guard.ps1'
+    # Asserts the memory SCOPE rule is defined, enforced, and still correctly
+    # asymmetric (identifiers gate, prose does not). The second guard in this
+    # subsystem, so it gets the same treatment as the first: a source-level check,
+    # because per-piece correctness already hid one broken chain here.
+    'scripts/test-memory-scope.ps1'
+    # Asserts deer-flow's memory lane is the SANITIZED adapter and cannot silently
+    # degrade. deer-flow wraps storage instantiation in a bare `except Exception`
+    # that substitutes its own FileMemoryStorage - which bypasses all three guards
+    # above. It already happened here: native memory.json files hold real matter
+    # prose in a schema the adapter never emits. The trip-wire is a missing
+    # PACGATE_MATTER_ID, and .env.example shipped it blank. Self-contained.
+    'scripts/test-memory-lane.ps1'
+    # Proves the gate above can REJECT. It went in as a blind gate twice in this
+    # subsystem already, so the mutation harness is registered alongside it
+    # rather than trusted to a manual run. Breaks each assertion in turn,
+    # asserts exit 1, and restores every file byte-identical.
+    'scripts/test-memory-lane-mutations.ps1'
+    # Asserts every rendered PDF is at least as new as its markdown source, and
+    # that the client-delivery copies have not drifted. These are CLIENT-FACING
+    # hand-rendered artifacts with no regeneration step, and four had gone stale
+    # (one by 12 days) while nothing noticed - an operator reading the PDF gets
+    # superseded instructions, which is worse than a missing file.
+    'scripts/test-pdf-freshness.ps1'
+    # Proves the PDF gate can reject. Registered alongside it because a gate
+    # whose only evidence is a green run has not been tested at all.
+    'scripts/test-pdf-freshness-mutations.ps1'
+    # Gates the Python adapter suite, which nothing ran. Same gap
+    # test-rust-workspace.ps1 closed for Rust: 8 adapter assertions - including
+    # the 409-vs-422 distinction that exists BECAUSE the two were once collapsed -
+    # passed only when a human typed the command. Discovery is checked too, so a
+    # moved suite fails loudly instead of reporting a vacuous green.
+    'scripts/test-adapter-python.ps1'
+    # Gates the pacgate-mcp 401-retry behaviour test. Same gap again, and it
+    # matters more here: the defect this guards is INVISIBLE until pacgate-api's
+    # 24-hour JWT expires. A regression would not appear in any smoke test, any
+    # deployment check, or on a freshly restarted machine - it would surface one
+    # day later as every agent tool call failing. Nothing else covers it.
+    'scripts/test-mcp-401-retry.ps1'
     'scripts/verify-delivery-state.ps1'
     'scripts/verify-surviving-components.ps1'
     'scripts/check-installer-syntax.ps1'
+    # Chat-lane default egress. `model_routing` escalated to a CLOUD model at a
+    # threshold a single uploaded contract could cross, so an attorney who never
+    # touched the model picker had document text sent to ollama.com with no
+    # sanitizer and no consent. That is the client's only upload path and the
+    # firm's central promise, so it is a gate rather than a config comment.
+    #
+    # This one is STATIC - it reads deer-flow-config.yaml and the agent patch, and
+    # A5 skips itself if ollama is unreachable - so it is safe in the gate list.
+    # It was negative-tested: reintroducing the cloud target at the old threshold
+    # makes it exit 1. A version of this file that could not fail on its own defect
+    # passed the reintroduced bug, which is why the negative test is mandatory here.
+    'scripts/test-chat-no-auto-egress.ps1'
+    # Workflow tier roster. The Rust defaults, the pre-pull list and the compose
+    # overrides each named the tier models, and they had drifted into three
+    # different sets. All three Rust tags returned HTTP 404 on a live Ollama, and a
+    # tag no local Ollama serves 404s with no fallback -- so every workflow run
+    # returned 500. That is all 222 templates down from a value nothing checked.
+    #
+    # `audit-model-tags.ps1` reported clean throughout because it never opened a
+    # Rust file; its exit 0 was a false all-clear, which is worse than no check.
+    #
+    # STATIC - reads Rust source, two compose files and the prepull list - so it is
+    # safe in the gate list. Negative-tested against both the stale tag and a
+    # main.rs that bypasses the overrides.
+    'scripts/test-model-roster-consistency.ps1'
+)
+
+# A LIVE-STACK GATE: real assertions against the running system, but its exit 2
+# means "cannot check" and must not fail the run. Kept in its own list because
+# that exit code is honoured differently from the gates above - not because the
+# assertions matter less.
+$liveStackGates = @(
+    # PROVES an extraction that read nothing cannot pass the sanitization gate.
+    # A blank page used to report incomplete=false, so sanitize ran on empty text,
+    # got a pass verdict and opened the download gate - a document nobody could
+    # read was released. This is the only script that catches that end-to-end,
+    # because the defect needed BOTH services to lose the signal: ocr-service set
+    # incomplete only when OCR threw, and the API returned a literal false from
+    # its cache-hit branch. A unit test on either half passes while the product
+    # still leaks. It needs the stack up, so it reports exit 2 when it cannot run.
+    'scripts/test-empty-extraction-gate.ps1'
+    # PROVES a text-native document (txt/md/html/docx/xlsx/pptx) reaches the direct
+    # reader and NEVER the OCR lane. Before Plan B those formats fell through to
+    # raster OCR, which returned nothing usable for a text file, so the upload was
+    # accepted and then produced an unsanitizable or empty document. The unit tests
+    # on extract_text_native cover the reader in isolation; only this script proves
+    # the API's routing sends the format there end-to-end. It needs the stack up, so
+    # it reports exit 2 when it cannot run.
+    'scripts/test-text-native-sanitize.ps1'
+    # ONE lane-by-lane verdict over the whole stack: pai, mcp, deer-flow, frontend,
+    # openviking, ocr-service, qm. It exists because the three scripts above each
+    # prove ONE pipeline deeply, and nothing reported whether every lane is even
+    # REACHABLE on the assembled stack - a lane can be silently absent (qm), or
+    # configured-but-unbound, with every other gate green. It preflights the
+    # containers and exits 2 rather than reporting a false red on a clean machine.
+    # It reports qm honestly as CANNOT-CHECK: setup-qm.ps1 is interactive.
+    'scripts/smoke-full-stack.ps1'
+    # PROVES pacgate-api's account-provisioning surface is closed in both
+    # directions: open registration is refused once a user exists, and a created
+    # account is NOT a platform admin. Before 2026-10-03 nothing tested these over
+    # HTTP at all - the Rust unit tests cover the role DECISION but cannot see the
+    # router, so a route moved onto the public router, or dropped entirely, would
+    # leave every other gate green. It needs the stack up (exit 2 when not), and it
+    # creates and deletes a probe account to prove the boundary end to end.
+    'scripts/test-auth-provisioning-gate.ps1'
 )
 
 $measurements = @(
     'scripts/audit-aipc-update-coverage.ps1'
+    # Runtime counterpart of test-workflow-compose-wiring.ps1: asserts the API
+    # actually SERVES the firm's library (222 workflows / 46 categories) rather
+    # than the 10 built-ins. A measurement, not a gate, because it needs the
+    # stack up and credentials - it exits 2 for "could not check" when either is
+    # missing, and exit 2 must never be read as a failure of the CODE.
+    'scripts/test-workflow-library-served.ps1'
 )
 
 $failed = @()
+
+# Suite launcher. Windows PowerShell 5.1 machines have no `pwsh`; hardcoding the
+# launcher made the runner "pass" 34 suites it never ran (each invocation failed
+# "command not found" and the stale $LASTEXITCODE read as 0). Prefer pwsh 7 when
+# installed, fall back to powershell.exe, and record which one ran.
+$psLauncher = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' }
+Write-Host "suite launcher: $psLauncher" -ForegroundColor DarkGray
 
 Write-Host '=== Gates (non-zero exit = FAILURE) ===' -ForegroundColor Cyan
 foreach ($s in $gates) {
@@ -63,7 +286,7 @@ foreach ($s in $gates) {
         Write-Host ("  SKIP {0} (missing)" -f (Split-Path $s -Leaf)) -ForegroundColor Yellow
         continue
     }
-    $out = & pwsh -NoProfile -File $s 2>&1
+    $out = & $psLauncher -NoProfile -ExecutionPolicy Bypass -File $s 2>&1
     $code = $LASTEXITCODE
     $tail = (($out | Where-Object { $_ -match '\d+ passed|ALL .*PASSED|RESULT|members present' } | Select-Object -Last 2) -join ' ; ')
     if ($code -eq 0) {
@@ -82,7 +305,7 @@ foreach ($s in $measurements) {
         Write-Host ("  SKIP {0} (missing)" -f (Split-Path $s -Leaf)) -ForegroundColor Yellow
         continue
     }
-    $out = & pwsh -NoProfile -File $s 2>&1
+    $out = & $psLauncher -NoProfile -ExecutionPolicy Bypass -File $s 2>&1
     $code = $LASTEXITCODE
     $gaps = (($out | Where-Object { $_ -match 'covered by -Update|still needing a human' }) -join ' ; ')
     $label = if ($code -eq 0) { 'complete' } else { 'open work remains' }
@@ -92,8 +315,32 @@ foreach ($s in $measurements) {
 }
 
 Write-Output ''
+Write-Host '=== Live-stack gates (exit 2 = CANNOT CHECK, not a failure) ===' -ForegroundColor Cyan
+foreach ($s in $liveStackGates) {
+    if (-not (Test-Path $s)) {
+        Write-Host ("  SKIP {0} (missing)" -f (Split-Path $s -Leaf)) -ForegroundColor Yellow
+        continue
+    }
+    $out = & $psLauncher -NoProfile -ExecutionPolicy Bypass -File $s 2>&1
+    $code = $LASTEXITCODE
+    $tail = (($out | Where-Object { $_ -match '\d+ passed|ALL .*PASSED|RESULT|CANNOT CHECK|members present' } | Select-Object -Last 2) -join ' ; ')
+    if ($code -eq 0) {
+        Write-Host ("  PASS   {0,-44} {1}" -f (Split-Path $s -Leaf), $tail) -ForegroundColor Green
+    }
+    elseif ($code -eq 2) {
+        # Reported, never silently absorbed: a "cannot check" must never be read
+        # as a pass, and this label says so. Stack unreachable is not a code bug.
+        Write-Host ("  SKIP   {0,-44} CANNOT CHECK (exit 2) {1}" -f (Split-Path $s -Leaf), $tail) -ForegroundColor Yellow
+    }
+    else {
+        Write-Host ("  FAIL   {0,-44} exit={1} {2}" -f (Split-Path $s -Leaf), $code, $tail) -ForegroundColor Red
+        $failed += $s
+    }
+}
+
+Write-Output ''
 if ($failed.Count -eq 0) {
-    Write-Host ("ALL {0} GATES PASSED" -f $gates.Count) -ForegroundColor Green
+    Write-Host ("ALL {0} GATES PASSED ({1} live-stack gate(s) checked separately)" -f $gates.Count, $liveStackGates.Count) -ForegroundColor Green
     exit 0
 }
 Write-Host ("{0} GATE(S) FAILED:" -f $failed.Count) -ForegroundColor Red
