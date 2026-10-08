@@ -1,16 +1,14 @@
+# Pacgate local pin (2026-09-23, re-applied 2026-10-08): compose prefixes named
+# volumes with the PROJECT name. Without this key the project derives from the
+# directory (client-bundle) and creates a SECOND EMPTY volume - looks like data
+# loss. Must stay pacgate-ai-bundle to converge on the live volume.
+name: pacgate-ai-bundle
+
 # Pacgate-ai production compose — client AIPC deployment
 #
 # This stack runs: pacgate-api (metadata), deer-flow (research), Postgres, nginx.
 # qm (co-working workspace) runs SEPARATELY via `qm up` from the qm-pacgate/
 # deployment directory. See setup-qm.ps1 for qm bootstrap.
-
-# LOCAL FIX (2026-09-23, re-applied after 0.1.24 sync on 2026-10-07):
-# Pin the Compose project name so named volumes converge on the LIVE volume
-# `pacgate-ai-bundle_pacgate-db-data`. Without this key, Compose derives
-# `client-bundle` from the directory and creates a THIRD empty DB volume —
-# which looks exactly like data loss. Do NOT remove. See AGENTS.md
-# "Named-volume / project-name hazard".
-name: pacgate-ai-bundle
 
 services:
   pacgate-db:
@@ -178,6 +176,12 @@ services:
       # Pacgate: auto-route local vs cloud model by bound tool count (see
       # compose.bundle.yaml for the rationale).
       - ./patches/deer-flow-agent.py:/app/backend/packages/harness/deerflow/agents/lead_agent/agent.py:ro
+      # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets.
+      # langchain-openai renames max_tokens -> max_completion_tokens, which
+      # Ollama's /v1 endpoint ignores - background calls (memory updater) then
+      # generate to EOS (3+ min) on the single runner slot while chat runs
+      # queue behind them (the "model picker overlap" stall).
+      - ./patches/deer-flow-model-factory.py:/app/backend/packages/harness/deerflow/models/factory.py:ro
       # Pacgate: inject conversation-history token estimate for auto-routing
       # (see compose.bundle.yaml for the rationale).
       - ./patches/deer-flow-worker.py:/app/backend/packages/harness/deerflow/runtime/runs/worker.py:ro
