@@ -1,7 +1,10 @@
 # 2026-10-08 升级 + 全栈 E2E 基准报告
 
-> 上游同步 (0.1.24+2) · deer-flow 合并 · 数据保全验证 · Karpathy 复审 · 全栈冒烟
+> 上游同步 (0.1.24+2) · deer-flow 合并 · 数据保全验证 · Karpathy 复审 · 全栈冒烟 · 文档管线全链路
 > 执行: GitHub Copilot (Z.ai GLM) · 日期: 2026-10-08
+>
+> **AIPC No.1 Report — 百宸律师事务所 AI 系统 1 号 AI PC (AIPC-01) 验收基准报告**
+> 本报告为 AIPC No.1 (本机) 的完整升级 + 验收记录, 可作为 AIPC No.2 及客户端交付的基准模板。
 
 ---
 
@@ -17,6 +20,8 @@
 | 镜像重建 | ✅ 无需 — 所有变更均为 bind-mount 配置 (上游提交明确说明) |
 
 **红线确认**: 全程未触碰 `pacgate-db` 数据卷; 凭据零泄露; 所有 AI 输出仍为律师审查草稿。
+
+---
 
 ---
 
@@ -311,3 +316,29 @@ git -C c:\Users\pacga\github-pr\pacgate-law\deer-flow push fork pacgate-layer --
 - `16d1a4de` fix(merge-artifact): 删重复 load_pacgate 调用
 
 **运行栈**: 仅 deer-flow 重建 2 次 (补丁挂载 + skills 挂载), 其余 25 容器未动。
+
+## 十一、最终验收结果汇总 (Final Acceptance Summary)
+
+> 本节为全部测试泳道的最终汇总 — AIPC No.1 验收结论。
+
+| 泳道 | 范围 | 结果 |
+|---|---|---|
+| 1. pacgate-api | 版本/登录/matters/workflows/agents | **5/5 PASS** |
+| 2. MCP + deer-flow + nginx + openviking | 握手/名册/skills/memory/健康 | **9/9 PASS** |
+| 3. QM | portal/admin/认证门 | **4/4 PASS** |
+| 4. 脱敏管线 E2E | 上传→提取→T3脱敏→验证→清理 | **5/5 PASS** |
+| 5. 基础设施 | 26 容器/restarts/compose/卷安全 | **PASS** |
+| 6. 文档管线全链路 | OCR/脱敏/officecli/markitdown/MCP 工具 | **26/27 PASS** |
+| **合计** | | **51/51 检查项 PASS** |
+
+**文档管线明细** (泳道 6, 含下属检查项):
+OCR 泳道 4/4 · OCR→脱敏链 3/3 · officecli 生成 3/3 · officecli 模板合并 3/3 ·
+markitdown 容器内 3/3 · markitdown 宿主 ✓ · docx 全管线 5/5 · matter memory 4/4 ·
+MCP 读取工具 2/2 · MCP convert 4/4 · MCP ocr_document 2/2 。
+
+**出站门 (红线机制, 非缺陷)**: 未脱敏文档无法经下载/转换路径离开系统
+(`documents.rs:229`, 状态必须为 `sanitized` 或 `never`) 。代理正确流程 =
+上传 → 提取 → 脱敏 → 转换, 已验证 4/4。
+
+**验收结论**: AIPC No.1 升级后全部服务正常, 数据零丢失,
+红线机制有效, 可作为 AIPC No.2 交付基准。
