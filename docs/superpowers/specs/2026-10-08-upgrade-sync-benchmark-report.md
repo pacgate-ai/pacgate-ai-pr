@@ -13,7 +13,7 @@
 | deer-flow 合并 | ✅ `pacgate-layer` 合并 `origin/main`, 0 落后, @ `16d1a4de` (已推送 fork) |
 | 数据保全 | ✅ matters=10, tenants=1, users=3, workflows=222, MCP=30, skills=65 |
 | Karpathy 复审 | ✅ 发现并修复 2 处 (注释失准, 合并残留重复调用) |
-| 全栈冒烟 | ✅ 5 条泳道全部 PASS (详见下表) |
+| 全栈冒烟 | ✅ 6 条泳道全部 PASS (含文档管线全链路 26/27, 见泳道 6) |
 | 镜像重建 | ✅ 无需 — 所有变更均为 bind-mount 配置 (上游提交明确说明) |
 
 **红线确认**: 全程未触碰 `pacgate-db` 数据卷; 凭据零泄露; 所有 AI 输出仍为律师审查草稿。
@@ -160,6 +160,34 @@ arbitration、vcpe-financing-suite 等全部法律技能。
 - DB: matters=10, tenants=1, users=3 (与升级前逐字节一致)
 - compose 双文件 `config` 校验 exit 0, 项目名 `pacgate-ai-bundle` 收敛 (卷安全)
 - 备份镜像已同步至 `f446bef`
+
+### 泳道 6: 文档管线全链路 (2026-10-08 补测, 26/27 PASS)
+
+> 用户质询"是否测过 matters/template→OCR/脱敏/普通法律文档 (officecli/markitdown) 全管线"。
+> 诚实回答: 首轮未测全。本轮补测, 全部真实数据、全程清理。
+
+| # | 测试 | 结果 | 证据 |
+|---|---|---|---|
+| 1 | **OCR 泳道**: reportlab 生成真实 PDF → 上传 → `/extract` (OCR 路径) | ✅ 4/4 | OCR 读回 "PacGate OCR Pipeline Test Document" + 身份证号 |
+| 2 | **OCR→脱敏链**: 同一 PDF 文档 → T3 脱敏 | ✅ 3/3 | verdict=block, redactions=2, 身份证→全零, 手机→`[CN_MOBILE_874AB9FB_2]` |
+| 3 | **officecli 生成**: `create` + 5 段落 NDA 文档 + `view` | ✅ 3/3 | "Mutual Non-Disclosure Agreement" 4 条款完整 |
+| 4 | **officecli 模板合并**: `{{key}}` 模板 + JSON 数据 → 聘函 | ✅ 3/3 | 5 个占位符全部替换 (Acme Trading Ltd / PG-2026-042) |
+| 5 | **markitdown 容器内**: docx→markdown (聘函 + NDA) | ✅ 3/3 | 结构保留, 关键字段在 |
+| 6 | **markitdown 宿主**: 同一 docx 转换 | ✅ | 输出一致 |
+| 7 | **docx 全管线**: officecli 文档 → 上传 → `/extract` (markitdown 路径) → T3 脱敏 → 清理 | ✅ 5/5 | verdict=pass (无 PII), 全链路通 |
+| 8 | **matter memory**: GET/POST/GET 持久化 | ✅ 4/4 | revision 0→1, workContext 持久 |
+| 9 | **MCP 工具**: `pacgate_list_matters` + `pacgate_list_workflows` | ✅ 2/2 | 代理侧读取路径通 |
+| 10 | **MCP `pacgate_convert_document`** | ✅ 4/4 (按设计顺序) | 见下方"出站门"说明 |
+| 11 | **MCP `pacgate_ocr_document`**: 真实 PDF 代理侧 OCR | ✅ 2/2 | OCR 文本完整返回 |
+
+**🐛 测试中发现的设计行为 (非缺陷, 红线机制)**:
+`pacgate_convert_document` 首次调用返回 409 "document is 'pending'"。**根因** (源码
+`documents.rs:229`): 下载/导出端点有**出站门** — `sanitization_state` 必须是
+`sanitized` 或 `never` 才允许文档离开系统。`pending` 是默认态, 未经脱敏的文档
+不能经下载路径出去。**正确代理流程 = 上传 → 提取 → 脱敏 → 转换**。按此顺序
+重测 4/4 PASS。这正是"每个 AI 输出都是律师审查草稿"红线的代码体现。
+
+**测试后基线**: matters=10, tenants=1, users=3 (全部一次性测试数据已清理, DB 与测试前逐字节一致)。
 
 ---
 
