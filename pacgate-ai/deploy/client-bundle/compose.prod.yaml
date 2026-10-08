@@ -149,6 +149,11 @@ services:
       # "Could not find a part of the path". Mount a persistent folder so
       # officecli outputs survive recreation and land in ./data/office.
       - ./data/office:/mnt/user-data/workspace
+      # Pacgate 2026-10-08: serve the skills tree (60 dirs: 37 PacGate legal + 23 upstream) from the merged
+      # pacgate-layer working copy. The published 0.1.24 image has NO /app/skills
+      # (CI built it before skills landed in origin/main), so skills=[] was served.
+      # Read-only mount at the resolved skills root; no image rebuild needed.
+      - ../../../deer-flow/skills/public:/app/skills/public:ro
       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
       # Pacgate: add a unified generated-outputs listing endpoint
