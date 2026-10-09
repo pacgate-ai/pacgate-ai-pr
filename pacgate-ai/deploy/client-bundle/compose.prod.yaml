@@ -1,9 +1,3 @@
-# Pacgate local pin (2026-09-23, re-applied 2026-10-08): compose prefixes named
-# volumes with the PROJECT name. Without this key the project derives from the
-# directory (client-bundle) and creates a SECOND EMPTY volume - looks like data
-# loss. Must stay pacgate-ai-bundle to converge on the live volume.
-name: pacgate-ai-bundle
-
 # Pacgate-ai production compose — client AIPC deployment
 #
 # This stack runs: pacgate-api (metadata), deer-flow (research), Postgres, nginx.
@@ -23,7 +17,7 @@ services:
     restart: unless-stopped
 
   pacgate-api:
-    image: ghcr.io/jzkk720/pacgate-api:0.1.24
+    image: ghcr.io/jzkk720/pacgate-api:0.1.25
     container_name: pacgate-api
     depends_on: [pacgate-db]
     # Hard memory ceiling, as defence in depth behind the in-process admission
@@ -114,7 +108,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/jzkk720/deer-flow-pacgate:0.1.24
+    image: ghcr.io/jzkk720/deer-flow-pacgate:0.1.25
     container_name: deer-flow
     depends_on: [pacgate-api, openviking, pacgate-mcp]
     environment:
@@ -149,11 +143,6 @@ services:
       # "Could not find a part of the path". Mount a persistent folder so
       # officecli outputs survive recreation and land in ./data/office.
       - ./data/office:/mnt/user-data/workspace
-      # Pacgate 2026-10-08: serve the skills tree (60 dirs: 37 PacGate legal + 23 upstream) from the merged
-      # pacgate-layer working copy. The published 0.1.24 image has NO /app/skills
-      # (CI built it before skills landed in origin/main), so skills=[] was served.
-      # Read-only mount at the resolved skills root; no image rebuild needed.
-      - ../../../deer-flow/skills/public:/app/skills/public:ro
       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
       # Pacgate: add a unified generated-outputs listing endpoint
@@ -209,9 +198,25 @@ services:
       # lost whenever the image is rebuilt; this keeps lawyer-visible
       # deliverables in tenants/<t>/matters/<m>/docs/.
       - ./patches/deer-flow-present-file.py:/app/backend/packages/harness/deerflow/tools/builtins/present_file_tool.py:ro
+      # Pacgate 2026-10-08: prefix-aware skill allowed-tools matching. Skills
+      # declare bare MCP server names (pkulaw, yuandian-law, pacgate) but tool
+      # names are prefixed (pkulaw_*, pacgate_pacgate_*); exact-match filtering
+      # dropped ALL 137 MCP tools once any skill declared allowed-tools (agent
+      # left with bash/read_file only). The patch matches exact or
+      # "<normalized-declaration>_" prefixes.
+      - ./patches/deer-flow-tool-policy.py:/app/backend/packages/harness/deerflow/skills/tool_policy.py:ro
+      # Pacgate 2026-10-08: exclude skill-reviewer eval fixtures
+      # (*/evals/fixtures/) from skill discovery - they are test data, not
+      # user-facing skills (5 phantom skills, one with an empty allowed-tools).
+      - ./patches/deer-flow-skill-storage.py:/app/backend/packages/harness/deerflow/skills/storage/skill_storage.py:ro
       # Pacgate: normalize hyphens to underscores in the MCP server-name tool
       # prefix (see compose.bundle.yaml for the rationale).
       - ./patches/langchain-mcp-tools.py:/app/backend/.venv/lib/python3.12/site-packages/langchain_mcp_adapters/tools.py:ro
+      # Pacgate (401 fix 2026-10-09): re-login on 401 in the pacgate adapter.
+      # The adapter caches its JWT at construction; a pacgate-api restart
+      # invalidates it, so every memory/artifact call 401s until deer-flow
+      # restarts. The patch re-logins once on 401 and retries.
+      - ./patches/pacgate-adapter-client.py:/app/adapters/pacgate_deerflow_adapter/client.py:ro
       # Persist deer-flow's own SQLite state (threads/runs/admin account) across
       # container recreation. Without this, every `docker compose up -d` resets
       # the deer-flow admin account and chat history (first-boot each time).
@@ -224,7 +229,7 @@ services:
   # correct without a runtime patch. Published to GHCR by the build-ghcr.yml
   # workflow; pushed on every release tag so both AIPCs stay in sync.
   deer-flow-frontend:
-    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.24
+    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.25
     container_name: deer-flow-frontend
     depends_on: [deer-flow]
     ports:
@@ -243,7 +248,7 @@ services:
     restart: unless-stopped
 
   pacgate-mcp:
-    image: ghcr.io/jzkk720/pacgate-mcp:0.1.24
+    image: ghcr.io/jzkk720/pacgate-mcp:0.1.25
     container_name: pacgate-mcp
     depends_on: [pacgate-api]
     environment:
@@ -252,11 +257,18 @@ services:
       PACGATE_API_PASSWORD: ${PACGATE_API_PASSWORD}
       PACGATE_JWT_TOKEN: ${PACGATE_JWT_TOKEN}
       PACGATE_MCP_PORT: "8000"
-      PACGATE_MCP_TIMEOUT: "60"
+      PACGATE_MCP_TIMEOUT: "700"
       # Default matter for pacgate_read_memory / pacgate_write_memory so the
       # chat agent can address the deployment's scoped matter without knowing
       # the UUID (mirrors the deer-flow service's PACGATE_MATTER_ID above).
       PACGATE_MATTER_ID: ${PACGATE_MATTER_ID}
+    volumes:
+      # Fork patch (2026-10-09): SANITIZE_TIMEOUT_S=700 per-request override for
+      # sanitize endpoints (BERT NER runs minutes; stock 0.1.24 timeout kills
+      # the call and deer-flow retries for ~2min per tool). Bind-mounted until
+      # upstream ships it in a release image. Source lives in the repo at
+      # deploy/pacgate-mcp/server.py; see repo memory mcp-timeout-fix-2026-10-09.
+      - ../pacgate-mcp/server.py:/app/server.py:ro
     restart: unless-stopped
 
   # ocr-service: PaddleOCR extraction for scanned documents (plan 019).
@@ -264,7 +276,7 @@ services:
   # downloaded on FIRST EXTRACTION (not at build or start), so image pulls
   # stay small and the cost lands on the first OCR-using session.
   ocr-service:
-    image: ghcr.io/jzkk720/ocr-service:0.1.24
+    image: ghcr.io/jzkk720/ocr-service:0.1.25
     container_name: ocr-service
     environment:
       # Python logging rejects lowercase level names.
