@@ -35,36 +35,33 @@ worktree_path: "c:/Users/pacga/github-pr/pacgate-law"
 > model-roster hunks should be dropped during cherry-pick (local-only per the
 > 2026-09-21 directive — keep only the summarization block).
 
-> **🔍 UPSTREAM-READINESS AUDIT (2026-10-09, precise — "is JZKK720 ready to rebuild v0.1.25?")**
-> Answer: **NOT YET — 2 gaps remain.** Verified via GitHub REST API (git-over-HTTPS
-> was down; api.github.com worked). Exact state:
+> **✅ BOTH GAPS CLOSED (2026-10-09, this session)** — JZKK720 can now rebuild v0.1.25:
 >
-> | Ref | SHA | Content | v0.1.25-ready? |
-> |---|---|---|---|
-> | `JZKK720/pacgate-ai-pr` main | `e62fdfd` | 0.1.24 release line; last GHCR build = run#22 (04ce1c64, 2026-10-06) | baseline only |
-> | fork `pacgate-ai/pacgate-ai-pr` main | `9fb306e` | upstream + **11 commits** (sanitizer E2E, MCP sanitize timeout, cloud reasoning-burn, adapter 401 re-login) — **OPEN as PR#3** (`pacgate-ai:main → JZKK720:main`, mergeable_state=clean, 25 files) | ❌ PR#3 unmerged |
-> | fork branch `local-main-2026-10` | `d533ec9` | our 4 commits (summarization config `2fbb144`, patch mounts `e2ac7ff`, handoff docs) | ❌ NOT in PR#3 |
-> | fork `pacgate-ai/deer-flow` pacgate-layer | `19021f7f` | tool-policy prefix fix + skill-storage exclusion + 37 SKILL.md | ❌ NOT in JZKK720/deer-flow main (`c5685723`) |
+> **Gap 1 (deploy fixes → fork/main → PR#3)**: pushed via the **GitHub Contents API**
+> (git-over-HTTPS was down; api.github.com worked). 5 files on fork/main:
+> `patches/deer-flow-tool-policy.py` (+82), `patches/deer-flow-skill-storage.py` (+263),
+> `compose.bundle.yaml` (+16/−5: 2 patch mounts), `compose.prod.yaml` (+18/−6),
+> `deer-flow-config.yaml` (+40: summarization block, NO model_name — falls back to the
+> default chat model, portable). Version pins bumped 0.1.24→0.1.25 (10 pins, both
+> compose files). First push had CRLF endings (worktree checkout) making whole-file
+> diffs — fixed with 5 LF-normalize commits; PR#3 diff is now clean
+> (+16/−5, +18/−6, +40/−0, 2 new files). PR#3 head = `90516ece`, mergeable_state=clean.
+> **Upstream shape decisions**: summarizer has NO model_name pin (schema: None →
+> default chat model, same runner slot); memory pin left at fork/main's
+> gemma4-12b-memory (VRAM-swap repin is machine-specific per 2026-09-21 directive);
+> NO skills mount (source tree is mono-folder-specific — fresh upstream deploys have
+> no sibling deer-flow clone; the skills tree ships with the next image that bakes it).
+> **Gap 2 (deer-flow source fix → JZKK720)**: branch `pacgate-layer-fixes-2026-10`
+> (=`19021f7f`) pushed to fork; **PR#1 opened** on JZKK720/deer-flow
+> (`pacgate-ai:pacgate-layer-fixes-2026-10 → main`, mergeable_state=unstable = CI
+> pending, diff is clean). For 0.1.25 itself this is informational — the image never
+> bakes deer-flow source; the patch mounts carry the fix.
 >
-> **Gap 1 — PR#3 must merge**: it carries the developer's 11 commits but NOT our
-> summarization/patch-mount commits. Our `2fbb144`+`e2ac7ff` must be cherry-picked
-> onto fork/main (or a new PR#4). ⚠️ Cherry-pick conflict warning: fork/main's
-> `deer-flow-config.yaml` (f94cf049) now HAS the cloud reasoning-burn fix
-> (`supports_reasoning_effort` / `when_thinking_disabled` on both cloud models) which
-> the wrapper does NOT have — both sides edited the models section, so a naive
-> `git cherry-pick 2fbb144` will conflict. Apply only the summarization block +
-> memory-repin hunk (drop model-roster hunks per 2026-09-21 directive).
-> **Gap 2 — deer-flow fix visibility**: `19021f7f` exists as an object on
-> JZKK720/deer-flow (via fork network) but NO branch/PR references it. Needs a PR
-> `pacgate-ai:pacgate-layer → JZKK720:main` (or merge into the existing layer flow).
-> **Key build-mechanics fact (verified from fork/main's Dockerfile + workflow)**:
-> `deploy/deer-flow-pacgate/Dockerfile` builds FROM bytedance's digest-pinned
-> backend image + adapter + config.yaml — it NEVER bakes deer-flow source or skills.
-> The GHCR workflow has NO patch-application steps. Therefore the tool-policy fix
-> ships for v0.1.25 **only via the compose patch mounts** (`e2ac7ff`) — exactly what
-> we built. The `19021f7f` source commit matters for the NEXT bytedance-base bump,
-> not for 0.1.25. Release trigger: tag push `v0.1.*` or workflow_dispatch
-> (tag input required, no default).
+> **Remaining for the release**: merge PR#3 (JZKK720 side) → workflow_dispatch
+> tag=v0.1.25 → pull images on this box → smoke (summarization ~32.7k input; 137+ MCP
+> tools). Method note: Contents-API pushes need UTF-8 bytes + LF normalization for
+> CJK-safe, clean-diff results (scripts: `runtime/gap1-contents-push-1009.ps1`,
+> `runtime/gap1-lf-fix-1009.ps1`).
 
 > **Version correction (2026-10-09, user)**: the rebuild target is **v0.1.25**, not
 > v0.1.15 (typo). v0.1.25 = the next release after the currently-live 0.1.24 stack,
