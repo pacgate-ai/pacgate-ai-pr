@@ -1,3 +1,10 @@
+# Pacgate local pin (2026-09-23, re-applied 2026-10-09 after 0.1.25 sync):
+# compose prefixes named volumes with the PROJECT name. Without this key the
+# project derives from the directory (client-bundle) and creates a SECOND EMPTY
+# volume - looks like data loss. Must stay pacgate-ai-bundle to converge on the
+# live volume (pacgate-ai-bundle_pacgate-db-data).
+name: pacgate-ai-bundle
+
 # Pacgate-ai production compose — client AIPC deployment
 #
 # This stack runs: pacgate-api (metadata), deer-flow (research), Postgres, nginx.
@@ -143,6 +150,10 @@ services:
       # "Could not find a part of the path". Mount a persistent folder so
       # officecli outputs survive recreation and land in ./data/office.
       - ./data/office:/mnt/user-data/workspace
+      # Pacgate 2026-10-08 (re-applied 2026-10-09 after 0.1.25 sync): serve the
+      # skills tree from the mono-folder deer-flow clone. MONO-FOLDER-ONLY -
+      # fresh upstream deploys have no sibling clone, so this lives only here.
+      - ../../../deer-flow/skills/public:/app/skills/public:ro
       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
       # Pacgate: add a unified generated-outputs listing endpoint

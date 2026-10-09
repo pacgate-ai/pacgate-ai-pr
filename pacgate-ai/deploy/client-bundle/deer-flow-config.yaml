@@ -71,14 +71,30 @@ models:
   # generation here hogs the single Ollama runner slot and stalls every chat
   # (observed 2026-10-07: 43k+ token loop). Memory facts are short JSON - a hard
   # 2048 cap is generous and cannot loop meaningfully.
-  - name: gemma4-12b-memory
-    display_name: Gemma 4 12B (Memory, capped)
-    description: Internal model for background memory updates. Hard 2048-token cap. Safe to pick for short tasks.
+  # Pacgate 2026-10-08 (tuning pass, LOCAL-ONLY): helper entries pinned to the
+  # SAME tag as the chat default (nemotron-30b) = zero VRAM swap. gemma4 and
+  # nemotron cannot coexist in 16GB VRAM (23.7GB + 6.5GB weights), so every
+  # background call on gemma4 evicted the chat model and paid 9-37s reloads
+  # (10 reloads in 11 min observed). The max_tokens caps keep the
+  # runaway-generation protection.
+  - name: nemotron-30b-memory
+    display_name: "[internal] Memory updater (Nemotron 30B, capped)"
+    description: Internal background memory-update model. Hard 2048-token cap. Same tag as chat default - no VRAM swap. Not intended for chat; kept visible because deer-flow has no hide-from-picker flag (frontend filter = upstream-PR candidate).
     use: langchain_openai:ChatOpenAI
-    model: gemma4:12b-it-qat
+    model: nemotron-3.5-lightning:30b-a3b
     api_key: ollama
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 2048
+    temperature: 0.1
+
+  - name: nemotron-30b-summarizer
+    display_name: "[internal] Summarizer (Nemotron 30B, capped)"
+    description: Internal conversation-summarization model. Hard 4096-token cap. Same tag as chat default - no VRAM swap. Not intended for chat.
+    use: langchain_openai:ChatOpenAI
+    model: nemotron-3.5-lightning:30b-a3b
+    api_key: ollama
+    base_url: http://host.docker.internal:11434/v1
+    max_tokens: 4096
     temperature: 0.1
 
   # Pacgate 2026-10-07 (rev 2): qwen3.8:27b DEMOTED from the picker. Benchmark
@@ -108,8 +124,13 @@ models:
     temperature: 0.1
 
   - name: ornith-1.5-35b-local
-    display_name: Ornith 1.5 35B (Local)
-    description: Heavier local model for complex research.
+    display_name: Ornith 1.5 35B (Local, heavy)
+    description: >-
+      Heaviest local model for complex research. 35B-class capability, but 21GB
+      weights exceed the 16GB VRAM budget - first use pays a 2-4min model swap
+      and runs partly from CPU. Benchmark 2026-10-08: 24.3 t/s gen, 34 t/s
+      prefill (vs default nemotron 30.7/30). Pick deliberately for hard
+      analysis; use the default for everything else.
     use: langchain_openai:ChatOpenAI
     model: ornith-1.5:35b
     api_key: ollama
@@ -251,30 +272,32 @@ model_routing:
 # recur. (MemoryConfig.model_name, deerflow/agents/memory/updater.py.)
 memory:
   storage_class: pacgate_deerflow_adapter.storage.PacgateMemoryStorage
-  model_name: gemma4-12b-memory
+  # Pacgate 2026-10-08 (tuning pass, LOCAL-ONLY): repinned to nemotron-30b-memory.
+  # The gemma4 pin's 2048 cap held, but (1) the updater produced invalid JSON
+  # twice on 2026-10-08 (truncated mid-JSON at the cap) and (2) every memory
+  # call swapped gemma4 into VRAM, evicting the chat model (10 reloads in
+  # 11 min observed). nemotron shares the chat model's runner slot - no swap,
+  # and its 1M ctx means the 11k-token memory prompt never truncates.
+  model_name: nemotron-30b-memory
 
-# Pacgate 2026-10-09: ENABLE conversation summarization. Root cause this
-# fixes: summarization was UNCONFIGURED (null -> disabled by default), so
-# long threads grew unbounded. The trigger counts MESSAGE tokens only
-# (~16k for 50 msgs) while real per-call input is ~83k (12k tools+system +
-# 16k messages + cloud overhead), so the old 48k threshold was structurally
-# unreachable - summarization never fired and every call re-sent the full
-# 83k context (1.3-1.7M tokens burned per document run, 60-120s per call).
-# All three 2026-10-08 stalls ("no astream output for 420s") happened at
-# input=64-65k - exactly the 65536-token ctx slot Ollama allocates.
-# 12000 message-tokens engages after ~40 messages; keep=12000 preserves the
-# recent verbatim context. No model_name pin: the summarizer runs on the
-# default chat model (same runner slot, no VRAM swap). Verified live
-# 2026-10-09: hook fired, summary executed, next model call input bounded
-# 32,770 (was 83k).
+# Pacgate 2026-10-09 (LOCAL-ONLY round-2 tuning, PDF-analysis thread 5d7b42df):
+# summarization.enabled is upstream; the model pin + thresholds below are
+# this machine's tuning. Round-2: trigger=12000 fired but per-call input
+# stayed ~80k because count_tokens_approximately (chars/4) UNDERCOUNTS CJK +
+# markdown ~2.7x and langchain's scaling correction is capped at 1.25x - every
+# configured value is worth ~2.2-3.3x more REAL tokens. Fix: use ~2.5x smaller
+# configured values so the REAL window matches intent (trigger 5000 ≈ 13-16k
+# real, fires early; keep 4000 ≈ 10-13k real preserved). Context floor after
+# fix: ~19.5k tools+sys + ~12k preserved + summary ≈ 33-36k.
 summarization:
   enabled: true
+  model_name: nemotron-30b-summarizer
   trigger:
     - type: tokens
-      value: 12000
+      value: 5000
   keep:
     type: tokens
-    value: 12000
+    value: 4000
   trim_tokens_to_summarize: 8000
 
 sandbox:
