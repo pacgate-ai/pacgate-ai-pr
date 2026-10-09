@@ -59,9 +59,41 @@ worktree_path: "c:/Users/pacga/github-pr/pacgate-law"
 >
 > **Remaining for the release**: merge PR#3 (JZKK720 side) → workflow_dispatch
 > tag=v0.1.25 → pull images on this box → smoke (summarization ~32.7k input; 137+ MCP
-> tools). Method note: Contents-API pushes need UTF-8 bytes + LF normalization for
-> CJK-safe, clean-diff results (scripts: `runtime/gap1-contents-push-1009.ps1`,
-> `runtime/gap1-lf-fix-1009.ps1`).
+> tools; **memory card loads**). deer-flow PR#1 remains informational for the image
+> (patch mounts carry the fix); merge at leisure.
+>
+> **🆕 POST-MERGE UPDATE (2026-10-09, later in session)** — PR#3 was **MERGED**
+> (2026-10-09T07:33:54Z, merge commit `bf8d4e7d`). Upstream `JZKK720/pacgate-ai-pr`
+> main is now `b3ba91e5`. Two follow-ups landed after the merge:
+>
+> **Memory surface card 500 — root cause + fix (verified live)**:
+> - **Root cause 1 (nginx)**: GBK mojibake had eaten the variable name in
+>   `deploy/client-bundle/nginx/default.conf` — `set $memory_api_upstream
+>   http://deer-flow:8001;` was missing, so the `/api/memory` proxy had no upstream.
+>   Restored at L115 (local commit `b365a42`).
+> - **Root cause 2 (frontend route)**: the compiled `/api/memory` route resolves its
+>   upstream from `NEXT_PUBLIC_BACKEND_BASE_URL` (= browser-facing
+>   `http://localhost:8089`), so a server-side fetch inside the container gets
+>   ECONNREFUSED → 500. Fix: prefer `DEER_FLOW_INTERNAL_GATEWAY_BASE_URL`
+>   (`http://deer-flow:8001`) with fallback.
+> - **Live verification**: `GET :8090/api/memory` 500 → 401 unauthenticated (proxy
+>   reaches gateway); authenticated login 200 → `GET /api/memory` with Bearer →
+>   **HTTP 200, 35,404-byte JSON payload** — the card renders.
+> - **Durability**: the in-container fix was a compiled-chunk patch (ephemeral, lost
+>   on recreate). The durable fix is the source override
+>   `deploy/frontend-patches/files/src/app/api/memory/route.ts` +
+>   `[...path]/route.ts`, which the next image build bakes in.
+>
+> **PR#4 opened** on JZKK720/pacgate-ai-pr
+> (`pacgate-ai:fix/memory-route-gateway-2026-10 → main`, head `d390ff66`,
+> mergeable_state=clean, 3 files): the 2 memory route overrides + the nginx
+> variable-name restoration. **Merge PR#4 before tagging v0.1.25** so the rebuilt
+> frontend image carries the fix permanently.
+>
+> **Remaining for the release (updated)**: merge **PR#4** → workflow_dispatch
+> tag=v0.1.25 → pull images on this box → smoke (summarization ~32.7k input; 137+ MCP
+> tools; **memory card loads**). deer-flow PR#1 remains informational for the image
+> (patch mounts carry the fix); merge at leisure.
 
 > **Version correction (2026-10-09, user)**: the rebuild target is **v0.1.25**, not
 > v0.1.15 (typo). v0.1.25 = the next release after the currently-live 0.1.24 stack,
