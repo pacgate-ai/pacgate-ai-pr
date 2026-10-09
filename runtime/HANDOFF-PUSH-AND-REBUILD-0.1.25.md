@@ -14,6 +14,27 @@ worktree_path: "c:/Users/pacga/github-pr/pacgate-law"
 
 # Handoff — push local fixes, then rebuild v0.1.25 from upstream
 
+> **✅ EXECUTED 2026-10-09 (this session)** — the push phase is DONE:
+>
+> | Push | Commit | Remote state |
+> |---|---|---|
+> | deer-flow `pacgate-layer` → fork | `19021f7f` fix(skills): prefix-aware allowed-tools matching + eval-fixture exclusion (40 files: tool_policy.py, skill_storage.py, 9-test file, 37 SKILL.md) | `16d1a4de..19021f7f` fast-forward, verified local==fork |
+> | wrapper `main` → fork **new branch** `local-main-2026-10` | 3 commits: `2fbb144` fix(config) summarization+VRAM, `e2ac7ff` fix(deploy) patch mounts, `da8db34` docs(handoff) | new branch created, verified local==fork |
+>
+> Pre-commit verification: 9 new prefix tests + 25 skill tests PASS in the container;
+> the 39 `test_skills_bundled` frontmatter failures are PRE-EXISTING in HEAD (every
+> pacgate skill carries a `required-secrets` key the validator rejects) — not our
+> regression. Credential gate re-passed (blob-SHA method, positive control OK).
+>
+> **Remaining for v0.1.25** (see "v0.1.25 release plan" below): the fork's
+> `local-main-2026-10` branch holds the wrapper's 50 commits on an unrelated root —
+> the deploy-side fixes (compose mounts + 2 patch files + config) must reach
+> `fork/main` for the release build. Two paths: (a) cherry-pick the 3 fix commits
+> onto main, or (b) open a PR from `local-main-2026-10` and let GitHub show the
+> (large, unrelated-root) diff. Path (a) is cleaner for the release; the config
+> model-roster hunks should be dropped during cherry-pick (local-only per the
+> 2026-09-21 directive — keep only the summarization block).
+
 > **Version correction (2026-10-09, user)**: the rebuild target is **v0.1.25**, not
 > v0.1.15 (typo). v0.1.25 = the next release after the currently-live 0.1.24 stack,
 > carrying today's fixes. The v0.1.15 section below is kept only as release-history
@@ -188,13 +209,18 @@ git -C deer-flow push fork pacgate-layer
 
 ## Plausible next steps (ordered)
 
-1. Commit deer-flow changes (the easy, safe push — see commands above).
-2. Commit wrapper changes (config fix + 2 patch files + compose mounts) and push to a
-   NEW branch on fork (option 1 or 2 from Push strategy).
-3. Cut release **v0.1.25**: bump pins → push → PR → workflow_dispatch tag=v0.1.25 →
-   pull images on this box → smoke + summarization/MCP verification (see release plan).
-4. Optional: sync `C:\pacgate-ai-pr` main with the wrapper's 47 commits (or retire the
-   duplicate clone) — the two histories describe the same platform.
+> ✅ Steps 1–2 EXECUTED 2026-10-09 (see the EXECUTED block at the top).
+
+1. ~~Commit deer-flow changes~~ → DONE: `19021f7f` pushed to fork/pacgate-layer.
+2. ~~Commit wrapper changes~~ → DONE: `2fbb144` + `e2ac7ff` + `da8db34` pushed to
+   fork as new branch `local-main-2026-10` (option 1 — unrelated histories preserved).
+3. Cut release **v0.1.25**: get the deploy-side fixes onto `fork/main`
+   (cherry-pick `2fbb144`+`e2ac7ff` from `local-main-2026-10`, dropping the
+   model-roster hunks from the config commit — local-only per 2026-09-21 directive)
+   → bump pins (`runtime\bump-release-version.ps1`) → PR → workflow_dispatch
+   tag=v0.1.25 → pull images on this box → smoke + summarization/MCP verification.
+4. Optional: retire the duplicate `C:\pacgate-ai-pr` clone (84 commits behind
+   fork/main, owns no container since the 2026-09-23 cutover) — or sync it.
 
 ## Relevant files (pointer-first)
 
