@@ -168,6 +168,10 @@ services:
       # response and enrich the upload listing with markdown metadata + original
       # filename, so clients can read/analyze converted docs reliably.
       - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro
+      # Pacgate (2026-10-10): strengthen the <uploaded_files> block so nemotron
+      # actually calls read_file (30B MoE tool-choice variance buried the softer
+      # instruction under 64k of tool/system context).
+      - ./patches/deer-flow-uploads-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/uploads_middleware.py:ro
       # Pacgate: gate self-registration. At v2.0.0 /register is unconditional and
       # auto-logs-in whoever calls it. These two files add the
       # auth.local.allow_registration check upstream shipped in 2.1.0 (#4311).
