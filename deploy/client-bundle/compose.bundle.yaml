@@ -272,6 +272,14 @@ services:
       # invalidates it, so every memory/artifact call 401s until deer-flow
       # restarts. The patch re-logins once on 401 and retries.
       - ./patches/pacgate-adapter-client.py:/app/adapters/pacgate_deerflow_adapter/client.py:ro
+      # Pacgate (2026-10-11): raise MCP HTTP client timeouts. The MCP SDK
+      # defaults (30s connect/write/pool, 300s read) killed long tool calls:
+      # a workflow execute that COMPLETED server-side at 01:46:00 was torn
+      # down at 01:47:41 with "Server disconnected without sending a
+      # response" (run 53720ae5). The patch injects an httpx client with
+      # read=900s (covers the 700s sanitize ceiling + headroom) via
+      # httpx_client_factory, avoiding the deprecated timeout kwargs.
+      - ./patches/deer-flow-mcp-client.py:/app/backend/packages/harness/deerflow/mcp/client.py:ro
       # Pacgate (memory-card crash fix 2026-10-10): normalize the matter-memory
       # payload to the deer-flow memory shape on load(). The raw matter payload
       # ({content, revision, tags}) left MemoryResponse defaults as "" and the

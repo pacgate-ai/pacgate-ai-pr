@@ -206,3 +206,8 @@ sync-fork-after.png
 # A zero-byte file PowerShell creates from an unexpanded ${input...} in a command.
 # Committed by accident twice; this makes the third time impossible.
 /${input*
+
+# The fetched docker CLI binary (42 MB) that setup-qm stages for the qm sandbox
+# patch. It is a downloaded artifact, not source: re-fetched on demand, and far
+# too large to carry in git. Committed by accident once (caught 2026-10-23).
+/deploy/qm-pacgate/patch/docker-cli/docker
