@@ -151,6 +151,43 @@ services:
       # frozen mid-run with zero user-visible output (run c2a0ced4 evidence in
       # .env comments). Value comes from .env: DEERFLOW_TITLE_INVOKE_TIMEOUT_S.
       DEERFLOW_TITLE_INVOKE_TIMEOUT_S: ${DEERFLOW_TITLE_INVOKE_TIMEOUT_S:-8}
+      # Pacgate (stalled-pregel fix 2026-10-15): bound how long the run graph may
+      # yield NO astream chunk before the run is cancelled (RunStatus.error,
+      # "The agent graph stopped producing output and the run was aborted by the
+      # idle watchdog"). Upstream default is 420s.
+      #
+      # Run ad509d43 (thread 96a4f39e, "撰写一篇关于pacgate-ai的博客文章") was killed
+      # 420s after its LAST chunk. It had already written pacgate-ai-blog.docx/.pdf
+      # at 16:00:56 (sandbox cp, verdict=pass); the watchdog fired 16:07:56 while
+      # the DeerFlowSummarizationMiddleware step was still running, so the user saw
+      # an error and no document. Its last checkpoint routes to
+      # `branch:to:DeerFlowSummarizationMiddleware.before_model` and its final
+      # writes row is `__error__ = CancelledError()`. Ollama logged
+      # "aborting completion request due to client closing the connection" at the
+      # same second -- proof the completion was in flight and got cut off.
+      #
+      # WHY 420s IS TOO LOW HERE: a summarization step is a single ainvoke inside
+      # one superstep, so it emits NO chunks for its whole duration. Measured on
+      # AIPC1 with the trimmed 8000-token summary prompt:
+      #   prefill 17,018 real tok @ 124 tok/s = 136.8s
+      #   gen      1,102 tok      @   6.3 tok/s = 174.3s   -> 311.4s, only 109s spare
+      # At the summarizer's own max_tokens=4096 the generation alone is ~650s, so
+      # the step reaches ~787s -- 1.9x the watchdog. Reproduced deterministically.
+      # count_tokens_approximately undercounts CJK+markdown 2.13x (7981 counted
+      # vs 17,018 real), which is why trim_tokens_to_summarize=8000 still sends a
+      # much larger real prompt than its name implies.
+      #
+      # 1200s is deliberate headroom, not a guess: it sits ABOVE the ~787s worst
+      # case yet BELOW the 3600s nginx proxy_read_timeout, so a genuinely dead
+      # graph is still recycled before the edge gives up. Raising this does not
+      # make a wedged run immortal -- LangGraph's graph recursion limit and
+      # DEERFLOW_TITLE_INVOKE_TIMEOUT_S still bound other paths.
+      #
+      # The companion fix is in deer-flow-config.yaml: summarization.model_name
+      # was pinned to the LOCAL gemma4 summarizer while chat ran on a cloud model,
+      # paying a 19.4s cross-model reload and a 124 tok/s prefill. Pin both to the
+      # same model and this step gets ~10x faster -- then this budget is ample.
+      DEERFLOW_STREAM_IDLE_TIMEOUT_S: ${DEERFLOW_STREAM_IDLE_TIMEOUT_S:-1200}
       # Pacgate (security fix 2026-10-14): arm the one-time setup-token gate on
       # POST /api/v1/auth/initialize. See compose.prod.yaml for the full reasoning
       # and the 2026-10-14 measurement; the two files must stay in step.

@@ -110,6 +110,20 @@ models:
     max_tokens: 4096
     temperature: 0.1
 
+  # Pacgate 2026-10-15: explicit pin for the title role (see the `title:` block).
+  # Previously unpinned, so title fell through to models[0] - local only by
+  # ordering accident. Same tag as chat default and the other internal roles, so no
+  # VRAM swap. The cap matches the memory updater's; title output is a few words.
+  - name: gemma4-12b-title
+    display_name: "[internal] Title generator (Gemma 12B, capped)"
+    description: Internal first-exchange title model. Hard 2048-token cap. Same tag as chat default - no VRAM swap. Not intended for chat.
+    use: langchain_openai:ChatOpenAI
+    model: gemma4:12b-it-q8_0
+    api_key: ollama
+    base_url: http://host.docker.internal:11434/v1
+    max_tokens: 2048
+    temperature: 0.1
+
   # Pacgate 2026-10-07 (rev 2): qwen3.8:27b DEMOTED from the picker. Benchmark
   # on the 8060S iGPU (warm, ~3k ctx): dense 27B = 26 t/s gen / 225 t/s
   # ingestion, vs nemotron MOE 81/1080 and ornith MOE 64/1263. The dense model
@@ -300,6 +314,23 @@ memory:
   # memory pin originally.
   model_name: gemma4-12b-memory
 
+# Pacgate 2026-10-15: pin the TITLE role explicitly. It was the one internal role
+# with no model_name, so create_chat_model() fell through to
+# `config.models[0].name` (factory.py:105-106). That made its locality an
+# ORDERING ACCIDENT: it stays on-device only while `gemma4-12b-local` happens to
+# be the first entry in `models:`. Reorder that block and put a `-cloud` entry
+# first and the title step - which receives the FIRST USER MESSAGE, exactly like
+# the summarizer - would start egressing to ollama.com with no config change and
+# no picker interaction: the case the header above forbids ("egress as a side
+# effect of ... not touching the picker").
+#
+# Same tag as the chat default and the other internal roles, so this costs no VRAM
+# and introduces no swap. Title generation is bounded by
+# DEERFLOW_TITLE_INVOKE_TIMEOUT_S (8s, set in compose.*.yaml), and the middleware
+# already falls back to a local title on timeout.
+title:
+  model_name: gemma4-12b-title
+
 # Pacgate 2026-10-09 (LOCAL-ONLY round-2 tuning, PDF-analysis thread 5d7b42df):
 # summarization.enabled is upstream; the model pin + thresholds below are
 # this machine's tuning. Round-2: trigger=12000 fired but per-call input
@@ -309,6 +340,28 @@ memory:
 # configured values so the REAL window matches intent (trigger 5000 ≈ 13-16k
 # real, fires early; keep 4000 ≈ 10-13k real preserved). Context floor after
 # fix: ~19.5k tools+sys + ~12k preserved + summary ≈ 33-36k.
+#
+# Pacgate 2026-10-15 (MEASURED, not estimated): chars/4 was only half the story.
+# count_tokens_approximately undercounts this workload by **2.13x**, measured on
+# AIPC1 with the real 8000-counted-token summarization prompt:
+#     counted 7,981  ->  real prompt_eval_count 17,018
+# So trim_tokens_to_summarize=8000 sends ~17k REAL tokens to the summarizer, not
+# 8k. That is why a "capped" summary step is genuinely expensive:
+#     prefill 17,018 tok @ 124 tok/s = 136.8s
+#     gen      1,102 tok @   6.3 tok/s = 174.3s     -> 311.4s measured
+# and at this model's own max_tokens=4096 the generation alone is ~650s, putting
+# the step near ~787s. deer-flow cancels a run that yields no astream chunk for
+# DEERFLOW_STREAM_IDLE_TIMEOUT_S (default 420s), and a summarization step is a
+# single ainvoke inside ONE superstep, so it emits nothing for its whole
+# duration. That is exactly how run ad509d43 (thread 96a4f39e) was killed at
+# 16:07:56, 420s after its last chunk - AFTER it had already written
+# pacgate-ai-blog.docx/.pdf at 16:00:56. The budget is now 1200s (compose).
+# Keeping BOTH models pinned to the local tag is deliberate: the summarizer sees
+# the entire conversation, including matter facts, so routing it to a `:cloud`
+# model would be egress the user never chose - which this file forbids above
+# ("it does not accept egress as a side effect of prompt size, upload, or not
+# touching the picker"). Do NOT repin the summarizer to a cloud tag to make it
+# faster; trim_tokens_to_summarize is the safe lever if the step must shrink.
 summarization:
   enabled: true
   # Pacgate 2026-10-10 (AIPC1 fallback): same-tag repin, see memory block above.
