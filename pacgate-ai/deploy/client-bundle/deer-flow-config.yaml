@@ -28,23 +28,46 @@
 # `model '<tag>' not found`. `:cloud` tags are exempt - they need no local weights.
 # scripts/audit-model-tags.ps1 enforces this.
 
-# Pacgate 2026-10-07: nemotron-3.5-lightning is now the DEFAULT. It is the most
-# capable local MOE (1M context, tools + thinking) and benchmarked clean end to
-# end. CRITICAL: its max_tokens MUST stay at 8192 or below. Nemotron's thinking
-# channel can run unbounded on this Ollama build - with the previous 16384 cap it
-# burned the entire budget on thinking tokens, produced no visible content, and
-# tripped deer-flow's 420s stall detector ("no astream output ... aborting").
-# Verified 2026-10-07: num_predict 300/1024 -> clean stop, correct content;
-# unset/16384 -> 14k+ token thinking loops with empty content.
-# Why 8192 and not lower: nemotron generates at ~24 t/s on the 8060S iGPU, so
-# 8192 tokens is ~5.7 min of worst-case generation - inside the 420s stall
-# detector's window only because thinking tokens stream continuously and reset
-# it. 4096 was tested first but is too tight for heavy research runs (thinking +
-# long answers share one budget). Do NOT raise back to 16384.
+# Pacgate 2026-10-10 (AIPC1-ONLY fallback, pre-authorized in
+# HANDOFF-PUSH-AND-REBUILD-0.1.25.md): gemma4-12b is now the DEFAULT on this
+# machine. Evidence (runtime/diag1..6-*-1010): nemotron-30b is 24.05GB total
+# against 16GB VRAM - 13GB in VRAM + ~11GB spilled to host RAM. With the host
+# at 0.45GB free RAM the spilled pages thrash: today's Ollama log shows 13
+# evictions, 18 server errors, 34 model loads and 30 slow POSTs in ~2.5h, and
+# a 27-token test call queued 108s behind an 18k-token agent call (prefill on
+# the spilled half ran at ~195 t/s vs ~580 t/s fully-in-VRAM). gemma4:12b
+# (12GB q8_0) fits ENTIRELY in VRAM: no spill, no evictions, ~3x faster
+# prefill, and host RAM recovers ~16GB. Tag choice: q8_0 (NOT qat) because
+# openviking's VLM and pacgate-api's workflow tiers (.env PACGATE_MODEL_*)
+# already use q8_0 on this machine - one shared runner slot, zero cross-lane
+# swaps. nemotron stays in the picker as a deliberate heavy option. This
+# roster change is LOCAL-ONLY (user directive 2026-09-21/10-09): do NOT
+# upstream. The 2026-10-07 nemotron max_tokens cap note still applies to the
+# nemotron entry below (thinking-loop guard).
 models:
+  - name: gemma4-12b-local
+    display_name: Gemma 4 12B (Local)
+    description: >-
+      Default on this machine (AIPC1 fallback 2026-10-10). 12GB q8_0 fits
+      fully in the 16GB VRAM - no CPU spill, no evictions. Reliable
+      structured/tool calls and json_schema grammar. Shares the runner slot
+      with openviking VLM + pacgate-api workflow tiers (same q8_0 tag).
+    use: langchain_openai:ChatOpenAI
+    model: gemma4:12b-it-q8_0
+    api_key: ollama
+    base_url: http://host.docker.internal:11434/v1
+    max_tokens: 8192
+    temperature: 0.1
+
   - name: nemotron-3.5-lightning-30b-local
-    display_name: Nemotron 3.5 Lightning 30B (Local)
-    description: Default. Most capable local MOE (1M tokens). Supports thinking + tools. max_tokens capped to prevent thinking loops.
+    display_name: Nemotron 3.5 Lightning 30B (Local, heavy)
+    description: >-
+      Most capable local MOE (1M context, thinking + tools) but 24GB total on
+      a 16GB VRAM card: ~11GB spills to host RAM. On AIPC1 this caused
+      eviction/reload cycling (13 evictions in 2.5h on 2026-10-10) and
+      2-3min first-token latency under RAM pressure. Pick deliberately for
+      1M-ctx workloads; expect slow prefill while host RAM is tight.
+      max_tokens MUST stay at 8192 or below (thinking-loop guard).
     use: langchain_openai:ChatOpenAI
     model: nemotron-3.5-lightning:30b-a3b
     api_key: ollama
@@ -55,16 +78,6 @@ models:
     # Long thinking pauses on a 30B reasoning model — raise the stream chunk
     # timeout so the gateway does not drop the connection mid-thought.
     stream_chunk_timeout: 300
-
-  - name: gemma4-12b-local
-    display_name: Gemma 4 12B (Local)
-    description: Fast local model. Reliable structured/tool calls. Used for background memory updates.
-    use: langchain_openai:ChatOpenAI
-    model: gemma4:12b-it-qat
-    api_key: ollama
-    base_url: http://host.docker.internal:11434/v1
-    max_tokens: 8192
-    temperature: 0.1
 
   # Dedicated memory-update model. Referenced by memory.model_name below.
   # Background memory updates run OUTSIDE any user-visible run, so a runaway
@@ -77,21 +90,21 @@ models:
   # background call on gemma4 evicted the chat model and paid 9-37s reloads
   # (10 reloads in 11 min observed). The max_tokens caps keep the
   # runaway-generation protection.
-  - name: nemotron-30b-memory
-    display_name: "[internal] Memory updater (Nemotron 30B, capped)"
+  - name: gemma4-12b-memory
+    display_name: "[internal] Memory updater (Gemma 12B, capped)"
     description: Internal background memory-update model. Hard 2048-token cap. Same tag as chat default - no VRAM swap. Not intended for chat; kept visible because deer-flow has no hide-from-picker flag (frontend filter = upstream-PR candidate).
     use: langchain_openai:ChatOpenAI
-    model: nemotron-3.5-lightning:30b-a3b
+    model: gemma4:12b-it-q8_0
     api_key: ollama
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 2048
     temperature: 0.1
 
-  - name: nemotron-30b-summarizer
-    display_name: "[internal] Summarizer (Nemotron 30B, capped)"
+  - name: gemma4-12b-summarizer
+    display_name: "[internal] Summarizer (Gemma 12B, capped)"
     description: Internal conversation-summarization model. Hard 4096-token cap. Same tag as chat default - no VRAM swap. Not intended for chat.
     use: langchain_openai:ChatOpenAI
-    model: nemotron-3.5-lightning:30b-a3b
+    model: gemma4:12b-it-q8_0
     api_key: ollama
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 4096
@@ -170,7 +183,9 @@ models:
   #   max_tokens: 8192
   #   temperature: 0.1
   #   supports_thinking: true
-    stream_chunk_timeout: 300
+  #   stream_chunk_timeout: 300   <- was live by accident (attached to the
+  #   ornith-35b entry above); commented out 2026-10-10 during the AIPC1
+  #   fallback edit. Re-enable inside the 26b block if that entry returns.
 
   # ── Cloud-routed models (via ollama.com / `ollama signin`) ────────────────
   # Pacgate 2026-10-07 (rev 2, per user choice): the cloud roster is the TWO
@@ -257,10 +272,14 @@ model_routing:
   # the model that overflows at 40k tokens is no longer the one holding the
   # conversation. local_model and cloud_model point at the same entry; the
   # schema key name is unchanged (renaming would break deer-flow's config).
-  local_model: nemotron-3.5-lightning-30b-local
+  # Pacgate 2026-10-10 (AIPC1 fallback): both targets = gemma4-12b-local.
+  # With the default AND escalation target on the same fully-in-VRAM model,
+  # escalation is a no-op by design - the point is that no automatic path can
+  # pull the 24GB nemotron into VRAM behind the user's back.
+  local_model: gemma4-12b-local
   # LOCAL, not cloud. Renaming this key would break deer-flow's config schema, so
   # it is still called cloud_model; read it as "the escalation target".
-  cloud_model: nemotron-3.5-lightning-30b-local
+  cloud_model: gemma4-12b-local
   message_token_threshold: 40000
   tool_count_threshold: 200
 
@@ -272,13 +291,14 @@ model_routing:
 # recur. (MemoryConfig.model_name, deerflow/agents/memory/updater.py.)
 memory:
   storage_class: pacgate_deerflow_adapter.storage.PacgateMemoryStorage
-  # Pacgate 2026-10-08 (tuning pass, LOCAL-ONLY): repinned to nemotron-30b-memory.
-  # The gemma4 pin's 2048 cap held, but (1) the updater produced invalid JSON
-  # twice on 2026-10-08 (truncated mid-JSON at the cap) and (2) every memory
-  # call swapped gemma4 into VRAM, evicting the chat model (10 reloads in
-  # 11 min observed). nemotron shares the chat model's runner slot - no swap,
-  # and its 1M ctx means the 11k-token memory prompt never truncates.
-  model_name: nemotron-30b-memory
+  # Pacgate 2026-10-10 (AIPC1 fallback): repinned to gemma4-12b-memory. With
+  # gemma4-q8_0 as the chat default, a nemotron-tagged memory call would swap
+  # the 24GB model into VRAM on EVERY background update - the exact failure
+  # mode documented 2026-10-08 (10 reloads in 11 min), just in reverse. A
+  # same-tag pin = no swap. The 2026-10-08 invalid-JSON concern is mitigated:
+  # the 2048 cap still holds, and gemma4's JSON reliability is why it was the
+  # memory pin originally.
+  model_name: gemma4-12b-memory
 
 # Pacgate 2026-10-09 (LOCAL-ONLY round-2 tuning, PDF-analysis thread 5d7b42df):
 # summarization.enabled is upstream; the model pin + thresholds below are
@@ -291,7 +311,8 @@ memory:
 # fix: ~19.5k tools+sys + ~12k preserved + summary ≈ 33-36k.
 summarization:
   enabled: true
-  model_name: nemotron-30b-summarizer
+  # Pacgate 2026-10-10 (AIPC1 fallback): same-tag repin, see memory block above.
+  model_name: gemma4-12b-summarizer
   trigger:
     - type: tokens
       value: 5000

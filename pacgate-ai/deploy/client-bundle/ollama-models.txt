@@ -11,6 +11,15 @@ gemma4:12b-it-qat
 # Mid tier: heavier reasoning, local GPU
 qwen3.8:27b-mtp-q4_K_M
 
+# --- AIPC1-ONLY deer-flow fallback tag (2026-10-10, LOCAL-ONLY) ---
+# deer-flow-config.yaml on THIS machine now defaults to gemma4:12b-it-q8_0
+# (fully-in-VRAM fallback after the nemotron eviction/reload cycling diagnosis;
+# see runtime/diag1..7-*-1010 + runtime/AIPC1-DIAGNOSIS-REPORT-1010.md).
+# q8_0 is already installed here (12GB) and is the tag openviking's VLM and
+# pacgate-api's workflow tiers already use on this box. The developer's
+# machine keeps qat as the deer-flow default - do NOT upstream this line.
+gemma4:12b-it-q8_0
+
 # --- RAG embeddings (required by pacgate-api, no alternative) ---
 nomic-embed-text:latest
 
