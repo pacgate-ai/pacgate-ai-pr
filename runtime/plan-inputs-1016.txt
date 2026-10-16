@@ -1,0 +1,541 @@
+===== install.ps1 L405-500 (render block, exact) =====
+ 405: #
+ 406: # Now the file is regenerated every run and compared. Identical content is a
+ 407: # no-op; changed content is backed up before replacement, and the change is
+ 408: # reported so an update is never silent.
+ 409: $dfTemplate = ".\deer-flow-extensions-config.template.json"
+ 410: $dfRendered = ".\deer-flow-extensions-config.json"
+ 411: if (Test-Path $dfTemplate) {
+ 412:         $dfKey = $envVars['OPENVIKING_ROOT_API_KEY']
+ 413:         if (-not $dfKey -or $dfKey -match '^change-me') {
+ 414:             # No usable key: we cannot render. A missing file is fatal (compose
+ 415:             # mounts it :ro, so deer-flow memory recall breaks); an existing file
+ 416:             # is left alone rather than failing an otherwise-good update.
+ 417:             if (Test-Path $dfRendered) {
+ 418:                 Write-Host "[WARN] OPENVIKING_ROOT_API_KEY is unset or still 'change-me'." -ForegroundColor Yellow
+ 419:                 Write-Host "  Keeping the existing $dfRendered unchanged (cannot re-render without the key)." -ForegroundColor Yellow
+ 420:             } else {
+ 421:                 Write-Host "ERROR: $dfRendered missing and OPENVIKING_ROOT_API_KEY is unset or still 'change-me'." -ForegroundColor Red
+ 422:                 Write-Host "  Set OPENVIKING_ROOT_API_KEY in .env, then re-run. compose.prod.yaml mounts this" -ForegroundColor Yellow
+ 423:                 Write-Host "  file :ro, so a missing file breaks deer-flow memory recall (OV-2a)." -ForegroundColor Yellow
+ 424:                 exit 1
+ 425:             }
+ 426:         } else {
+ 427:             # The template's openviking entry uses ${OPENVIKING_ROOT_API_KEY} (the
+ 428:             # server's root key), NOT ${OPENVIKING_API_KEY}. Replacing the wrong
+ 429:             # placeholder is a no-op and leaves a literal ${...} in the rendered
+ 430:             # file, which makes openviking return 401 and rolls back the entire MCP
+ 431:             # tool load (deer-flow uses asyncio.gather). See handbook finding #2.
+ 432:             # -Encoding UTF8: PS 5.1 on a Chinese-locale host decodes BOM-less files as
+ 433:             # ANSI/GBK; the template carries Chinese text and must stay UTF-8.
+ 434:             $df = (Get-Content $dfTemplate -Raw -Encoding UTF8).Replace('${OPENVIKING_ROOT_API_KEY}', $dfKey)
+ 435: 
+ 436:             $dfExisting = if (Test-Path $dfRendered) {
+ 437:                 [System.IO.File]::ReadAllText((Join-Path $PWD $dfRendered))
+ 438:             } else { $null }
+ 439: 
+ 440:             # Compare with line endings normalised, so a CRLF/LF difference alone
+ 441:             # does not look like a change and churn backups on every run.
+ 442:             function Get-NormText([string]$s) {
+ 443:                 if ($null -eq $s) { return $null }
+ 444:                 return ($s -replace "`r`n", "`n").TrimEnd()
+ 445:             }
+ 446:             $dfUnchanged = ($null -ne $dfExisting) -and ((Get-NormText $dfExisting) -eq (Get-NormText $df))
+ 447: 
+ 448:             if ($dfUnchanged) {
+ 449:                 Write-Host "[OK] $dfRendered already current" -ForegroundColor Green
+ 450:             } else {
+ 451:                 if ($null -ne $dfExisting) {
+ 452:                     $dfStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+ 453:                     $dfBackup = "$dfRendered.bak.$dfStamp"
+ 454:                     Copy-Item -LiteralPath $dfRendered -Destination $dfBackup -Force
+ 455:                     Write-Host "[OK] Previous $dfRendered backed up to $dfBackup" -ForegroundColor Green
+ 456:                 }
+ 457: 
+ 458:                 # Write BOM-free UTF-8. PowerShell 5.1's `Set-Content -Encoding UTF8`
+ 459:                 # prepends a UTF-8 BOM, which deer-flow's JSON parser rejects
+ 460:                 # ("Unexpected UTF-8 BOM"). Use .NET WriteAllText with a no-BOM
+ 461:                 # UTF8Encoding so the rendered config is valid JSON.
+ 462:                 [System.IO.File]::WriteAllText(
+ 463:                     (Join-Path $PWD $dfRendered),
+ 464:                     $df,
+ 465:                     [System.Text.UTF8Encoding]::new($false)
+ 466:                 )
+ 467:                 Write-Host "[OK] Rendered $dfRendered from template" -ForegroundColor Green
+ 468: 
+ 469:                 # Name what changed. This is the whole point: the previous silent
+ 470:                 # behaviour is what let pacgate-mcp go missing unnoticed.
+ 471:                 $knownServers = @('openviking', 'pacgate', 'firecrawl')
+ 472:                 $gained = @()
+ 473:                 $lost = @()
+ 474:                 foreach ($srv in $knownServers) {
+ 475:                     $needle = '"' + $srv + '"'
+ 476:                     $inOld = ($null -ne $dfExisting) -and ($dfExisting -match $needle)
+ 477:                     $inNew = ($df -match $needle)
+ 478:                     if ($inNew -and -not $inOld) { $gained += $srv }
+ 479:                     if ($inOld -and -not $inNew) { $lost += $srv }
+ 480:                 }
+ 481:                 if ($gained.Count -gt 0) {
+ 482:                     Write-Host "     MCP servers gained: $($gained -join ', ')" -ForegroundColor Yellow
+ 483:                 }
+ 484:                 if ($lost.Count -gt 0) {
+ 485:                     Write-Host "     MCP servers REMOVED: $($lost -join ', ') - check the template" -ForegroundColor Red
+ 486:                 }
+ 487:             }
+ 488:         }
+ 489:     }
+ 490: 
+ 491: # 4c. Derive GATEWAY_CORS_ORIGINS (browser sign-in/register gate).
+ 492: #
+ 493: # The gateway rejects auth POSTs whose Origin header is not in this list
+ 494: # (csrf_middleware is_allowed_auth_origin). Browsers ALWAYS send Origin on
+ 495: # POST, so a user browsing http://<machine-host>:8089 gets 403 "Cross-site
+ 496: # auth request denied." on EVERY sign-in and registration attempt when the
+ 497: # list is localhost-only - the compose default. Verified 2026-09-20:
+ 498: #   POST /api/v1/auth/login/local with Origin http://192.168.8.88:8089 -> 403
+ 499: #   same POST with Origin http://localhost:8089 -> 401 (gate passed)
+ 500: # The same-origin escape does NOT work behind our ingress chain (nginx ->
+
+===== compose.bundle.yaml L195-215 (skills mount, exact) =====
+ 195:       # Default 1, so OMISSION arms the gate rather than disabling it.
+ 196:       PACGATE_SETUP_TOKEN: ${PACGATE_SETUP_TOKEN:-}
+ 197:       PACGATE_GENERATE_SETUP_TOKEN: ${PACGATE_GENERATE_SETUP_TOKEN:-1}
+ 198:     volumes:
+ 199:       - ./data:/data
+ 200:       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
+ 201:       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
+ 202:       # Pacgate 2026-10-08 (re-applied 2026-10-15 after 0.1.31 sync): serve the
+ 203:       # skills tree (60 dirs: 37 PacGate legal + 23 upstream) from the merged
+ 204:       # pacgate-layer working copy. MONO-FOLDER-ONLY: fresh upstream deploys
+ 205:       # have no sibling deer-flow clone. The 0.1.31 image still has no
+ 206:       # /app/skills baked in - keep this mount until an image carries it.
+ 207:       - ../../../deer-flow/skills/public:/app/skills/public:ro
+ 208:       # Pacgate: add a unified generated-outputs listing endpoint
+ 209:       # (GET /api/threads/{id}/outputs). Mounted so it survives container
+ 210:       # recreation without rebuilding the image.
+ 211:       - ./patches/deer-flow-artifacts.py:/app/backend/app/gateway/routers/artifacts.py:ro
+ 212:       # Pacgate: default multitask_strategy to "interrupt" so a new message
+ 213:       # during a long agent run cancels the stale run instead of returning
+ 214:       # 409 Conflict to the user.
+ 215:       - ./patches/deer-flow-thread-runs.py:/app/backend/app/gateway/routers/thread_runs.py:ro
+
+===== .env.example tail (connector section, exact) =====
+ 100: 
+ 101: # Offshore corporate registry
+ 102: #OPENCORPORATES_API_KEY=
+ 103: 
+ 104: # === OpenViking (memory lane) ===
+ 105: # Root API key for the OpenViking server (generate: openssl rand -hex 32)
+ 106: OPENVIKING_ROOT_API_KEY=change-me-to-a-random-hex-string
+ 107: # API key clients use to call OpenViking (can equal root key in pilot)
+ 108: OPENVIKING_API_KEY=change-me-to-a-random-hex-string
+ 109: 
+ 110: # Title generation must never freeze a run (silent-no-reply fix 2026-10-06):
+ 111: # run c2a0ced4 (2026-10-06 12:12:55) stalled inside TitleMiddleware after an
+ 112: # ollama /v1/chat/completions 200, showing no output until the user cancelled.
+ 113: # An 8s fallback bound keeps the worst case cheap.
+ 114: DEERFLOW_TITLE_INVOKE_TIMEOUT_S=8
+
+===== build-ghcr.yml (full) =====
+   1: name: Build & Push GHCR Images
+   2: 
+   3: # Builds and pushes all Pacgate runtime images to GHCR whenever a version tag
+   4: # (v0.1.x) is pushed. This keeps both AIPCs in sync from a single source of
+   5: # truth and needs no local docker login (uses GITHUB_TOKEN).
+   6: #
+   7: # Images pushed (release authority = SOURCE OF TRUTH):
+   8: #   ghcr.io/jzkk720/pacgate-api:<tag>
+   9: #   ghcr.io/jzkk720/pacgate-mcp:<tag>
+  10: #   ghcr.io/jzkk720/deer-flow-pacgate:<tag>
+  11: #   ghcr.io/jzkk720/deer-flow-frontend-pacgate:<tag>
+  12: #
+  13: # NAMESPACE: the prefix is PINNED to `jzkk720` by the workflow-level
+  14: # `GHCR_NAMESPACE` below, and falls back to `github.repository_owner` only if that
+  15: # is emptied. `jzkk720` is a USER account, not an organization.
+  16: #
+  17: # ONE ACCOUNT, ONE ROLE (restated by the maintainer, 2026-09-18):
+  18: #   jzkk720    - the RELEASE AUTHORITY. Code master AND image namespace.
+  19: #   pacgate-ai - a READ-ONLY MIRROR of the same commits. Publishes NO images.
+  20: #
+  21: # A release populates ONLY jzkk720. Nothing in this project pulls images from
+  22: # ghcr.io/pacgate-ai/* any more. This supersedes the 2026-09-17 model, which had
+  23: # the roles the other way round and removed a mirror job - see
+  24: # plans/016-jzkk720-master-build.md for why it was inverted.
+  25: #
+  26: # WHY PINNED RATHER THAN INFERRED. Deriving the owner from the repo was correct
+  27: # by luck and wrong in principle. `secrets.GITHUB_TOKEN` can only push to the
+  28: # namespace of the account that runs the workflow, so pinning makes the target
+  29: # explicit: a run from the WRONG repo now fails loudly instead of quietly
+  30: # publishing to a namespace no compose file looks at.
+  31: #
+  32: # The release runs from THIS repo (JZKK720), so the pinned namespace and the
+  33: # token's owner MATCH. The normal `GITHUB_TOKEN` with `permissions: packages:
+  34: # write` is therefore sufficient - no PAT is needed for the primary path.
+  35: # GHCR_RELEASE_PAT exists only as an escape hatch for a deliberately
+  36: # cross-namespace run.
+  37: #
+  38: # IMPORTANT: this prefix MUST match the `image:` pins in
+  39: # deploy/client-bundle/compose.prod.yaml and compose.bundle.yaml. If the
+  40: # workflow publishes to one namespace and compose pins the other, the client
+  41: # install pulls nothing. Use the `namespace` dispatch input to override.
+  42: #
+  43: # NOTE: to publish to an owner OTHER than jzkk720 you need a PAT with
+  44: # write:packages for that owner; GITHUB_TOKEN cannot cross namespaces. See
+  45: # deploy/README-BUILD.md. The normal release does NOT need one - the pinned
+  46: # namespace and this repo's owner are both jzkk720.
+  47: #
+  48: # CAREFUL WHEN REPLACING THE STRING `pacgate-ai`. It appears in two unrelated
+  49: # roles in this file:
+  50: #   1. the GHCR namespace the client used to pull from (now `jzkk720`)
+  51: #   2. the BUILD CONTEXT path `pacgate-ai/Dockerfile` - a directory in THIS repo
+  52: #      holding the Rust workspace. It is not a registry path. Do not change it.
+  53: #
+  54: # TWO WAYS TO RELEASE, and the dispatch path is usually better:
+  55: #
+  56: #   1. Push a `v0.1.*` tag. Simple, but the build runs from WHATEVER COMMIT THE
+  57: #      TAG POINTS AT - so a tag created on a commit where this file is invalid
+  58: #      produces no images at all. That is how the 0.1.14 release first failed.
+  59: #   2. Dispatch with `tag=<version>` on a branch. The input sets the PUBLISHED
+  60: #      tag and the branch selects the CODE, so the two cannot disagree, and it
+  61: #      needs no local credential. It works from an account that cannot push tags
+  62: #      to this repository, which a tag push does not.
+  63: 
+  64: env:
+  65:   # The single source of truth for where a release publishes. See the NAMESPACE
+  66:   # note above before changing it. JZKK720 is the release authority; pacgate-ai
+  67:   # is a read-only mirror, and every compose pin must match this value.
+  68:   GHCR_NAMESPACE: jzkk720
+  69: 
+  70: on:
+  71:   push:
+  72:     tags:
+  73:       - "v0.1.*"
+  74:       - "v0.2.*"
+  75:   workflow_dispatch:
+  76:     inputs:
+  77:       tag:
+  78:         description: "Image tag to build (e.g. the current release). No default on purpose, so a stale tag cannot be dispatched by accident."
+  79:         required: true
+  80:       namespace:
+  81:         description: "GHCR owner override. Empty = the pinned GHCR_NAMESPACE variable (jzkk720). Set only to publish elsewhere deliberately - clients pin ghcr.io/jzkk720."
+  82:         required: false
+  83:         default: ""
+  84: 
+  85: jobs:
+  86:   build-and-push:
+  87:     runs-on: ubuntu-latest
+  88:     permissions:
+  89:       contents: read
+  90:       packages: write
+  91:     steps:
+  92:       - name: Checkout
+  93:         uses: actions/checkout@v4
+  94:         with:
+  95:           fetch-depth: 0
+  96: 
+  97:       # Resolve the effective namespace once, so the tag-push and dispatch paths
+  98:       # behave identically and every later step agrees on the prefix.
+  99:       #
+ 100:       # Precedence: explicit dispatch input > committed GHCR_NAMESPACE > repo
+ 101:       # owner. See the NAMESPACE note at the top for why the pin exists.
+ 102:       #
+ 103:       # This step ALSO reports the login ACCOUNT, because a GHCR package is owned
+ 104:       # by the account named in its path: the username for `ghcr.io/<ns>/...` is
+ 105:       # `<ns>`, not the actor who triggered the run. It deliberately does NOT
+ 106:       # handle the password - writing a secret into $GITHUB_OUTPUT and reading it
+ 107:       # back adds a step to the secret's path for no benefit, when the login step
+ 108:       # can select it inline.
+ 109:       - name: Resolve image namespace
+ 110:         id: ns
+ 111:         env:
+ 112:           INPUT_NS: ${{ inputs.namespace }}
+ 113:           OWNER_NS: ${{ github.repository_owner }}
+ 114:         run: |
+ 115:           if [ -n "$INPUT_NS" ]; then
+ 116:             ns="$INPUT_NS"; src="namespace dispatch input"
+ 117:           elif [ -n "$GHCR_NAMESPACE" ]; then
+ 118:             ns="$GHCR_NAMESPACE"; src="committed GHCR_NAMESPACE"
+ 119:           else
+ 120:             ns="$OWNER_NS"; src="repo owner (GHCR_NAMESPACE is empty)"
+ 121:           fi
+ 122:           echo "prefix=ghcr.io/$ns" >> "$GITHUB_OUTPUT"
+ 123:           echo "actor=$ns" >> "$GITHUB_OUTPUT"
+ 124:           echo "Resolved image prefix: ghcr.io/$ns  (from: $src)"
+ 125: 
+ 126:           # GHCR usernames are CASE-INSENSITIVE, but a shell string compare is
+ 127:           # not. `github.repository_owner` preserves the account's real
+ 128:           # capitalization (JZKK720), while registry paths are lowercase
+ 129:           # (ghcr.io/jzkk720). Comparing them raw reports a mismatch that does
+ 130:           # not exist, and emits a warning about a 403 that will not happen -
+ 131:           # which trains the reader to ignore the warning that DOES matter.
+ 132:           ns_lc=$(printf '%s' "$ns" | tr '[:upper:]' '[:lower:]')
+ 133:           owner_lc=$(printf '%s' "$OWNER_NS" | tr '[:upper:]' '[:lower:]')
+ 134: 
+ 135:           if [ "$ns_lc" != "jzkk720" ]; then
+ 136:             echo "::warning::Publishing to ghcr.io/$ns, which is NOT the namespace the client compose files pin (ghcr.io/jzkk720). Clients will not see this release."
+ 137:           fi
+ 138:           # WARN IN ADVANCE when the credential provably cannot reach the target.
+ 139:           # Only a PAT crosses namespaces; GITHUB_TOKEN is scoped to the repo
+ 140:           # that issued it. Without this the failure is a bare 403 from whichever
+ 141:           # build step reaches the registry first, which says nothing about why.
+ 142:           #
+ 143:           # On the PRIMARY path this never fires: the pinned namespace is jzkk720
+ 144:           # and the release runs from JZKK720, so ns == OWNER_NS. It only fires
+ 145:           # when someone overrides the namespace to a different owner.
+ 146:           #
+ 147:           # Compared case-insensitively - see the ns_lc/owner_lc note above.
+ 148:           if [ "$ns_lc" != "$owner_lc" ] && [ -z "${{ secrets.GHCR_RELEASE_PAT }}" ]; then
+ 149:             echo "::warning::Publishing to ghcr.io/$ns but no GHCR_RELEASE_PAT is set. GITHUB_TOKEN belongs to '$OWNER_NS' and cannot push into '$ns', so the push WILL be rejected with 403. Add a PAT with write:packages for '$ns' as the repository secret GHCR_RELEASE_PAT, or run this workflow from the '$ns' repository."
+ 150:           fi
+ 151: 
+ 152:       # Compute the image tag: strip the leading 'v' from release tags so it
+ 153:       # matches the compose pins (v0.1.3 -> 0.1.3). Manual dispatch uses the
+ 154:       # input as-is. An empty tag is a hard failure - without this guard the
+ 155:       # build would produce a malformed `image:` reference and fail obscurely.
+ 156:       - name: Resolve image tag
+ 157:         id: tag
+ 158:         run: |
+ 159:           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+ 160:             tag="${{ inputs.tag }}"
+ 161:           else
+ 162:             ref="${{ github.ref_name }}"
+ 163:             tag="${ref#v}"
+ 164:           fi
+ 165:           if [ -z "$tag" ]; then
+ 166:             echo "::error::No image tag resolved. Pass the 'tag' input when dispatching manually."
+ 167:             exit 1
+ 168:           fi
+ 169:           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+ 170:           echo "Resolved image tag: $tag"
+ 171: 
+ 172:       - name: Set up Docker Buildx
+ 173:         uses: docker/setup-buildx-action@v3
+ 174: 
+ 175:       # `id` is needed so the next step can assert the login actually worked.
+ 176:       # Login is made non-fatal here so a credential problem produces a clear
+ 177:       # message instead of a raw registry 403 from whichever build step happens
+ 178:       # to reach the push first.
+ 179:       - name: Log in to GHCR
+ 180:         id: login
+ 181:         continue-on-error: true
+ 182:         uses: docker/login-action@v3
+ 183:         with:
+ 184:           registry: ghcr.io
+ 185:           # The resolved namespace IS the GHCR username: packages are owned by a
+ 186:           # user or org account, so the login account must be that owner. The PAT
+ 187:           # is optional and used when supplied; on the client-delivery repository
+ 188:           # GITHUB_TOKEN already owns the pinned namespace, so the fallback is
+ 189:           # the normal path there.
+ 190:           username: ${{ steps.ns.outputs.actor || github.actor }}
+ 191:           password: ${{ secrets.GHCR_RELEASE_PAT || secrets.GITHUB_TOKEN }}
+ 192: 
+ 193:       # A failed login is a HARD stop, not a warning. The alternative - carrying
+ 194:       # on and skipping the pushes - would produce a green run that published
+ 195:       # nothing, which is far worse than a red one: every downstream signal
+ 196:       # (the run badge, the step summary, "CI passed") would say the release
+ 197:       # shipped. An empty release must never look like a successful one.
+ 198:       - name: Confirm GHCR login
+ 199:         if: steps.login.outcome != 'success'
+ 200:         run: |
+ 201:           echo "::error::GHCR login failed for the resolved namespace. No images were built or pushed."
+ 202:           echo "Registry: ghcr.io"
+ 203:           echo "Account attempted: ${{ steps.ns.outputs.actor || github.actor }}"
+ 204:           echo "If the namespace differs from this repository's owner, GITHUB_TOKEN cannot be used - add a PAT with write:packages for the target owner as the repository secret GHCR_RELEASE_PAT."
+ 205:           exit 1
+ 206: 
+ 207:       # ── pacgate-api (Rust) ────────────────────────────────────────────────
+ 208:       - name: Build & push pacgate-api
+ 209:         uses: docker/build-push-action@v6
+ 210:         with:
+ 211:           context: pacgate-ai
+ 212:           file: pacgate-ai/Dockerfile
+ 213:           push: true
+ 214:           # Baked into the binary so GET /version can report the exact commit the
+ 215:           # running process was built from. The OCI revision label below is NOT
+ 216:           # a substitute: a label records what was deployed, and the failure this
+ 217:           # guards against is the deployed artifact disagreeing with the process
+ 218:           # actually serving traffic.
+ 219:           build-args: |
+ 220:             PAC_SOURCE_REVISION=${{ github.sha }}
+ 221:             # The NER weights pin. Declared here as well as in the Dockerfile so
+ 222:             # the shipped revision is visible in the build log and in one place a
+ 223:             # reviewer checks; the Dockerfile's own default keeps local builds
+ 224:             # working without this workflow.
+ 225:             #
+ 226:             # The Dockerfile verifies the fetched files against pinned SHA-256
+ 227:             # values, so a wrong or truncated artifact fails the build rather than
+ 228:             # shipping. Changing this revision without updating those hashes will
+ 229:             # break the build on purpose.
+ 230:             NER_MODEL_REV=5d660ed2aa9da482bf2d99c6bc8cf2ce66758f6a
+ 231:           tags: |
+ 232:             ${{ steps.ns.outputs.prefix }}/pacgate-api:${{ steps.tag.outputs.tag }}
+ 233:             ${{ steps.ns.outputs.prefix }}/pacgate-api:latest
+ 234:           labels: |
+ 235:             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+ 236:             org.opencontainers.image.revision=${{ github.sha }}
+ 237:             org.opencontainers.image.version=${{ steps.tag.outputs.tag }}
+ 238: 
+ 239:       # ── pacgate-mcp (Python bridge) ──────────────────────────────────────
+ 240:       - name: Build & push pacgate-mcp
+ 241:         uses: docker/build-push-action@v6
+ 242:         with:
+ 243:           context: deploy/pacgate-mcp
+ 244:           file: deploy/pacgate-mcp/Dockerfile
+ 245:           push: true
+ 246:           tags: |
+ 247:             ${{ steps.ns.outputs.prefix }}/pacgate-mcp:${{ steps.tag.outputs.tag }}
+ 248:             ${{ steps.ns.outputs.prefix }}/pacgate-mcp:latest
+ 249:           labels: |
+ 250:             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+ 251:             org.opencontainers.image.revision=${{ github.sha }}
+ 252:             org.opencontainers.image.version=${{ steps.tag.outputs.tag }}
+ 253: 
+ 254:       # ── ocr-service (PaddleOCR perception lane) ──────────────────────────
+ 255:       # Plan 019's extraction service. Shipped as a first-class release image
+ 256:       # from 0.1.16: the OCR surface is a user-facing feature (standalone
+ 257:       # pacgate_ocr_document MCP tool + enabled compose service), so the
+ 258:       # perception lane must be part of every release, not a dev-box side
+ 259:       # build.
+ 260:       #
+ 261:       # The PP-OCRv4 weights are BAKED INTO this image at build time (see
+ 262:       # deploy/ocr-service/Dockerfile). They are ~17 MB, not the ~1.5GB an
+ 263:       # earlier version of this comment claimed, and they used to be downloaded
+ 264:       # from paddleocr.bj.bcebos.com on the client's FIRST extraction. That made
+ 265:       # the perception lane depend on an external CDN - the one lane in the
+ 266:       # bundle that was not offline-capable - and it measured 269.9s cold
+ 267:       # against a 300s client timeout in pacgate-api, so it failed
+ 268:       # intermittently. Baking it removes that dependency entirely; a fresh AIPC
+ 269:       # no longer needs that host to read its first document.
+ 270:       - name: Build & push ocr-service
+ 271:         uses: docker/build-push-action@v6
+ 272:         with:
+ 273:           context: deploy/ocr-service
+ 274:           file: deploy/ocr-service/Dockerfile
+ 275:           push: true
+ 276:           tags: |
+ 277:             ${{ steps.ns.outputs.prefix }}/ocr-service:${{ steps.tag.outputs.tag }}
+ 278:             ${{ steps.ns.outputs.prefix }}/ocr-service:latest
+ 279:           labels: |
+ 280:             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+ 281:             org.opencontainers.image.revision=${{ github.sha }}
+ 282:             org.opencontainers.image.version=${{ steps.tag.outputs.tag }}
+ 283: 
+ 284:       # ── deer-flow-pacgate (backend + adapter) ────────────────────────────
+ 285:       - name: Build & push deer-flow-pacgate
+ 286:         uses: docker/build-push-action@v6
+ 287:         with:
+ 288:           context: .
+ 289:           file: deploy/deer-flow-pacgate/Dockerfile
+ 290:           push: true
+ 291:           tags: |
+ 292:             ${{ steps.ns.outputs.prefix }}/deer-flow-pacgate:${{ steps.tag.outputs.tag }}
+ 293:             ${{ steps.ns.outputs.prefix }}/deer-flow-pacgate:latest
+ 294:           labels: |
+ 295:             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+ 296:             org.opencontainers.image.revision=${{ github.sha }}
+ 297:             org.opencontainers.image.version=${{ steps.tag.outputs.tag }}
+ 298: 
+ 299:       # ── deer-flow-frontend-pacgate (Next.js research UI) ─────────────────
+ 300:       # Clone the pinned bytedance tag into deploy/deer-flow-src/frontend,
+ 301:       # then build with the gateway URL baked in.
+ 302:       - name: Clone deer-flow frontend source
+ 303:         run: |
+ 304:           git clone --depth 1 --branch v2.0.0 --filter=blob:none --sparse \
+ 305:             https://github.com/bytedance/deer-flow.git deploy/deer-flow-src
+ 306:           git -C deploy/deer-flow-src sparse-checkout set frontend
+ 307: 
+ 308:       # Apply the PacGate frontend source overrides (branded UI, zh-CN strings,
+ 309:       # thread hooks). build-frontend.ps1 does this locally; CI must do the
+ 310:       # same or the published image silently loses the PacGate customizations.
+ 311:       # Files are copied (not git-patched) because they contain long Chinese
+ 312:       # strings that break git-patch parsing - same mechanism as the local script.
+ 313:       # Verified 2026-09-17: published 0.1.14 had 0 pacgate-marked files in
+ 314:       # .next vs 9 in the locally-built image - this step closes that gap.
+ 315:       - name: Apply PacGate frontend source overrides
+ 316:         run: |
+ 317:           if [ ! -d deploy/frontend-patches/files ]; then
+ 318:             echo "ERROR: deploy/frontend-patches/files missing from checkout" && exit 1
+ 319:           fi
+ 320:           cp -rv deploy/frontend-patches/files/. deploy/deer-flow-src/frontend/
+ 321: 
+ 322:       - name: Build & push deer-flow-frontend-pacgate
+ 323:         uses: docker/build-push-action@v6
+ 324:         with:
+ 325:           context: .
+ 326:           file: deploy/deer-flow-frontend-pacgate/Dockerfile
+ 327:           build-args: |
+ 328:             DEER_FLOW_INTERNAL_GATEWAY_BASE_URL=http://deer-flow:8001
+ 329:           push: true
+ 330:           tags: |
+ 331:             ${{ steps.ns.outputs.prefix }}/deer-flow-frontend-pacgate:${{ steps.tag.outputs.tag }}
+ 332:             ${{ steps.ns.outputs.prefix }}/deer-flow-frontend-pacgate:latest
+ 333:           labels: |
+ 334:             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+ 335:             org.opencontainers.image.revision=${{ github.sha }}
+ 336:             org.opencontainers.image.version=${{ steps.tag.outputs.tag }}
+ 337: 
+ 338:       - name: Verify image manifest (anonymous HEAD)
+ 339:         run: |
+ 340:           # Two things this step must get right, both learned the hard way:
+ 341:           #
+ 342:           # 1. GHCR returns 404 for a manifest request sent WITHOUT an OCI/Docker
+ 343:           #    Accept header, even when the package is public. Omitting it made
+ 344:           #    every run of this workflow fail on a completely successful
+ 345:           #    release (7/7 runs red before this fix).
+ 346:           # 2. GHCR can take a few seconds to propagate a freshly-pushed manifest
+ 347:           #    across its registry nodes, so retry with backoff instead of racing.
+ 348:           PREFIX="${{ steps.ns.outputs.prefix }}"
+ 349:           TAG="${{ steps.tag.outputs.tag }}"
+ 350:           ACCEPT="application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json"
+ 351: 
+ 352:           echo "Verifying ghcr.io/${PREFIX#ghcr.io/}/*:$TAG"
+ 353:           for img in pacgate-api pacgate-mcp ocr-service deer-flow-pacgate deer-flow-frontend-pacgate; do
+ 354:             ok=0
+ 355:             for attempt in 1 2 3 4 5; do
+ 356:               tok=$(curl -s "https://ghcr.io/token?scope=repository:${PREFIX#ghcr.io/}/${img}:pull" | jq -r .token)
+ 357:               code=$(curl -s -o /dev/null -w "%{http_code}" \
+ 358:                 -H "Accept: $ACCEPT" \
+ 359:                 -H "Authorization: Bearer $tok" \
+ 360:                 "https://ghcr.io/v2/${PREFIX#ghcr.io/}/${img}/manifests/${TAG}")
+ 361:               echo "attempt $attempt: ${PREFIX#ghcr.io/}/${img}:${TAG} => HTTP $code"
+ 362:               if [ "$code" = "200" ]; then ok=1; break; fi
+ 363:               sleep 10
+ 364:             done
+ 365:             if [ "$ok" != "1" ]; then
+ 366:               # 404 = tag absent in this namespace (likely a namespace mismatch
+ 367:               # between this workflow and the compose pins, or the tag never
+ 368:               # reached the registry). 401 = the package is still private.
+ 369:               echo "::error::${img}:${TAG} is not anonymously pullable (last HTTP $code)."
+ 370:               echo "If 404: check that the namespace above matches the image pins in"
+ 371:               echo "deploy/client-bundle/compose.prod.yaml."
+ 372:               echo "If 401: the package exists but is private - flip it to public in the GHCR UI."
+ 373:               exit 1
+ 374:             fi
+ 375:           done
+ 376: 
+
+===== .dockerignore (full) =====
+  # Docker build context exclusions for pacgate-ai.
+  #
+  # Why this exists: the frontend image Dockerfile
+  # (deploy/deer-flow-frontend-pacgate/Dockerfile) COPYs
+  # deploy/deer-flow-src/frontend from the build context (repo root). That
+  # gitignored clone accumulates node_modules from local typecheck/build
+  # proof runs; when present it ships into the image and pnpm install aborts
+  # with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY. CI never hits this
+  # (fresh clone has no node_modules) but every local build after a local
+  # tsc run does.
+  #
+  # Scope is deliberately narrow: only the gitignored source clones and
+  # their build outputs. Nothing tracked is excluded.
+  
+  # deer-flow source clone (gitignored, created by build-frontend.ps1)
+  deploy/deer-flow-src/frontend/node_modules
+  deploy/deer-flow-src/frontend/.next
+  deploy/deer-flow-src/frontend/.turbo
+  deploy/deer-flow-src/frontend/coverage
+  deploy/deer-flow-src/frontend/test-results
+  deploy/deer-flow-src/frontend/playwright-report
+  
+  # Rust build artifacts (never needed in any image build context)
+  pacgate-ai/target
