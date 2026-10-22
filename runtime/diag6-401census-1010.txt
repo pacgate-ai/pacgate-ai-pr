@@ -1,0 +1,86 @@
+﻿=== AIPC1 DIAG 6 - 2026-10-10 21:00:30 ===
+
+===== 1. NGINX 401 census by path (since container start) =====
+total requests parsed: 8148  total 401s: 81
+  19x  POST /api/v1/auth/login/local
+  14x  GET /pacgate/version
+  8x  GET /api/memory
+  7x  GET /api/agents
+  5x  GET /api/models
+  4x  GET /pacgate/api/matters
+  3x  GET /api/memory/status
+  3x  GET /api/health
+  3x  GET /api/v1/auth/me
+  2x  POST /api/runs/stream
+  2x  POST /pacgate/mcp
+  2x  GET /api/auth/csrf
+  1x  GET /api/v1/auth/csrf
+  1x  GET /pacgate/api/documents
+  1x  POST /pacgate/api/auth/login
+last 10 raw 401 lines:
+  172.23.0.1 - - [10/Oct/2026:09:50:21 +0000] "GET /api/models HTTP/1.1" 401 75 "-" "Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.26200; zh-CN) PowerShell/7.6.6" "-"
+  172.23.0.1 - - [10/Oct/2026:09:50:30 +0000] "GET /api/v1/auth/csrf HTTP/1.1" 401 75 "-" "Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.26200; zh-CN) PowerShell/7.6.6" "-"
+  172.23.0.1 - - [10/Oct/2026:09:50:30 +0000] "GET /api/v1/auth/me HTTP/1.1" 401 75 "-" "Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.26200; zh-CN) PowerShell/7.6.6" "-"
+  172.23.0.1 - - [10/Oct/2026:09:58:06 +0000] "GET /api/models HTTP/1.1" 401 75 "-" "Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.26200; zh-CN) PowerShell/7.6.6" "-"
+  172.23.0.1 - - [10/Oct/2026:09:59:56 +0000] "POST /pacgate/api/auth/login HTTP/1.1" 401 94 "-" "Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.26200; zh-CN) PowerShell/7.6.6" "-"
+  172.23.0.1 - - [10/Oct/2026:10:09:44 +0000] "GET /api/models HTTP/1.1" 401 75 "-" "Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.26200; zh-CN) PowerShell/7.6.6" "-"
+  172.23.0.1 - - [10/Oct/2026:10:09:45 +0000] "GET /api/agents HTTP/1.1" 401 75 "-" "Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.26200; zh-CN) PowerShell/7.6.6" "-"
+  172.23.0.1 - - [10/Oct/2026:10:09:45 +0000] "GET /api/memory HTTP/1.1" 401 75 "-" "Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.26200; zh-CN) PowerShell/7.6.6" "-"
+  172.23.0.1 - - [10/Oct/2026:12:43:39 +0000] "GET /pacgate/api/matters HTTP/1.1" 401 0 "-" "curl/8.21.0" "-"
+  172.23.0.1 - - [10/Oct/2026:12:46:01 +0000] "GET /pacgate/api/matters HTTP/1.1" 401 0 "-" "curl/8.21.0" "-"
+
+===== 2. PACGATE-MCP auth errors (since start) =====
+matches: 13
+  MCP: INFO:     127.0.0.1:40112 - "POST /mcp HTTP/1.1" 200 OK
+  MCP: 2026-10-09 16:36:31,415 INFO httpx - HTTP Request: POST http://pacgate-api:8080/api/auth/login "HTTP/1.1 200 OK"
+  MCP: 2026-10-09 16:36:31,415 INFO pacgate_mcp - Authenticated with pacgate-api
+  MCP: 2026-10-10 00:50:13,884 INFO httpx - HTTP Request: GET http://pacgate-api:8080/api/kb/search?q=settlement+authority&matter_id=1699e56d-c1c2-41c3-aeac-6de20b30fa43&top_k=5&max_data_level=T3 "HTTP/1.1 200 OK"
+  MCP: 2026-10-10 01:26:03,148 INFO mcp.server.streamable_http_manager - Created new transport with session ID: e04b34f227314ffdb16f3e0480d04011
+  MCP: 2026-10-10 01:26:14,854 INFO mcp.server.streamable_http - Terminating session: e04b34f227314ffdb16f3e0480d04011
+  MCP: 2026-10-10 10:00:35,951 INFO httpx - HTTP Request: POST http://pacgate-api:8080/api/auth/login "HTTP/1.1 200 OK"
+  MCP: 2026-10-10 10:00:35,957 INFO pacgate_mcp - Authenticated with pacgate-api
+  MCP: 2026-10-10 11:12:23,415 INFO httpx - HTTP Request: POST http://pacgate-api:8080/api/auth/login "HTTP/1.1 200 OK"
+  MCP: 2026-10-10 11:12:23,417 INFO pacgate_mcp - Authenticated with pacgate-api
+  MCP: 2026-10-10 12:09:42,401 INFO mcp.server.streamable_http - Terminating session: 53373752791d4ac1be60ea31d29c0acc
+  MCP: 2026-10-10 12:31:05,381 INFO mcp.server.streamable_http_manager - Created new transport with session ID: 93e59642272a41adb83f7b1401d86d6e
+  MCP: 2026-10-10 12:31:17,444 INFO mcp.server.streamable_http - Terminating session: 93e59642272a41adb83f7b1401d86d6e
+
+===== 3. Adapter patch liveness in container =====
+6
+__init__.py
+__pycache__
+build
+client.py
+pacgate_deerflow_adapter.egg-info
+pyproject.toml
+storage.py
+
+===== 4. Runs table (correct path: /app/backend/.deer-flow/data/deerflow.db) =====
+tables: ['feedback', 'channel_connections', 'channel_oauth_states', 'run_events', 'runs', 'threads_meta', 'users', 'channel_credentials', 'channel_conversations', 'alembic_version', 'checkpoints', 'writes']
+2026-10-10 12:29:31.147010 | success  | deepseek-v4.1-flash-cloud      | 
+2026-10-10 12:05:15.293195 | interrupted | deepseek-v4.1-flash-cloud      | 
+2026-10-10 11:57:29.218514 | success  | deepseek-v4.1-flash-cloud      | 
+2026-10-10 11:56:39.007167 | success  | deepseek-v4.1-flash-cloud      | 
+2026-10-10 11:44:09.707681 | success  | None                           | 
+2026-10-10 11:43:17.964594 | success  | deepseek-v4.1-flash-cloud      | 
+2026-10-10 11:40:55.492811 | interrupted | None                           | 
+2026-10-10 11:25:25.513268 | success  | None                           | 
+2026-10-10 11:20:38.942402 | success  | None                           | 
+2026-10-10 11:14:01.049382 | success  | None                           | 
+2026-10-10 10:54:12.290334 | success  | None                           | 
+2026-10-10 10:49:57.802308 | success  | None                           | 
+2026-10-10 10:13:07.660550 | success  | None                           | 
+2026-10-10 09:15:03.223836 | success  | nemotron-3.5-lightning-30b-local | 
+
+===== 5. Frontend better-auth session config (source tree) =====
+  # pacgate-api auth (used by pacgate-mcp + deer-flow memory adapter)
+  # Browser origins allowed to call deer-flow auth routes. Deer-flow rejects
+  # cross-site auth POSTs (403 "Cross-site auth request denied") unless the Origin
+
+===== 6. Today's Ollama census (server.log + server-1.log) =====
+server.log : lines=16549 evictions=13 server_errors=18 llama_starts=34 slowPOSTs=30 lastWrite=10/10/2026 21:00:25
+server-1.log : lines=9043 evictions=8 server_errors=10 llama_starts=20 slowPOSTs=9 lastWrite=10/10/2026 18:30:53
+
+===== 7. FreeRAM =====
+FreeRAM now: 11.68 GB
+DONE

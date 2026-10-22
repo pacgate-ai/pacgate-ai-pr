@@ -22,7 +22,7 @@ If this serves HTTP, the build is genuinely usable - not just "it compiled".
   RUST_LOG=info
   GATEWAY_CORS_ORIGINS=http://localhost:8089,http://localhost:8090
   OPENVIKING_ROOT_API_KEY=<hidden>
-  OPENVIKING_CONF_CONTENT={ "server": { "host": "0.0.0.0", "port": 1933, "root_api_key": "17cb371236735c7469b933643d10ea6a" }, "storage": { "workspace": "/app/.openviking/workspace" }, "embedding": { "dense": { "provider": "ollama", "api_base": "http://host.docker.internal:11434/v1", "model": "nomic-embed-text", "dimension": 768 } }, "vlm": { "provider": "ollama", "model": "gemma4:12b-it-q8_0", "api_base": "http://host.docker.internal:11434", "api_key": "ollama", "max_tokens": 8192, "temperature": 0.1 } }
+  OPENVIKING_CONF_CONTENT={ "server": { "host": "0.0.0.0", "port": 1933, "root_api_key": "<REDACTED-OPENVIKING-ROOT-KEY>" }, "storage": { "workspace": "/app/.openviking/workspace" }, "embedding": { "dense": { "provider": "ollama", "api_base": "http://host.docker.internal:11434/v1", "model": "nomic-embed-text", "dimension": 768 } }, "vlm": { "provider": "ollama", "model": "gemma4:12b-it-q8_0", "api_base": "http://host.docker.internal:11434", "api_key": "ollama", "max_tokens": 8192, "temperature": 0.1 } }
   ANSVAR_API_KEY=<hidden>
   PACGATE_JWT_SECRET=<hidden>
   PACGATE_JWT_TOKEN=<hidden>

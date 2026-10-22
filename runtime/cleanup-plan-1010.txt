@@ -1,0 +1,197 @@
+﻿=== CLEANUP PLAN (DRY RUN) - 2026-10-10 21:21:19 ===
+untracked total: 1499
+KEEP: 605 files (21.3 MB)
+DELETE candidates: 800 files (1.8 MB)
+kept-because-modified-today (reclassified): 94
+  TODAY-KEEP: runtime/audit-picker-llm-1010.py
+  TODAY-KEEP: runtime/audit-utf8-cjk-1010.py
+  TODAY-KEEP: runtime/audit1-karpathy-1010.ps1
+  TODAY-KEEP: runtime/audit1-karpathy-1010.txt
+  TODAY-KEEP: runtime/audit2-smoke-api-1010.ps1
+  TODAY-KEEP: runtime/audit2-smoke-api-1010.txt
+  TODAY-KEEP: runtime/audit2b-fix-1010.ps1
+  TODAY-KEEP: runtime/audit2b-fix-1010.txt
+  TODAY-KEEP: runtime/audit2c-final-1010.ps1
+  TODAY-KEEP: runtime/audit2c-final-1010.txt
+  TODAY-KEEP: runtime/audit2d-pipeline-1010.ps1
+  TODAY-KEEP: runtime/audit2d-pipeline-1010.txt
+  TODAY-KEEP: runtime/audit3-deerflow-1010.ps1
+  TODAY-KEEP: runtime/audit3-deerflow-1010.txt
+  TODAY-KEEP: runtime/audit4-memory-ov-1010.ps1
+  TODAY-KEEP: runtime/audit4-memory-ov-1010.txt
+  TODAY-KEEP: runtime/audit5-qm-1010.ps1
+  TODAY-KEEP: runtime/audit5-qm-1010.txt
+  TODAY-KEEP: runtime/audit6-bench-1010.ps1
+  TODAY-KEEP: runtime/audit6-bench-1010.txt
+  TODAY-KEEP: runtime/check-prompt-1010.py
+  TODAY-KEEP: runtime/check-schema-1010.py
+  TODAY-KEEP: runtime/check-sp-1010.py
+  TODAY-KEEP: runtime/check-summ-1010.py
+  TODAY-KEEP: runtime/check-summ10-1010.py
+  TODAY-KEEP: runtime/check-summ11-1010.py
+  TODAY-KEEP: runtime/check-summ12-1010.py
+  TODAY-KEEP: runtime/check-summ13-1010.py
+  TODAY-KEEP: runtime/check-summ14-1010.py
+  TODAY-KEEP: runtime/check-summ15-1010.py
+  TODAY-KEEP: runtime/check-summ16-1010.py
+  TODAY-KEEP: runtime/check-summ17-1010.py
+  TODAY-KEEP: runtime/check-summ18-1010.py
+  TODAY-KEEP: runtime/check-summ19-1010.py
+  TODAY-KEEP: runtime/check-summ2-1010.py
+  TODAY-KEEP: runtime/check-summ20-1010.py
+  TODAY-KEEP: runtime/check-summ21-1010.py
+  TODAY-KEEP: runtime/check-summ22-1010.py
+  TODAY-KEEP: runtime/check-summ23-1010.py
+  TODAY-KEEP: runtime/check-summ24-1010.py
+  TODAY-KEEP: runtime/check-summ25-1010.py
+  TODAY-KEEP: runtime/check-summ26-1010.py
+  TODAY-KEEP: runtime/check-summ3-1010.py
+  TODAY-KEEP: runtime/check-summ4-1010.py
+  TODAY-KEEP: runtime/check-summ5-1010.py
+  TODAY-KEEP: runtime/check-summ6-1010.py
+  TODAY-KEEP: runtime/check-summ7-1010.py
+  TODAY-KEEP: runtime/check-summ8-1010.py
+  TODAY-KEEP: runtime/check-summ9-1010.py
+  TODAY-KEEP: runtime/check-todos-1010.py
+  TODAY-KEEP: runtime/check-todos2-1010.py
+  TODAY-KEEP: runtime/check-todos3-1010.py
+  TODAY-KEEP: runtime/check-todos4-1010.py
+  TODAY-KEEP: runtime/check-todos5-1010.py
+  TODAY-KEEP: runtime/check-todos6-1010.py
+  TODAY-KEEP: runtime/check-todos7-1010.py
+  TODAY-KEEP: runtime/check-todos8-1010.py
+  TODAY-KEEP: runtime/check-todos9-1010.py
+  TODAY-KEEP: runtime/check-tools-1010.py
+  TODAY-KEEP: runtime/check-users-1010.py
+  TODAY-KEEP: runtime/commit-0125-1009b.ps1
+  TODAY-KEEP: runtime/commit-0125-1009b.txt
+  TODAY-KEEP: runtime/create-todos-user-1010.py
+  TODAY-KEEP: runtime/e2e-0125-1009b.txt
+  TODAY-KEEP: runtime/e2e-recheck-1009b.ps1
+  TODAY-KEEP: runtime/e2e-recheck-1009b.txt
+  TODAY-KEEP: runtime/ov-audit-1010.py
+  TODAY-KEEP: runtime/ov-config-check-1010.py
+  TODAY-KEEP: runtime/patch-summ-1010.py
+  TODAY-KEEP: runtime/post-restart-probe-1010.ps1
+  TODAY-KEEP: runtime/pull-0125.done
+  TODAY-KEEP: runtime/query-65f-1010.py
+  TODAY-KEEP: runtime/query-ai-msg-1010.py
+  TODAY-KEEP: runtime/query-ai-msg2-1010.py
+  TODAY-KEEP: runtime/query-block-1010.py
+  TODAY-KEEP: runtime/query-file-runs-1010.py
+  TODAY-KEEP: runtime/query-kwargs-1010.py
+  TODAY-KEEP: runtime/query-recent-runs-1010b.py
+  TODAY-KEEP: runtime/query-run-status-1010.py
+  TODAY-KEEP: runtime/query-run3-msg-1010.py
+  TODAY-KEEP: runtime/query-runs-1010.py
+  TODAY-KEEP: runtime/query-runs2-1010.py
+  TODAY-KEEP: runtime/query-thread-1010.py
+  TODAY-KEEP: runtime/query-thread-hist-1010.py
+  TODAY-KEEP: runtime/recreate-0125.txt
+  TODAY-KEEP: runtime/revert-summ-1010.py
+  TODAY-KEEP: runtime/run-summ-test-1010.py
+  TODAY-KEEP: runtime/test-prefix-inline-1010.py
+  TODAY-KEEP: runtime/test-todos-e2e-1010.py
+  TODAY-KEEP: runtime/test-todos-e2e2-1010.py
+  TODAY-KEEP: runtime/test-todos-e2e3-1010.py
+  TODAY-KEEP: runtime/test-todos-e2e4-1010.py
+  TODAY-KEEP: runtime/test-todos-e2e5-1010.py
+  TODAY-KEEP: runtime/test-todos-e2e6-1010.py
+
+===== DELETE CANDIDATES by family =====
+   800x *
+
+===== DELETE CANDIDATES by age =====
+  2026-06-25  2 files
+  2026-09-17  38 files
+  2026-09-18  96 files
+  2026-09-20  145 files
+  2026-09-21  21 files
+  2026-09-23  83 files
+  2026-09-24  3 files
+  2026-09-29  2 files
+  2026-10-07  297 files
+  2026-10-09  100 files
+
+===== FULL DELETE LIST (first 80) =====
+  runtime/adopt-delta-1009b.ps1
+  runtime/adopt-delta-1009b.txt
+  runtime/agents-raw.json
+  runtime/apg-expect-1007.ps1
+  runtime/apg-full-1007.ps1
+  runtime/apg-probe-1007.ps1
+  runtime/apg-pwsh-1007.ps1
+  runtime/api-db-1007b.ps1
+  runtime/api-last-1007b.ps1
+  runtime/api-search-logs-1007b.ps1
+  runtime/api-tools-1007b.ps1
+  runtime/app-pages-1007.ps1
+  runtime/apply-wf-fix.ps1
+  runtime/archive-stale-scaffold.ps1
+  runtime/assets-blob-scan.ps1
+  runtime/assets-clean-branch.ps1
+  runtime/assets-commit-clean.ps1
+  runtime/assets-content-gate.ps1
+  runtime/assets-cred-exclusions.txt
+  runtime/assets-cred-gate.ps1
+  runtime/assets-cred-paths-for-git.txt
+  runtime/assets-diff-status.ps1
+  runtime/assets-exclusion-list.ps1
+  runtime/assets-final-push.ps1
+  runtime/assets-keep-paths.txt
+  runtime/assets-localonly-check.ps1
+  runtime/assets-mcp-extract.ps1
+  runtime/assets-mcp-paths-raw.txt
+  runtime/assets-mcp-paths.txt
+  runtime/assets-mcp-scan.ps1
+  runtime/assets-merge-local.ps1
+  runtime/assets-preserve-local.ps1
+  runtime/assets-push.ps1
+  runtime/assets-raw-paths.ps1
+  runtime/assets-redo.ps1
+  runtime/assets-redo2.ps1
+  runtime/assets-redundancy-check.ps1
+  runtime/assets-remote-state.ps1
+  runtime/assets-remove-by-sha.ps1
+  runtime/assets-restore-and-stage.ps1
+  runtime/assets-temp-index
+  runtime/assets-temp-index2
+  runtime/audit-persistence-1007e.ps1
+  runtime/audit-persistence2-1007e.ps1
+  runtime/audit-report-1007b.ps1
+  runtime/audit-suite-utf8.txt
+  runtime/bench-authed-1007c.ps1
+  runtime/bench-chat-1007c.ps1
+  runtime/bench-chat-diag-1007c.ps1
+  runtime/bench-chat-diag2-1007c.ps1
+  runtime/bench-chat-logs-1007c.ps1
+  runtime/bench-chat-logs2-1007c.ps1
+  runtime/bench-chat-timeline-1007c.ps1
+  runtime/bench-chat2-1007c.ps1
+  runtime/bench-commit-1007c.ps1
+  runtime/bench-docs-diag-1007c.ps1
+  runtime/bench-docs2-1007c.ps1
+  runtime/bench-docs3-1007c.ps1
+  runtime/bench-final-facts-1007c.ps1
+  runtime/bench-login-diag-1007c.ps1
+  runtime/bench-login-diag2-1007c.ps1
+  runtime/bench-mirror-1007c.ps1
+  runtime/bench-ocr-1007c.ps1
+  runtime/bench-ocr-disc-1007c.ps1
+  runtime/bench-ocr-prep-1007c.ps1
+  runtime/bench-ocr2-1007c.ps1
+  runtime/bench-report-1007c.ps1
+  runtime/bench-routes-1007c.ps1
+  runtime/bench-routes2-1007c.ps1
+  runtime/bench-routes3-1007c.ps1
+  runtime/bench-routes4-1007c.ps1
+  runtime/bench-routes5-1007c.ps1
+  runtime/bench-routes6-1007c.ps1
+  runtime/bench-vector-1007c.ps1
+  runtime/bench-vector2-1007c.ps1
+  runtime/bench-workflow-1007c.ps1
+  runtime/benchmark-1007c.ps1
+  runtime/bootstrap-roles-1007.ps1
+  runtime/bootstrap-roles2-1007.ps1
+  runtime/bootstrap-roles3-1007.ps1
+full list saved: runtime/cleanup-delete-list-1010.txt (800 lines)

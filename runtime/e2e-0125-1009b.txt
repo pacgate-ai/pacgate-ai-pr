@@ -1,0 +1,82 @@
+﻿
+=== 1. CONTAINERS ===
+ocr-service|ghcr.io/jzkk720/ocr-service:0.1.25|Up 29 seconds
+deer-flow-frontend|ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.25|Up 33 seconds
+deer-flow|ghcr.io/jzkk720/deer-flow-pacgate:0.1.25|Up 35 seconds
+pacgate-mcp|ghcr.io/jzkk720/pacgate-mcp:0.1.25|Up 41 seconds
+pacgate-api|ghcr.io/jzkk720/pacgate-api:0.1.25|Up 43 seconds
+qm-pacgate-core|bee03e7f2271|Up 2 days
+open-webui|ghcr.io/open-webui/open-webui:main|Up 2 days (healthy)
+hermes-gateway|ghcr.io/jzkk720/hermes-agent:latest|Up 2 days (healthy)
+hermes-web|ghcr.io/jzkk720/hermes-agent:latest|Up 7 seconds (health: starting)
+qm-pacgate-portal|e245dfc2c12a|Up 2 days
+qm-pacgate-auth|27f2e1467adc|Up 2 days
+qm-pacgate-web-ui|f037834fd726|Up 2 days
+qm-pacgate-admin|ec071338547e|Up 2 days
+qm-pacgate-pg|postgres:16|Up 2 days
+qm-mailpit|axllent/mailpit:v1.24|Up 2 days (healthy)
+pacgate-nginx|nginx:1.27-alpine|Up 2 days
+pacgate-db|pgvector/pgvector:pg16|Up 2 days
+openviking|46f9e34cd372|Up 2 days (healthy)
+odysseus-ntfy-1|binwiederhier/ntfy|Up 2 days
+cloudflare|cloudflare/cloudflared:latest|Up 2 days
+hermes-postgres|postgres:16-alpine|Up 2 days (healthy)
+ironclawai-survey|ironclawai-survey-ironclawai-survey|Up 2 days
+odysseus-odysseus-1|ghcr.io/jzkk720/odysseus:main|Up 2 days
+odysseus-searxng-1|searxng/searxng:2026.5.31-7159b8aed|Up 2 days (healthy)
+odysseus-chromadb-1|chromadb/chroma:latest|Up 2 days
+dockhand|fnsys/dockhand:latest|Up 2 days (healthy)
+
+[FAIL] container pacgate-api : not Up: 
+[FAIL] container pacgate-mcp : not Up: 
+[FAIL] container deer-flow : not Up: 
+[FAIL] container deer-flow-frontend : not Up: 
+[FAIL] container ocr-service : not Up: 
+[FAIL] container pacgate-nginx : not Up: 
+[FAIL] container pacgate-db : not Up: 
+[FAIL] container openviking : not Up: 
+
+=== 2. VERSION ===
+[FAIL] pacgate-api /version : 远程服务器返回错误: (401) 未经授权。
+
+=== 3. PACGATE-API AUTH + SURFACES ===
+[PASS] pacgate-api login : token issued
+[PASS] matters : 10 matters
+[PASS] workflows : 222 workflows / 222 categories
+[PASS] connectors : 0/10 available
+
+=== 4. PACGATE-MCP ===
+[FAIL] MCP lane : 远程服务器返回错误: (404) 未找到。
+
+=== 5. DEER-FLOW ===
+[PASS] deer-flow login : HTTP 200, csrf=True
+[PASS] deer-flow models : 8 models
+[PASS] deer-flow agents : 2 agents
+[PASS] memory card : HTTP 200, 35404B
+
+=== 6. FRONTEND + NGINX ===
+[PASS] frontend :8090 : HTTP 200
+[PASS] nginx :8089 : HTTP 200
+
+=== 7. DB ===
+DB:  1 tenants, 3 users 
+[PASS] DB integrity : 1 tenant / 3 users
+
+=== 8. RUNNING IMAGE VERSIONS ===
+/deer-flow ghcr.io/jzkk720/deer-flow-pacgate:0.1.25
+/pacgate-api ghcr.io/jzkk720/pacgate-api:0.1.25
+/pacgate-mcp ghcr.io/jzkk720/pacgate-mcp:0.1.25
+/deer-flow-frontend ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.25
+/ocr-service ghcr.io/jzkk720/ocr-service:0.1.25
+
+
+=== 9. DEER-FLOW CONFIG (summarization live) ===
+summarization:
+  enabled: true
+  model_name: nemotron-30b-summarizer
+  trigger:
+[PASS] summarization enabled : in live config
+
+=== 10. EXTENSIONS CONFIG (in container) ===
+MCP servers in container:   File "<string>", line 1     import           ^ SyntaxError: invalid syntax
+[FAIL] extensions config : 无法将“System.Object[]”类型的“System.Object[]”值转换为“System.Int32”类型。

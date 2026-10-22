@@ -1,0 +1,80 @@
+﻿=== AIPC1 DIAG 2 - 2026-10-10 20:43:23 ===
+
+===== 1. MEMORY PRESSURE DETAIL =====
+TotalVisible=29.6GB FreePhysical=0.48GB UsedPhysical=29.1GB
+Pagefile C:\pagefile.sys: AllocatedBase=34816MB CurrentUsage=7334MB PeakUsage=7689MB
+Committed=45.7GB CommitLimit=63.6GB PercentCommitted=71%% AvailableMB=490
+PagesOutput/sec (hard page faults to disk): 0
+PageReads/sec: 23
+PagesOutput over 5s: 0  PageReads over 5s: 900
+
+===== 2. OLLAMA SERVER LOG - evictions/reloads/errors since 18:34 =====
+LOG: C:\Users\pacga\AppData\Local\Ollama\server.log size=0MB lastWrite=10/10/2026 18:34:08
+evict lines (last 10): 0
+error lines (last 15 of scan): 0
+LOG: C:\Users\pacga\AppData\Local\Ollama\server-1.log size=0.8MB lastWrite=10/10/2026 18:30:53
+evict lines (last 10): 4
+  EVICT: time=2026-10-10T18:06:32.937+08:00 level=INFO source=sched.go:561 msg="llama-server model predicted to exceed available memory, evicting" predicted="14.6 GiB" predicted_num_ctx=65536 num_batch=512 available="2.7 GiB" gpu_free="2.7 GiB" system_free="1.2 GiB" system_limited=false
+  EVICT: time=2026-10-10T18:06:38.040+08:00 level=INFO source=sched.go:561 msg="llama-server model predicted to exceed available memory, evicting" predicted="14.6 GiB" predicted_num_ctx=65536 num_batch=512 available="15.5 GiB" gpu_free="15.5 GiB" system_free="14.6 GiB" system_limited=false
+  EVICT: time=2026-10-10T18:13:09.101+08:00 level=INFO source=sched.go:561 msg="llama-server model predicted to exceed available memory, evicting" predicted="24.8 GiB" predicted_num_ctx=65536 num_batch=512 available="3.4 GiB" gpu_free="3.4 GiB" system_free="1.9 GiB" system_limited=false
+  EVICT: time=2026-10-10T18:13:10.654+08:00 level=INFO source=sched.go:561 msg="llama-server model predicted to exceed available memory, evicting" predicted="24.8 GiB" predicted_num_ctx=65536 num_batch=512 available="15.5 GiB" gpu_free="15.5 GiB" system_free="14.8 GiB" system_limited=false
+  LOAD: load_tensors: loading model tensors, this can take a while... (load_mode = mmap)
+  LOAD: time=2026-10-10T18:06:55.200+08:00 level=INFO source=llama_server.go:1374 msg="llama-server started in 15.60 seconds"
+  LOAD: time=2026-10-10T18:06:55.201+08:00 level=INFO source=llama_server.go:1374 msg="llama-server started in 15.60 seconds"
+  LOAD: time=2026-10-10T18:06:55.238+08:00 level=INFO source=llama_server.go:1054 msg="loading model via llama-server" model=C:\Users\pacga\.ollama\models\blobs\sha256-970aa74c0a90ef7482477cf803618e776e173c007bf957f635f1015bfcfef0e6
+  LOAD: srv    load_model: loading model 'C:\Users\pacga\.ollama\models\blobs\sha256-970aa74c0a90ef7482477cf803618e776e173c007bf957f635f1015bfcfef0e6'
+  LOAD: time=2026-10-10T18:06:55.490+08:00 level=INFO source=llama_server.go:1362 msg="waiting for llama-server to become available" status="llm server loading model"
+  LOAD: load_tensors: loading model tensors, this can take a while... (load_mode = mmap)
+  LOAD: time=2026-10-10T18:06:56.244+08:00 level=INFO source=llama_server.go:1374 msg="llama-server started in 1.01 seconds"
+  LOAD: time=2026-10-10T18:06:56.246+08:00 level=INFO source=llama_server.go:1374 msg="llama-server started in 1.01 seconds"
+  LOAD: time=2026-10-10T18:13:12.076+08:00 level=INFO source=llama_server.go:1054 msg="loading model via llama-server" model=C:\Users\pacga\.ollama\models\blobs\sha256-5c19f6282f4fc51cb114cb6c876d70ca2fc3b9cf0fbd0a018d9908f4fe1f63b3
+  LOAD: srv    load_model: loading model 'C:\Users\pacga\.ollama\models\blobs\sha256-5c19f6282f4fc51cb114cb6c876d70ca2fc3b9cf0fbd0a018d9908f4fe1f63b3'
+  LOAD: time=2026-10-10T18:13:12.329+08:00 level=INFO source=llama_server.go:1362 msg="waiting for llama-server to become available" status="llm server loading model"
+  LOAD: load_tensors: loading model tensors, this can take a while... (load_mode = mmap)
+  LOAD: time=2026-10-10T18:13:33.452+08:00 level=INFO source=llama_server.go:1374 msg="llama-server started in 21.38 seconds"
+  LOAD: time=2026-10-10T18:13:33.453+08:00 level=INFO source=llama_server.go:1374 msg="llama-server started in 21.38 seconds"
+error lines (last 15 of scan): 5
+  ERR: time=2026-10-10T17:58:15.841+08:00 level=INFO source=llama_server.go:1362 msg="waiting for llama-server to become available" status="llm server error"
+  ERR: time=2026-10-10T18:00:36.342+08:00 level=INFO source=llama_server.go:1362 msg="waiting for llama-server to become available" status="llm server error"
+  ERR: time=2026-10-10T18:06:39.603+08:00 level=INFO source=llama_server.go:1362 msg="waiting for llama-server to become available" status="llm server error"
+  ERR: time=2026-10-10T18:06:55.239+08:00 level=INFO source=llama_server.go:1362 msg="waiting for llama-server to become available" status="llm server error"
+  ERR: time=2026-10-10T18:13:12.077+08:00 level=INFO source=llama_server.go:1362 msg="waiting for llama-server to become available" status="llm server error"
+
+===== 3. DEER-FLOW: why restarted 1h ago + recent errors =====
+/app/backend/.venv/lib/python3.12/site-packages/langgraph/checkpoint/serde/encrypted.py:5: LangChainPendingDeprecationWarning: The default value of `allowed_objects` will change in a future version. Pass an explicit value (e.g., allowed_objects='messages' or allowed_objects='core') to suppress this warning.
+  from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+INFO:     Started server process [11]
+INFO:     Waiting for application startup.
+2026-10-10 11:24:58 - app.gateway.app - INFO - Configuration loaded successfully
+...(tail)
+  DF: 2026-10-10 11:51:34 - deerflow.agents.memory.updater - ERROR - Memory update failed: memory content is out of scope for this lane: {"error":{"code":"unprocessable","message":"memory may hold process, not matter facts: 1 USCC identifier(s) found. Matter facts belong in the RAG lane, which is sanitization-gated."}}
+  DF: pacgate_deerflow_adapter.storage.MatterMemoryOutOfScope: memory content is out of scope for this lane: {"error":{"code":"unprocessable","message":"memory may hold process, not matter facts: 1 USCC identifier(s) found. Matter facts belong in the RAG lane, which is sanitization-gated."}}
+  DF: 2026-10-10 12:11:49 - deerflow.agents.middlewares.sandbox_audit_middleware - INFO - [SandboxAudit] {"timestamp": "2026-10-10T12:11:49.301396+00:00", "thread_id": "fcd96702-40ad-4f0d-982c-8c56e8b1ac69", "command": "cd /mnt/user-data/workspace && python3 - <<'PY'\nimport os, socket, urllib.request, json\nurl=os.environ.get(\"PACGATE_API_URL\",\"\")\nprint(\"PACGATE_API_URL =\", url)\nhost=url.split(\"//\")[-1].split(\":\")[0]; port=int(url.rsplit(\":\",1)[-1]) if \":\" in url.split(\"//\")[-1] else 80\nprint(\"resolving\", host, port)\ntry:\n    ip=socket.gethostbyname(host); print(\"DNS OK ->\", ip)\nexcept Exception as e:\n    print(\"DNS FAIL:\", e)\ntry:\n    s=socket.create_connection((host,port),timeout=4); print(\"TCP connect OK\"); s.close()\nexcept Exception as e:\n    print(\"TCP FAIL:\", e)\nPY", "verdict": "pass"}
+  DF: 2026-10-10 12:11:49 - deerflow.agents.middlewares.sandbox_audit_middleware - INFO - [SandboxAudit] {"timestamp": "2026-10-10T12:11:49.302077+00:00", "thread_id": "fcd96702-40ad-4f0d-982c-8c56e8b1ac69", "command": "cd /mnt/user-data/workspace && python3 - <<'PY'\nimport os, json, urllib.request, urllib.error\nbase=os.environ.get(\"PACGATE_API_URL\",\"\").rstrip(\"/\")\nemail=os.environ.get(\"PACGATE_API_EMAIL\"); pw=os.environ.get(\"PACGATE_API_PASSWORD\")\nfor path in [\"/api/auth/login\",\"/api/login\",\"/auth/login\",\"/api/v1/auth/login\"]:\n    body=json.dumps({\"email\":email,\"password\":pw}).encode()\n    req=urllib.request.Request(base+path, data=body, headers={\"Content-Type\":\"application/json\"}, method=\"POST\")\n    try:\n        r=urllib.request.urlopen(req, timeout=6)\n        print(path, \"->\", r.status, r.read()[:200])\n    except urllib.error.HTTPError as e:\n        print(path, \"-> HTTP\", e.code, e.read()[:200])\n    except Exception as e:\n        print(path, \"-> ERR\", type(e).__name__, e)\nPY", "verdict": "pass"}
+  DF: 2026-10-10 12:31:05 - mcp.client.streamable_http - INFO - Received session ID: 93e59642272a41adb83f7b1401d86d6e
+
+===== 4. PACGATE-API: 401 frequency in last 2h =====
+401 lines: 0
+  APIERR: [2m2026-10-10T10:48:20.677630Z[0m [32m INFO[0m [1mlogin[0m[1m{[0m[3memail[0m[2m=[0madmin@pacgate-law.com[1m}[0m[2m:[0m [2msqlx_core::pool::inner[0m[2m:[0m ping on idle connection returned error [3merror[0m[2m=[0merror returned from database: terminating connection due to administrator command
+  APIERR: [2m2026-10-10T10:48:26.117727Z[0m [32m INFO[0m [1mlogin[0m[1m{[0m[3memail[0m[2m=[0madmin@pacgate-law.com[1m}[0m[2m:[0m [2msqlx_core::pool::inner[0m[2m:[0m ping on idle connection returned error [3merror[0m[2m=[0merror returned from database: terminating connection due to administrator command
+
+===== 5. NGINX: 401/499/502 in access log last 2h =====
+matches: 5
+  NGX: 172.23.0.1 - - [10/Oct/2026:12:01:26 +0000] "POST /api/threads/fcd96702-40ad-4f0d-982c-8c56e8b1ac69/suggestions HTTP/1.1" 499 0 "http://localhost:8089/workspace/chats/fcd96702-40ad-4f0d-982c-8c56e8b1ac69" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0" "-"
+  NGX: 172.23.0.1 - - [10/Oct/2026:12:01:26 +0000] "GET /api/threads/fcd96702-40ad-4f0d-982c-8c56e8b1ac69/token-usage HTTP/1.1" 499 0 "http://localhost:8089/workspace/chats/fcd96702-40ad-4f0d-982c-8c56e8b1ac69" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0" "-"
+  NGX: 172.23.0.1 - - [10/Oct/2026:12:31:04 +0000] "GET /api/threads/561a86f3-306e-43ad-9686-2a384a404dd7/token-usage HTTP/1.1" 499 0 "http://localhost:8089/workspace/chats/561a86f3-306e-43ad-9686-2a384a404dd7" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0" "-"
+  NGX: 172.23.0.1 - - [10/Oct/2026:12:31:04 +0000] "POST /api/threads/561a86f3-306e-43ad-9686-2a384a404dd7/suggestions HTTP/1.1" 499 0 "http://localhost:8089/workspace/chats/561a86f3-306e-43ad-9686-2a384a404dd7" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0" "-"
+  NGX: 172.23.0.1 - - [10/Oct/2026:12:31:04 +0000] "GET /api/langgraph/threads/561a86f3-306e-43ad-9686-2a384a404dd7/runs/0ea8c655-3651-4962-a5f0-51e3560c3445/stream?cancel_on_disconnect=0 HTTP/1.1" 499 0 "http://localhost:8089/workspace/chats/561a86f3-306e-43ad-9686-2a384a404dd7" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0" "-"
+
+===== 6. HERMES-WEB crash loop confirmation =====
+RestartCount=244 Status=running ExitCode=0 StartedAt=2026-10-10T12:43:12.315797748Z
+s6-rc: info: service dashboard: starting
+s6-rc: info: service main-hermes successfully started
+s6-rc: info: service dashboard successfully started
+s6-rc: info: service legacy-services: starting
+s6-rc: info: service legacy-services successfully started
+
+===== 7. LIVE LOGIN TESTS (fresh tokens) =====
+pacgate-api login: {"token":"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2ZTM4YTQ2ZC05NDE3LTQ1YTEtYTQ3Mi1mMTkzMjk0YTBkOWYiLCJ0ZW5hbnRfaWQiOiJkNjQ5MDhiMC1iYmI4LTQ4ZmMtYmU5NS03NmEwOTg4ZmIxNjAiLCJyb2xlIjoiYXR0b3JuZXkiLCJzeXN0ZW1fcm9sZSI6ImFkbWluIiwiZXhwIjoxNzkxNzIyNjE5fQ.Ing9F-5NAZemw_6Cy_wDi3SxM5DpvL_owtt1ynZt0Ko","user_id":"6e38a46d-9417-45a1-a472-f193294a0d9f","tenant_id":"d64908b0-bbb8-48fc-be95-76a0988fb160","role":"attorney","soul_id":null,"expires_in":86400} HTTP:200 T:0.630930  (wall 1232ms)
+pacgate-api /matters with fresh token: HTTP line = HTTP:401 T:0.011740  (wall 49ms)
+DONE

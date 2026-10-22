@@ -1,0 +1,28 @@
+﻿staged: pacgate-ai/scripts/ov-mcp-call.ps1
+staged: pacgate-ai/scripts/test-legal-journey.ps1
+staged: pacgate-ai/.gitignore
+staged: pacgate-ai/safe_markdown_to_pdf.py
+staged: pacgate-ai/deploy/RUNBOOK-clean-clone-proof.md
+staged: pacgate-ai/deploy/BENCHMARK-REPORT-2026-10-09-v0.1.25.md
+staged: pacgate-ai/deploy/client-bundle/compose.bundle.yaml
+staged: runtime/E2E-REPORT-0.1.25-20261009.md
+
+=== CREDENTIAL GATE ===
+staged files: 8
+GATE PASS: 0 carrier blobs in staged tree
+
+=== COMMIT ===
+M  pacgate-ai/.gitignore
+A  pacgate-ai/deploy/BENCHMARK-REPORT-2026-10-09-v0.1.25.md
+M  pacgate-ai/deploy/RUNBOOK-clean-clone-proof.md
+M  pacgate-ai/deploy/client-bundle/compose.bundle.yaml
+M  pacgate-ai/safe_markdown_to_pdf.py
+A  pacgate-ai/scripts/ov-mcp-call.ps1
+M  pacgate-ai/scripts/test-legal-journey.ps1
+A  runtime/E2E-REPORT-0.1.25-20261009.md
+[main 34e0f2a] sync(upstream): adopt v0.1.25 post-tag delta (efaeb50f) + E2E upgrade report
+ 8 files changed, 460 insertions(+), 7 deletions(-)
+ create mode 100644 pacgate-ai/deploy/BENCHMARK-REPORT-2026-10-09-v0.1.25.md
+ create mode 100644 pacgate-ai/scripts/ov-mcp-call.ps1
+ create mode 100644 runtime/E2E-REPORT-0.1.25-20261009.md
+HEAD now: 34e0f2a

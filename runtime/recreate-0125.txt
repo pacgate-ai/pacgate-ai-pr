@@ -1,0 +1,123 @@
+﻿
+=== PRECONDITION: images ===
+OK: ghcr.io/jzkk720/pacgate-api:0.1.25 (3ab43036a8ec)
+OK: ghcr.io/jzkk720/pacgate-mcp:0.1.25 (307383bd26c7)
+OK: ghcr.io/jzkk720/deer-flow-pacgate:0.1.25 (9341a70f8c47)
+OK: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.25 (6aaac71d1c28)
+OK: ghcr.io/jzkk720/ocr-service:0.1.25 (df9bdc781a35)
+
+=== RECREATE ===
+--- up -d --force-recreate --no-deps pacgate-api
+docker :  Container pacgate-api Recreate 
+所在位置 C:\Users\pacga\github-pr\pacgate-law\runtime\recreate-0125.ps1:29 字符: 10
++     $r = docker compose -f "$cb\compose.bundle.yaml" up -d --force-re ...
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Container pacgate-api Recreate : 
+   String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ Container pacgate-api Recreated 
+ Container pacgate-api Starting 
+ Container pacgate-api Started
+--- up -d --force-recreate --no-deps pacgate-mcp
+docker :  Container pacgate-mcp Recreate 
+所在位置 C:\Users\pacga\github-pr\pacgate-law\runtime\recreate-0125.ps1:29 字符: 10
++     $r = docker compose -f "$cb\compose.bundle.yaml" up -d --force-re ...
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Container pacgate-mcp Recreate : 
+   String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ Container pacgate-mcp Recreated 
+ Container pacgate-mcp Starting 
+ Container pacgate-mcp Started
+--- up -d --force-recreate --no-deps deer-flow
+docker :  Container deer-flow Recreate 
+所在位置 C:\Users\pacga\github-pr\pacgate-law\runtime\recreate-0125.ps1:29 字符: 10
++     $r = docker compose -f "$cb\compose.bundle.yaml" up -d --force-re ...
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Container deer-flow Recreate :St 
+   ring) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ Container deer-flow Recreated 
+ Container deer-flow Starting 
+ Container deer-flow Started
+--- up -d --force-recreate --no-deps deer-flow-frontend
+docker :  Container deer-flow-frontend Recreate 
+所在位置 C:\Users\pacga\github-pr\pacgate-law\runtime\recreate-0125.ps1:29 字符: 10
++     $r = docker compose -f "$cb\compose.bundle.yaml" up -d --force-re ...
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Container deer-flow-frontend Rec 
+   reate :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ Container deer-flow-frontend Recreated 
+ Container deer-flow-frontend Starting 
+ Container deer-flow-frontend Started
+--- up -d --force-recreate --no-deps ocr-service
+docker :  Container ocr-service Recreate 
+所在位置 C:\Users\pacga\github-pr\pacgate-law\runtime\recreate-0125.ps1:29 字符: 10
++     $r = docker compose -f "$cb\compose.bundle.yaml" up -d --force-re ...
++          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Container ocr-service Recreate : 
+   String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ Container ocr-service Recreated 
+ Container ocr-service Starting 
+ Container ocr-service Started
+
+=== VERIFY RUNNING IMAGES ===
+ocr-service|ghcr.io/jzkk720/ocr-service:0.1.25|Up 15 seconds
+deer-flow-frontend|ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.25|Up 20 seconds
+deer-flow|ghcr.io/jzkk720/deer-flow-pacgate:0.1.25|Up 22 seconds
+pacgate-mcp|ghcr.io/jzkk720/pacgate-mcp:0.1.25|Up 27 seconds
+pacgate-api|ghcr.io/jzkk720/pacgate-api:0.1.25|Up 30 seconds
+qm-pacgate-core|bee03e7f2271|Up 2 days
+open-webui|ghcr.io/open-webui/open-webui:main|Up 2 days (healthy)
+hermes-gateway|ghcr.io/jzkk720/hermes-agent:latest|Up 2 days (healthy)
+hermes-web|ghcr.io/jzkk720/hermes-agent:latest|Up 27 seconds (health: starting)
+qm-pacgate-portal|e245dfc2c12a|Up 2 days
+qm-pacgate-auth|27f2e1467adc|Up 2 days
+qm-pacgate-web-ui|f037834fd726|Up 2 days
+qm-pacgate-admin|ec071338547e|Up 2 days
+qm-pacgate-pg|postgres:16|Up 2 days
+qm-mailpit|axllent/mailpit:v1.24|Up 2 days (healthy)
+pacgate-nginx|nginx:1.27-alpine|Up 2 days
+pacgate-db|pgvector/pgvector:pg16|Up 2 days
+openviking|46f9e34cd372|Up 2 days (healthy)
+odysseus-ntfy-1|binwiederhier/ntfy|Up 2 days
+cloudflare|cloudflare/cloudflared:latest|Up 2 days
+hermes-postgres|postgres:16-alpine|Up 2 days (healthy)
+ironclawai-survey|ironclawai-survey-ironclawai-survey|Up 2 days
+odysseus-odysseus-1|ghcr.io/jzkk720/odysseus:main|Up 2 days
+odysseus-searxng-1|searxng/searxng:2026.5.31-7159b8aed|Up 2 days (healthy)
+odysseus-chromadb-1|chromadb/chroma:latest|Up 2 days
+dockhand|fnsys/dockhand:latest|Up 2 days (healthy)
+
+
+=== VERSION ===
+version FAIL: 远程服务器返回错误: (401) 未经授权。
+
+=== DB INTEGRITY ===
+DB:  1 tenants, 3 users 
+
+=== RESTART COUNTS ===
+
+ocr-service Up 15 seconds
+deer-flow-frontend Up 20 seconds
+deer-flow Up 22 seconds
+pacgate-mcp Up 28 seconds
+pacgate-api Up 30 seconds
+qm-pacgate-core Up 2 days
+qm-pacgate-portal Up 2 days
+qm-pacgate-auth Up 2 days
+qm-pacgate-web-ui Up 2 days
+qm-pacgate-admin Up 2 days
+qm-pacgate-pg Up 2 days
+pacgate-nginx Up 2 days
+pacgate-db Up 2 days
+
+
+

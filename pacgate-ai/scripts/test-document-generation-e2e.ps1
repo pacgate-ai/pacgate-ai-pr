@@ -343,8 +343,16 @@ try {
     if ($doc) {
         Write-Host "         document: $($doc.name) (chose $docSource)" -ForegroundColor DarkGray
 
+        # Decode the body as UTF-8 explicitly. Windows PowerShell 5.1's
+        # Invoke-RestMethod decodes a JSON response as Latin-1 when the server
+        # omits a charset, so a Chinese `storage_path` came back as
+        # `é¡¹ç®æ¦åè¡¨_v1.docx` and the on-disk check below failed on a file
+        # that existed. curl.exe + ConvertFrom-Json keeps the bytes intact.
         $apiDoc = $null
-        try { $apiDoc = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)" -Method Get -Headers $H -TimeoutSec 30 } catch { }
+        try {
+            $rawDoc = curl.exe -s -H "Authorization: $($H['Authorization'])" "$BaseUrl/api/documents/$($doc.id)"
+            if ($rawDoc) { $apiDoc = $rawDoc | ConvertFrom-Json }
+        } catch { }
         Check 'the created document id resolves through GET /api/documents/:id' ([bool]$apiDoc) `
             "GET /api/documents/$($doc.id) did not return a document"
         if ($apiDoc) {
@@ -357,10 +365,23 @@ try {
 
         # ── 6. The file must EXIST on disk ───────────────────────────────────────
         # $dataRoot/$dataDir were derived before the generation ran (step 2b).
+        #
+        # `storage_path` is stored RELATIVE TO THE /data MOUNT, not relative to
+        # DATA_DIR. With DATA_DIR=/data/tenants the stored path already begins
+        # `tenants/<tenant>/matters/...`, so prefixing DATA_DIR's own `tenants`
+        # segment produced `/data/tenants/tenants/...` and this check failed on a
+        # document that had been written correctly. Try the mount-relative form
+        # first, then the DATA_DIR-relative form, so either convention works.
         $rel = if ($dataDir.StartsWith('/data')) { $dataDir.Substring('/data'.Length).TrimStart('/') } else { $dataDir.TrimStart('/') }
-        $onDisk = Join-Path (Join-Path $dataRoot $rel) ($doc.storage_path -replace '/', '\')
-        $exists = Test-Path $onDisk
-        Check 'the generated file EXISTS on disk' $exists "looked for $onDisk"
+        $storedRel = $doc.storage_path -replace '/', '\'
+        $candidates = @(
+            (Join-Path $dataRoot $storedRel)
+            (Join-Path (Join-Path $dataRoot $rel) $storedRel)
+        ) | Select-Object -Unique
+        $onDisk = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+        $exists = [bool]$onDisk
+        if (-not $exists) { $onDisk = $candidates[0] }
+        Check 'the generated file EXISTS on disk' $exists "looked for $($candidates -join ' ; ')"
         if ($exists) {
             $item = Get-Item $onDisk
             Check 'the generated file is not empty' ($item.Length -gt 0) "size was $($item.Length) bytes"

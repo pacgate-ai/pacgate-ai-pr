@@ -1,0 +1,22 @@
+﻿=== CLEANUP EXECUTION - 2026-10-10 21:23:08 ===
+list total: 800
+real ASCII deletable: 786
+CJK/escaped (UNTOUCHED, for user review): 13
+skipped (referenced/dir/missing): 1
+  CJK-KEEP: "runtime/relocate/fork-sync-stage/tree/docs/assets/q&a/Pacgate_AI_Phase1_\346\212\200\346\234\257\346\226\271\344\271\246\351\235\242\346\276\204\346\270\205\351\227\256\351\242\230\346\270\205\345\215\225.docx"
+  CJK-KEEP: "runtime/relocate/fork-sync-stage/tree/docs/progress-reportcard/\351\241\271\347\233\256\346\227\266\351\227\264\347\272\277\344\270\216\345\205\263\351\224\256\350\212\202\347\202\271.pdf"
+  CJK-KEEP: "runtime/relocate/fork-sync-stage/tree/scope-assets/Crosby \346\267\261\345\272\246\350\260\203\347\240\224\357\274\2102025-2026\357\274\211.pdf"
+  CJK-KEEP: "runtime/relocate/fork-sync-stage/tree/scope-assets/Harvey 2026\345\271\2644\346\234\210\345\205\250\346\231\257\350\260\203\347\240\224.pdf"
+  CJK-KEEP: "runtime/relocate/fork-sync-stage/tree/scope-assets/Harvey Agent\346\212\200\346\234\257\345\272\224\347\224\250\350\260\203\347\240\224\357\274\2102026\345\271\2644\346\234\210\357\274\211.pdf"
+  CJK-KEEP: "runtime/relocate/fork-sync-stage/tree/scope-assets/Moritz \346\267\261\345\272\246\350\260\203\347\240\224\357\274\2102025-2026\357\274\211.pdf"
+  CJK-KEEP: "runtime/relocate/fork-sync-stage/tree/scope-assets/contracts/preapproval-contract-draft/(6.5)\346\231\272\346\226\271\344\272\221\346\234\254\345\234\260 AI \347\241\254\344\273\266\350\256\276\345\244\207\345\217\212\346\240\207\345\207\206\347\263\273\347\273\237\344\272\244\344\273\230\345\220\210\345\220\214.docx"
+  CJK-KEEP: "runtime/relocate/fork-sync-stage/tree/scope-assets/contracts/preapproval-contract-draft/\346\231\272\346\226\271\344\272\221\344\272\247\345\223\201\345\217\212\346\234\215\345\212\241\347\273\237\344\270\200\351\200\211\350\264\255\350\241\250.xlsx"
+  CJK-KEEP: "runtime/relocate/fork-sync-stage/tree/scope-assets/contracts/preapproval-contract-draft/\357\274\2106.5\357\274\211\346\231\272\346\226\271\344\272\221\346\263\225\345\276\213 Agent \345\272\224\347\224\250\345\256\232\345\210\266\346\234\215\345\212\241\345\220\210\345\220\214.docx"
+  CJK-KEEP: "runtime/relocate/fork-sync-stage/tree/scope-assets/original-concept/Pacgate AI Law Firm \346\265\205\350\211\262\347\247\221\346\212\200\347\211\210.pdf"
+  SKIP: runtime/apply-wf-fix.ps1
+zipped: 786 files (1832 KB raw) -> archive-scripts-pre-1010.zip (826 KB)
+deleted: 786  failed: 0
+moved 368MB zip -> C:\archive-pacgate-scratch\archive-scratch-2026-10-10.zip (368.5 MB)
+untracked runtime files AFTER: 716 (was 1499)
+runtime/ on disk now: 968 files, 35.9 MB (was 1747 files, 405.2 MB)
+DONE

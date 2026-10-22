@@ -74,6 +74,21 @@ fn build_step_message(
 ) -> String {
     let mut msg = format!("## Task: {}\n\n{}\n\n", step.name, step.description);
 
+    // Name the tool the step exists to run. Without this the model has to infer
+    // it from prose, and it does not: measured 2026-10-22, the 项目概况表编制 step
+    // declares `generate_docx` and its system_prompt says "输出为Word文档", yet the
+    // model called `list_documents, kb_search` and stopped on 3 runs out of 3.
+    // The route still returned 200, so the defect surfaced as an empty result
+    // rather than an error. `step.tool` was previously only logged and copied
+    // into the result, never sent.
+    if !step.tool.trim().is_empty() {
+        msg.push_str(&format!(
+            "## Required tool\n\nCall `{}` to complete this step. Do not substitute a \
+             different tool, and do not stop after gathering context.\n\n",
+            step.tool
+        ));
+    }
+
     if let Some(matter_id) = matter_id {
         msg.push_str("## Matter context\n\n");
         msg.push_str(&format!(
@@ -163,10 +178,30 @@ impl<'a> WorkflowExecutor<'a> {
             // Build the user message for this step
             let user_message = build_step_message(step, &prior_context, matter_id);
 
-            // Run the agent loop for this step
+            // Run the agent loop for this step, offering ONLY the tool the step
+            // declares. The step's `tool` field was previously used just for
+            // logging and the result record, so the model still saw all eleven
+            // tools and picked a different one. Measured 2026-10-22 on the
+            // 项目概况表编制 step: 0 of 5 runs called the declared `generate_docx`,
+            // all 5 called `list_documents`.
+            //
+            // NOTE: narrowing the surface does not by itself make the Main-tier
+            // 12B follow the directive - it still emitted `list_documents`, and
+            // sometimes invented names that were never offered. Routing the step
+            // to the Mid-tier 27B did work (3 of 3), but that model is 17 GB and
+            // spills 30% to CPU on a 16 GB card, so it is not a viable default
+            // here. The remaining gap is a model-capability limit, not a wiring
+            // defect; see runtime/ for the measurements.
             let turn_result = self
                 .agent
-                .run_with_router(router, vec![], &user_message, combined_prompt.as_deref(), matter_id)
+                .run_with_router_and_tools(
+                    router,
+                    vec![],
+                    &user_message,
+                    combined_prompt.as_deref(),
+                    matter_id,
+                    Some(step.tool.as_str()),
+                )
                 .await?;
 
             // Record the result
@@ -249,6 +284,30 @@ fn compose_combined_prompt(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn step_message_names_the_declared_tool() {
+        // A workflow step declares the tool it exists to run. That declaration
+        // used to be recorded in the result and logged, but never sent to the
+        // model, so the model had to infer the tool from prose. Measured
+        // 2026-10-22: the 项目概况表编制 step declares `generate_docx` and its
+        // system_prompt says "输出为Word文档", yet the model called
+        // `list_documents, kb_search` and stopped - 3 runs out of 3 - so the
+        // route returned 200 and produced no document.
+        let step = WorkflowStep {
+            name: "Generate project overview".to_string(),
+            description: "Generate the project overview table".to_string(),
+            tool: "generate_docx".to_string(),
+            parameters: serde_json::json!({}),
+        };
+
+        let message = build_step_message(&step, &[], None);
+
+        assert!(
+            message.contains("generate_docx"),
+            "the step's declared tool must reach the model; got: {message}"
+        );
+    }
 
     #[test]
     fn step_message_includes_matter_context() {

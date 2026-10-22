@@ -1,0 +1,82 @@
+﻿=== ZIP INSPECT - 2026-10-10 21:20:10 ===
+
+===== 1. ZIP metadata =====
+size=368.5MB created=10/10/2026 15:52:26 modified=10/10/2026 15:52:40
+
+===== 2. ZIP contents (entry count + top-level breakdown) =====
+entries: 3546
+    756 entries       78.1 MB  sync-1008/stage
+    303 entries        9.8 MB  backup-pre-0.1.24-20261007/openviking-workspace
+    202 entries        5.6 MB  stage-0125/deploy
+    179 entries       45.0 MB  stage-0125/pacgate-ai
+    172 entries       44.7 MB  upgrade-0117-stage2/pacgate-ai
+    172 entries       44.7 MB  upgrade-0117-stage/pacgate-ai
+    172 entries       44.7 MB  upgrade-0117-stage3/pacgate-ai
+    160 entries        5.2 MB  upgrade-0117-stage3/deploy
+    151 entries        3.0 MB  backup-pre-0.1.24-20261007/data-tenants
+    110 entries       23.1 MB  upgrade-0117-stage3/scope-assets
+    110 entries       23.1 MB  stage-0125/scope-assets
+     92 entries        0.7 MB  stage-0125/scripts
+     91 entries        3.0 MB  stage-0125/docs
+     76 entries        2.5 MB  upgrade-0117-stage3/docs
+     62 entries       43.4 MB  backup-pre-0.1.24-20261007/data-assets
+     60 entries       43.4 MB  assets-0f7db15-tree/assets
+     54 entries        0.3 MB  upgrade-0117-stage3/scripts
+     44 entries        5.4 MB  assets-materialize/assets
+     31 entries        0.5 MB  stage-0125/plans
+     30 entries        0.1 MB  stage-0125/pacgate-adapters
+     30 entries        0.1 MB  upgrade-0117-stage3/pacgate-adapters
+     27 entries        0.4 MB  upgrade-0117-stage3/plans
+     15 entries        0.5 MB  backup-pre-0.1.24-20261007/workflows
+     14 entries        2.0 MB  backup-pre-0.1.24-20261007/removed-local-only
+     12 entries        0.0 MB  upgrade-0117-stage3/.github
+TOP sync-1008                         953 entries       78.5 MB
+TOP stage-0125                        765 entries       78.2 MB
+TOP upgrade-0117-stage                172 entries       44.7 MB
+TOP upgrade-0117-stage2               172 entries       44.7 MB
+TOP upgrade-0117-stage3               660 entries       76.6 MB
+TOP backup-pre-0.1.24-20261007        561 entries       63.5 MB
+TOP backup-pre-0.1.25-20261009         16 entries        4.9 MB
+TOP assets-0f7db15-tree                64 entries       43.4 MB
+TOP assets-materialize                 48 entries        5.5 MB
+TOP assets-localonly-backup            22 entries        0.0 MB
+TOP assets-scan-tmp                     4 entries        0.0 MB
+TOP debug-1008                         57 entries        1.7 MB
+TOP debug-1009                         52 entries        0.1 MB
+
+===== 3. Do the 1494 untracked runtime files still exist on disk? =====
+sample untracked (first 5): 5
+  runtime/AIPC1-DIAGNOSIS-REPORT-1010.md
+  runtime/ANALYSIS-summ-1010.md
+  runtime/BENCHMARK-REPORT-2026-10-10-v0.1.25.md
+  runtime/CLEANUP-REPORT-2026-10-10.md
+  runtime/HANDOFF-AIPC-0.1.17.upstream.md
+total untracked-nonignored in runtime: 1497
+untracked total size on disk: 23.3 MB
+
+===== 4. Overlap: how many untracked files are INSIDE the zip? =====
+untracked files found inside zip: 0
+untracked files NOT in zip: 1497
+  NOT-IN-ZIP: runtime/AIPC1-DIAGNOSIS-REPORT-1010.md
+  NOT-IN-ZIP: runtime/ANALYSIS-summ-1010.md
+  NOT-IN-ZIP: runtime/BENCHMARK-REPORT-2026-10-10-v0.1.25.md
+  NOT-IN-ZIP: runtime/CLEANUP-REPORT-2026-10-10.md
+  NOT-IN-ZIP: runtime/HANDOFF-AIPC-0.1.17.upstream.md
+  NOT-IN-ZIP: runtime/ROOT-CAUSE-1010-e2e-errors.md
+  NOT-IN-ZIP: runtime/adopt-delta-1009b.ps1
+  NOT-IN-ZIP: runtime/adopt-delta-1009b.txt
+  NOT-IN-ZIP: runtime/agents-raw.json
+  NOT-IN-ZIP: runtime/apg-expect-1007.ps1
+  NOT-IN-ZIP: runtime/apg-full-1007.ps1
+  NOT-IN-ZIP: runtime/apg-probe-1007.ps1
+  NOT-IN-ZIP: runtime/apg-pwsh-1007.ps1
+  NOT-IN-ZIP: runtime/api-db-1007b.ps1
+  NOT-IN-ZIP: runtime/api-last-1007b.ps1
+
+===== 5. Root loose stale files (mcp_verify etc.) =====
+  mcp_verify.txt  1.5KB  modified=09/04/2026 13:05:38
+  mcp_final_verify.txt  1.2KB  modified=09/04/2026 13:06:15
+  verify_mcp.txt  0.5KB  modified=09/04/2026 13:05:30
+  containers.txt  0.6KB  modified=09/04/2026 13:05:45
+tracked among them: 4
+DONE

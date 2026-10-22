@@ -1,0 +1,25 @@
+﻿
+=== HTTP LATENCY (3 samples) ===
+[TIME] nginx :8089 / : 886 / 140 / 156 ms ms (3 samples)
+[TIME] frontend :8090 / : 137 / 147 / 137 ms ms (3 samples)
+[TIME] frontend /api/memory (authed path) : 179 / 8 / 7 ms ms (3 samples)
+
+=== LLM LANES (Ollama) ===
+[TIME] nemotron-30b (default, warm) : 45027 ms total | gen 17.5 t/s | prefill 5 t/s | tokens=167
+[TIME] gemma4-12b (qat) : 19098 ms total | gen 29.5 t/s | prefill 90.5 t/s | tokens=72
+[TIME] ornith-1.5-9b : 12567 ms total | gen 40.7 t/s | prefill 110.2 t/s | tokens=34
+
+=== GPU PLACEMENT ===
+NAME             ID              SIZE      PROCESSOR    CONTEXT    RUNNER      UNTIL              
+ornith-1.5:9b    e5df7dcdd8a2    6.9 GB    100% GPU     65536      llamacpp    9 minutes from now    
+
+
+=== EMBEDDING (3 samples) ===
+[TIME] nomic-embed-text : 1112 / 27 / 29 ms ms (3 samples)
+
+=== AUTHED API (3 samples) ===
+[TIME] GET /workflows (222 items) : 103 / 54 / 49 ms ms (3 samples)
+[TIME] GET /kb/search (pgvector, 1828 chunks) : 391 / 58 / 39 ms ms (3 samples)
+
+=== MCP (3 samples) ===
+MCP list_matters x3: 389 / 11 / 9 ms

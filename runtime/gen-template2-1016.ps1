@@ -9,7 +9,7 @@ $txt = [System.IO.File]::ReadAllText((Join-Path $root $src), [System.Text.Encodi
 # Each entry: literal secret -> placeholder. Longest first to avoid partial hits.
 $subs = [ordered]@{
   # OpenViking root key (already a placeholder in the current template)
-  '17cb371236735c7469b933643d10ea6a' = '${OPENVIKING_ROOT_API_KEY}'
+  '<REDACTED-OPENVIKING-ROOT-KEY>' = '${OPENVIKING_ROOT_API_KEY}'
   # vaquill: key is embedded in the URL path
   'https://mcp.vaquill.ai/s/vq_key_8uNHEHBpJ7rLl24ZX69Dl-mrrjgsnL_7' = 'https://mcp.vaquill.ai/s/${VAQUILL_API_KEY}'
 }

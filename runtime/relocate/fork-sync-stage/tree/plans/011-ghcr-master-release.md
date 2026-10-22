@@ -1,0 +1,323 @@
+# 011 — GHCR Master Release
+
+Priority: **P1** · Effort: **M** · Depends on: 012 (namespace choice) · Status: **RELEASED — 0.1.13 is the current master; no rebuild needed**
+
+> ## "Rebuild the masters?" — answered with evidence (2026-09-16)
+>
+> **Don't. 0.1.13 already IS the master**, and a rebuild would produce
+> byte-identical images. Four independent checks:
+>
+> 1. **Nothing that reaches an image has changed.** `git diff 32b45ea..HEAD`
+>    (the release commit to now) contains **zero production code**. The only Rust
+>    changes are +5 and +11 lines, and every one is a `//` comment — verified by
+>    filtering the diff for non-comment lines, not by reading the summary.
+> 2. **The image builds would not pick anything up anyway.** Both repo-context
+>    Dockerfiles copy narrow paths — `pacgate-adapters/python`,
+>    `deploy/deer-flow-pacgate/config.yaml`, `deploy/deer-flow-src/frontend`.
+>    None changed.
+> 3. **`:latest` already equals the version tag.** Compared manifest digests
+>    anonymously for all four: `api sha256:817a0685…`, `mcp sha256:82383117…`,
+>    `deer-flow sha256:d958ab7b…`, `frontend sha256:0c01a071…` — identical for
+>    `0.1.13` and `latest`.
+> 4. **The published binary matches HEAD's spec.** The image from `32b45ea`
+>    reports revision `32b45ea…` at `/build-info` and returns 200 — the same
+>    behaviour HEAD's source specifies.
+>
+> A version bump would cost **25 edits across 4 files** (both compose files, the
+> Cargo workspace and lockfile) to republish identical bytes, and it would move
+> the AIPC pins for nothing. The 0.1.13 release already is the merge deliverable:
+> both AIPCs pull it and the fork is level with origin.
+>
+> **One genuine gap it exposes:** the images are built from commit `32b45ea`, but
+> **no git tag records that**. Origin has 0 tags, so the release exists only as
+> image tags and the provenance lives in this document and in the binary. Worth
+> closing with a tag on `32b45ea`; it changes no image content.
+>
+> **When a rebuild WOULD be warranted:** an actual change to `pacgate-ai/`,
+> `deploy/pacgate-mcp/`, `deploy/deer-flow-pacgate/`, or
+> `deploy/deer-flow-frontend-pacgate/`, or a change to a path those Dockerfiles
+> copy. Use `git diff --stat <release-commit>..HEAD -- <those paths>` to decide.
+
+### Rebuild executed and verified (run #10, 2026-09-16)
+
+The tag `v0.1.13` was created **on `32b45ea`** — the commit the 0.1.13 images were
+originally built from — so the tag records provenance rather than marking new
+source. Verified: `git ls-remote` returns
+`32b45ea073170e44aa6cafb88d176db0cf605b2d refs/tags/v0.1.13`.
+
+The tag push triggered run #10 (**completed successfully, 8m 52s**, `v0.1.13`).
+All four images were republished and re-verified:
+
+| Image | Digests changed? | `:latest` tracks? |
+| --- | --- | --- |
+| `pacgate-api` | yes — `817a0685…` → `00842…` | yes |
+| `pacgate-mcp` | yes — `82383117…` → `6c1ca…` | yes |
+| `deer-flow-pacgate` | yes — `d958ab7b…` → `529b1…` | yes |
+| `deer-flow-frontend-pacgate` | yes — `0c01a071…` → `4c4a5…` | yes |
+
+**The digests changing is expected and is not evidence of a different build.**
+Docker builds are not reproducible by default — layer tar entries carry mtimes —
+so a rebuild of identical source produces a different digest. The proof of what
+was built is the source revision, and the rebuilt binary carries the same
+`32b45ea` revision string and `0.1.13` version as before:
+
+```
+docker run --rm --entrypoint sh ghcr.io/pacgate-ai/pacgate-api:0.1.13 \
+  -c "grep -a -o '32b45ea073170e44aa6cafb88d176db0cf605b2d' /usr/local/bin/pacgate-server"
+32b45ea073170e44aa6cafb88d176db0cf605b2d
+```
+
+`:latest` moving in lockstep with every version tag matters: the workflow pushes
+both, and a rebuild that updated one but not the other would give anyone pulling
+`:latest` a different build. Verified with `scripts/report-ghcr-digests.ps1`,
+which compares the two digests per image and reports `sync`.
+
+**Net effect on a client:** none. Same source, same revision, still anonymously
+pullable. The gain is provenance — a git tag now names what the images were built
+from, where previously the release existed only as image tags.
+
+
+> **Follow-on release: 0.1.13 — RELEASED (run #9, 9m, all four images public).**
+>
+> The AIPCs clone the *fork* and pull from `ghcr.io/pacgate-ai/*`, so anything
+> that reaches a deployed machine needs two steps: a **fork sync** (for
+> repo-based fixes) and a **release** (for image changes).
+>
+> 0.1.13 carries plan 014 steps 1-5. It is a one-image release: the only source
+> change is `pacgate-api` (the `/version` marker). The fork went from 8 commits
+> behind to level with origin in a single "Update branch" fast-forward, then the
+> workflow was dispatched with `tag=0.1.13` and `namespace` empty (resolves to
+> the fork owner, `pacgate-ai`).
+>
+> | Image | 0.1.13 | Evidence |
+> | --- | --- | --- |
+> | `pacgate-ai/pacgate-api` | 200 | `grep` of the published binary found revision `32b45ea…` and version `0.1.13` |
+> | `pacgate-ai/pacgate-mcp` | 200 | — |
+> | `pacgate-ai/deer-flow-pacgate` | 200 | — |
+> | `pacgate-ai/deer-flow-frontend-pacgate` | 200 | — |
+>
+> **The build arg was verified, not assumed.** `option_env!("PAC_SOURCE_REVISION")`
+> is compile-time and would silently bake in `"unknown"` if the wiring were
+> wrong — the endpoint would still answer, just uselessly. Grepping the published
+> `pacgate-server` binary for `32b45ea073170e44aa6cafb88d176db0cf605b2d` returned
+> a match, so the revision really is in the running process.
+
+
+
+## Outcome (2026-09-16)
+
+**Released.** Run #8 went **green in 8m 24s** — the first successful
+`build-ghcr` run in this project's history, after 7 consecutive failures.
+
+<https://github.com/pacgate-ai/pacgate-ai-pr/actions/runs/35052019314>
+
+Dispatched from the fork with `tag=0.1.12`, `namespace` empty (resolves to the
+repo owner, `pacgate-ai`), at commit `212bc85`.
+
+All four images published and **anonymously pullable (HTTP 200)**:
+
+| Image | Tag | Anonymous pull |
+| --- | --- | --- |
+| `pacgate-ai/pacgate-api` | `0.1.12` | 200 |
+| `pacgate-ai/pacgate-mcp` | `0.1.12` | 200 |
+| `pacgate-ai/deer-flow-pacgate` | `0.1.12` | 200 |
+| `pacgate-ai/deer-flow-frontend-pacgate` | `0.1.12` | 200 |
+
+### Correction: the visibility flip did NOT apply
+
+Step 3 previously warned that new packages need a **manual visibility flip**,
+because `pacgate-ai` is a user account and the `PATCH .../visibility` API 404s
+for user accounts. That warning does **not** apply here: republishing an
+existing package **name** inherits its visibility, so `0.1.12` came out public
+already. A manual flip would only be needed for a **brand-new package name**.
+
+### Both defects are fixed in the published images (verified by inspection)
+
+| Image | Check | Result |
+| --- | --- | --- |
+| `pacgate-mcp:0.1.12` | `/app/requirements.txt` | `markitdown[docx,pptx,xlsx,pdf]>=0.1.5` — was bare `markitdown`, so every `.docx` failed |
+| `pacgate-api:0.1.12` | migration 002 | `USING hnsw` — was `ivfflat`, so newly-uploaded documents were not reliably searchable |
+
+## Original blocker (now cleared)
+
+Step 1 was done and pushed, but the release was gated on **fork push access**,
+not on the build. The fork was synced via the GitHub UI (Sync fork → Update
+branch), which needed an account with write access rather than a git credential.
+See `plans/013-credential-rotation.md`.
+
+## Remaining (not release-blocking)
+
+- Update the client bundle docs and `plans/007-delivery-log.md` to reference
+  `0.1.12` instead of the old pins.
+- Namespace decision (plan 012) path B is still open.
+
+## Re-verified 2026-09-16: the staleness was real
+
+Both defects were re-confirmed by pulling the currently-pinned images:
+
+| Image | Evidence | Status |
+| --- | --- | --- |
+| `pacgate-mcp:0.1.9` | `/app/requirements.txt` ships `markitdown>=0.1.5` with **no extras** | still broken — `pacgate_convert_document` fails on every `.docx` |
+| `pacgate-api:0.1.9` | migration 002 uses **`ivfflat`**, `main` uses `hnsw` | still broken — newly-uploaded documents are not reliably searchable |
+
+Both fixes (`ece697f`, `150db2c`) are in `main` and in **no published image**.
+All four current pins do resolve publicly (HTTP 200), so the install works — it
+just ships these two defects.
+
+## Why
+
+Every `build-ghcr` run has failed (7/7) — all four image builds succeed, but the
+final verification step fails, so CI has never been a usable signal. Meanwhile
+the published `pacgate-api` and `pacgate-mcp` images predate two client-visible
+fixes.
+
+## Decisions already settled — do not relitigate
+
+- Publish under **`ghcr.io/pacgate-ai/*`**. Enforced by
+  `IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}` plus the org's compose
+  pins. Tagging `origin` (`JZKK720`) would build `ghcr.io/jzkk720/*`, which
+  nothing references. **Superseded:** the namespace is now a settable input and
+  the owner-choice is tracked in `plans/012-master-release-namespace.md` — read
+  that first.
+- Images are **public by design**; the on-site engineer installs them. Never add
+  `docker login ghcr.io` to the client path.
+- `origin/main`, fork `main`, and local HEAD all have **identical trees**
+  (`1fd4531…`), and both fork feature branches are fully merged. The build is a
+  true single source of truth — there is no other repo holding unreleased work.
+- **The upstream merge is already complete.** `origin/main` contains every fork
+  commit plus merge `832d84e`; `git log origin/main..forkmain` is empty. No
+  further merge action is needed.
+
+## Steps
+
+### 1. Fix the verify step (unblocks a meaningful CI signal)
+
+> **DONE 2026-09-15.** The `Accept` header, namespace parameterization, tag
+> guard, provenance labels, and diagnosable failures are all implemented in
+> `.github/workflows/build-ghcr.yml` and YAML-validated. See
+> `plans/012-master-release-namespace.md` for what changed and the remaining
+> namespace decision.
+
+In `.github/workflows/build-ghcr.yml`, add the OCI manifest `Accept` header to
+the manifest request (~line 131). GHCR returns `404` without it even on public
+packages.
+
+```yaml
+code=$(curl -s -o /dev/null -w "%{http_code}" \
+  -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" \
+  -H "Authorization: Bearer $tok" \
+  "https://ghcr.io/v2/${IMAGE_PREFIX#ghcr.io/}/${img}/manifests/${{ steps.tag.outputs.tag }}")
+```
+
+While here: refresh the stale `workflow_dispatch.default` (`"0.1.3"`) and add
+OCI provenance labels so a published image can be traced to its commit:
+
+```text
+org.opencontainers.image.revision = ${{ github.sha }}
+org.opencontainers.image.source   = ${{ github.server_url }}/${{ github.repository }}
+org.opencontainers.image.version  = ${{ steps.tag.outputs.tag }}
+```
+
+**STOP** if the header alone does not turn the verify step green — that would
+mean a package is genuinely private, and step 4 will need a visibility flip.
+
+### 2. Choose ONE master version
+
+Current pins are split three ways (`api`/`mcp` `0.1.9`, `deer-flow` `0.1.10`,
+`frontend` `0.1.11`), but the workflow tags all four with a single tag. Pick the
+next unified version — **`0.1.12`** is recommended (above every existing pin).
+
+### 3. Bump every pin to that version
+
+| File | What to change |
+| --- | --- |
+| `pacgate-ai/Cargo.toml` | `version` |
+| `pacgate-ai/Cargo.lock` | pacgate crate versions |
+| `deploy/client-bundle/compose.prod.yaml` | 4 image pins |
+| `deploy/client-bundle/compose.bundle.yaml` | 4 image pins |
+| `deploy/client-bundle/deer-flow-extensions-config.template.json` | version string |
+| `deploy/client-bundle/patches/deer-flow-prompt.py` | version string |
+
+Verify no stale pin survives:
+
+```powershell
+git grep -nE "0\.1\.(9|10|11)" -- deploy pacgate-ai
+```
+
+### 4. Build the master release
+
+Push the tag **to the fork** (this is the actual trigger):
+
+```powershell
+git tag v0.1.12
+git push https://github.com/pacgate-ai/pacgate-ai-pr.git v0.1.12
+```
+
+Or run the workflow manually with `tag = 0.1.12`. `origin` has zero runs of this
+workflow — a tag there does nothing.
+
+**STOP** if the new verify step fails. Distinguish "manifest absent" (`404` on a
+tag that was never pushed) from "private" (`401`).
+
+### 5. Prove the release locally, from a fresh clone
+
+Per the standing fresh-clone rule — this dev box accumulates credentials, pulled
+models, and rendered gitignored configs that mask fresh-clone failures.
+
+```powershell
+.\scripts\check-ghcr-pull.ps1 -Targets `
+  "pacgate-ai/pacgate-api:0.1.12","pacgate-ai/pacgate-mcp:0.1.12", `
+  "pacgate-ai/deer-flow-pacgate:0.1.12","pacgate-ai/deer-flow-frontend-pacgate:0.1.12"
+```
+
+Expect `HTTP 200` on all four, then confirm the two stale-image bugs are gone:
+
+```powershell
+# must show markitdown[docx,pptx,xlsx,pdf]
+docker run --rm --entrypoint cat ghcr.io/pacgate-ai/pacgate-mcp:0.1.12 /app/requirements.txt
+
+# must show USING hnsw (not ivfflat)
+docker run --rm --entrypoint sh ghcr.io/pacgate-ai/pacgate-api:0.1.12 `
+  -c "grep -iE 'hnsw|ivfflat' /app/migrations/002_rag_schema.sql"
+```
+
+### 6. Repin the client bundle and record
+
+Confirm `install.ps1` and the handbooks reference the new tag, then log the
+release in `plans/007-delivery-log.md`.
+
+## Follow-ups (not blocking this release)
+
+- **Decide the fate of `pacgate-ai/deer-flow@pacgate-layer`.** It is the only
+  sibling fork carrying custom work, and it defines a competing all-in-one
+  `deer-flow-pacgate` image (34 legal skills, `pacgate_config.py` routing +
+  hard gates, `matters` router). It is **not** in our build and our published
+  image was probed to confirm that (only `/app/adapters` + `/app/backend`).
+  Evidence says it is superseded — it is 8 days older than our wrapper, pinned
+  to an older officecli, and targets the deprecated `ghcr.io/jzkk720/*`
+  namespace — but its routing/hard-gate middleware is not replicated anywhere
+  else. Either port that middleware forward, or retire the branch explicitly so
+  `deploy/AIPC2-HANDOFF-PROMPT-v2.md` stops pointing AIPC #2 at it. Two
+  pipelines currently publish the same image name, so this also removes an
+  ambiguity.
+- **Correct the "pacgate-ai org" wording** in `deploy/README-BUILD.md` — it is a
+  User account, not an organization.
+- **Add `.dockerignore` files.** There are none anywhere, so `deer-flow-pacgate`
+  uploads `pacgate-ai/target/`, `.git/`, and PDFs to the builder on every build.
+- **Make the officecli fallback observable.** `f510487` uses
+  `... && officecli --version || echo "WARNING: skipped" && rm -rf /tmp/*`,
+  which in `sh` parses as `((A && B) || C) && D` — the `||` swallows a failed
+  install. Intentional best-effort, but a presence check would make the
+  degradation visible in the build log.
+- **Fix the stale comment** in `deploy/build-frontend.ps1` (`ghcr.io/jzkk720/…`).
+- **Confirm QM image sourcing.** `yc-software/qm/{core,auth,portal,web-ui}` are
+  not anonymously readable (404). Verify how a clean AIPC obtains them.
+
+## Definition of done
+
+- `build-ghcr` run for `v0.1.12` is **green**, verify step included.
+- All four `ghcr.io/pacgate-ai/*:0.1.12` tags return `200` anonymously.
+- `pacgate-mcp:0.1.12` carries the markitdown extras; `pacgate-api:0.1.12`
+  carries the `hnsw` index.
+- Every pin in both compose files points at `0.1.12`.
+- Release recorded in `plans/007-delivery-log.md`.

@@ -1,0 +1,12 @@
+﻿
+=== KB SEARCH (GET variant) ===
+GET variant: HTTP 400
+POST query-only: HTTP 405
+MCP kb_search lane: MCP kb_search: 11ms len=272 Error executing tool pacgate_kb_search: 1 validation error for pacgate_kb_searchArguments matter_id   Field required [type=missing, input_value={'query': 'settlement authority'}, input_type=dict]     
+
+=== SANITIZE (fixed content-type) ===
+uploaded doc: 455a16ec-a6ce-4b6d-81c5-b468ded0d9f7
+extract: incomplete=False len=105
+sanitize JSON-body: HTTP 422
+sanitize no-body: HTTP 415
+[PASS] cleanup: doc deleted

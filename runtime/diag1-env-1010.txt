@@ -1,0 +1,112 @@
+﻿=== AIPC1 DIAG 1 - 2026-10-10 20:41:48 +08:00 ===
+
+===== 1. HOST IDENTITY =====
+Host: PACGATE-AI01  Model: MACO  RAM: 29.6 GB
+OS: Microsoft Windows 11 专业版 build 26300  FreeRAM: 0.3 GB
+Uptime since: 10/10/2026 18:32:32
+
+===== 2. GPU =====
+GPU: USB Mobile Monitor Virtual Display  Driver: 2.0.0.1 (08/31/2021 08:00:00)  AdapterRAM(reg): 0 GB  Status: OK
+GPU: AMD Radeon(TM) 890M Graphics  Driver: 32.0.31021.6002 (08/04/2026 08:00:00)  AdapterRAM(reg): 2 GB  Status: OK
+GPU: AMD Radeon RX 7600 XT  Driver: 32.0.31021.6002 (08/04/2026 08:00:00)  AdapterRAM(reg): 4 GB  Status: OK
+
+===== 3. CLOCK SKEW (local vs HTTP Date header) =====
+server=Sat, 10 Oct 2026 12:41:48 GMT  localUTC=2026-10-10T12:41:48.8529727Z  SKEW_SECONDS=0.8529727
+w32tm /query /status:
+发生下列错误: 服务尚未启动。 (0x80070426)
+
+===== 4. DOCKER CONTAINERS (name/status/restarts) =====
+cloudflare|Up 2 hours|cloudflare/cloudflared:latest
+deer-flow|Up About an hour|ghcr.io/jzkk720/deer-flow-pacgate:0.1.25
+deer-flow-frontend|Up 2 hours|ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.25
+dockhand|Up 2 hours (healthy)|fnsys/dockhand:latest
+hermes-gateway|Up 2 hours (healthy)|ghcr.io/jzkk720/hermes-agent:latest
+hermes-postgres|Up 2 hours (healthy)|postgres:16-alpine
+hermes-web|Restarting (1) Less than a second ago|ghcr.io/jzkk720/hermes-agent:latest
+ironclawai-survey|Up 2 hours|ironclawai-survey-ironclawai-survey
+ocr-service|Up 2 hours|ghcr.io/jzkk720/ocr-service:0.1.25
+odysseus-chromadb-1|Up 2 hours|chromadb/chroma:latest
+odysseus-ntfy-1|Up 2 hours|binwiederhier/ntfy
+odysseus-odysseus-1|Up 2 hours|ghcr.io/jzkk720/odysseus:main
+odysseus-searxng-1|Up 2 hours (healthy)|searxng/searxng:2026.5.31-7159b8aed
+openviking|Up 2 hours (healthy)|46f9e34cd372
+open-webui|Up 2 hours (healthy)|ghcr.io/open-webui/open-webui:main
+pacgate-api|Up 2 hours|ghcr.io/jzkk720/pacgate-api:0.1.25
+pacgate-db|Up 2 hours|pgvector/pgvector:pg16
+pacgate-mcp|Up 2 hours|ghcr.io/jzkk720/pacgate-mcp:0.1.25
+pacgate-nginx|Up 2 hours|nginx:1.27-alpine
+qm-mailpit|Up 2 hours (healthy)|axllent/mailpit:v1.24
+qm-pacgate-admin|Up 2 hours|ec071338547e
+qm-pacgate-auth|Up 2 hours|27f2e1467adc
+qm-pacgate-core|Up 2 hours|bee03e7f2271
+qm-pacgate-pg|Up 2 hours|postgres:16
+qm-pacgate-portal|Up 2 hours|e245dfc2c12a
+qm-pacgate-web-ui|Up 2 hours|f037834fd726
+qm-sbx-personal-pacgate-ai01-outlook-com-a32eb1|Exited (137) 47 hours ago|qm-pacgate-sandbox-local:latest
+
+===== 5. PACGAGE 5 IMAGE PINS + RESTART COUNTS =====
+pacgate-api : image=ghcr.io/jzkk720/pacgate-api:0.1.25 status=running restarts= started=2026-10-10T10:33:35.23226772Z oom=False exit=0
+pacgate-mcp : image=ghcr.io/jzkk720/pacgate-mcp:0.1.25 status=running restarts= started=2026-10-10T10:33:35.258084596Z oom=False exit=0
+deer-flow : image=ghcr.io/jzkk720/deer-flow-pacgate:0.1.25 status=running restarts= started=2026-10-10T11:24:52.998678816Z oom=False exit=0
+deer-flow-frontend : image=ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.1.25 status=running restarts= started=2026-10-10T10:33:35.245807715Z oom=False exit=0
+ocr-service : image=ghcr.io/jzkk720/ocr-service:0.1.25 status=running restarts= started=2026-10-10T10:33:35.220389046Z oom=False exit=0
+
+===== 6. OLLAMA PROCESS + ENV =====
+ollama pid=20280 start=10/10/2026 18:34:09 CPUmin=1.7 WS=0.04GB
+ollama app pid=8592 start=10/10/2026 18:34:08 CPUmin=0 WS=0.02GB
+User-scope OLLAMA_* env:
+  OLLAMA_KV_CACHE_TYPE=q8_0
+  OLLAMA_KEEP_ALIVE=10m
+
+===== 7. OLLAMA API - tags + ps (loaded models) =====
+  gemma4:12b-it-qat  size=6.7GB
+  qwen3.8:27b-mtp-q4_K_M  size=16.5GB
+  deepseek-v4-pro:0813-cloud  size=0GB
+  deepseek-v4.1-flash:cloud  size=0GB
+  nemotron-3.5-lightning:30b-a3b  size=23.7GB
+  ornith-1.5:35b  size=21.1GB
+  ornith-1.5:9b  size=6.1GB
+  glm-5.3-flash:cloud  size=0GB
+  nomic-embed-text:latest  size=0.3GB
+  gemma4:12b-it-q8_0  size=12GB
+  nemotron-3.5-lightning:30b-a3b size_vram=12.99GB size=24.05GB until=2026-10-10T20:51:50.4785603+08:00
+
+===== 8. NETWORK - VPN adapters + key endpoints =====
+adapter: vEthernet (WSL (Hyper-V firewall)) if=Hyper-V Virtual Ethernet Adapter #2 speed=10000Mbps
+adapter: Tailscale if=Tailscale Tunnel speed=100000Mbps
+adapter: vEthernet (Default Switch) if=Hyper-V Virtual Ethernet Adapter speed=10000Mbps
+adapter: WLAN if=MediaTek Wi-Fi 7 MT7925 Wireless LAN Card speed=867Mbps
+ollama.com :443 reachable=True
+registry.ollama.ai :443 reachable=True
+api.github.com :443 reachable=True
+github.com :443 reachable=True
+docker.io :443 reachable=False
+proxy env: HTTP_PROXY= HTTPS_PROXY= NO_PROXY=
+
+===== 9. GPU ENGINE UTILIZATION (perf counters, 3s sample) =====
+  pid_25248_luid_0x00000000_0x0000f7f4_phys_0_eng_2_engtype_compute 0 = 55.9%
+  pid_25248_luid_0x00000000_0x0000f7f4_phys_0_eng_1_engtype_copy = 13.5%
+  pid_6616_luid_0x00000000_0x0000f7f4_phys_0_eng_7_engtype_video codec engine = 5.8%
+  pid_2680_luid_0x00000000_0x0000f7f4_phys_0_eng_0_engtype_3d = 1.4%
+  MEM pid_25248_luid_0x00000000_0x0000f7f4_phys_0 = 14.62GB
+  MEM pid_2680_luid_0x00000000_0x0000f7f4_phys_0 = 0.2GB
+  MEM pid_19232_luid_0x00000000_0x0000f7f4_phys_0 = 0.11GB
+
+===== 10. TOP CPU + RAM PROCESSES =====
+  CPU dllhost pid=20240 cpuMin=32.3 wsGB=0.01
+  CPU llama-server pid=25248 cpuMin=19.7 wsGB=19.09
+  CPU com.docker.backend pid=18092 cpuMin=4.3 wsGB=0.11
+  CPU Code pid=8908 cpuMin=2.8 wsGB=0.62
+  CPU ollama pid=20280 cpuMin=1.7 wsGB=0.04
+  CPU RustDesk pid=23664 cpuMin=1.4 wsGB=0.03
+  CPU CycloneLiteCore pid=20676 cpuMin=1.4 wsGB=0.04
+  CPU AUEPMaster pid=14924 cpuMin=1.3 wsGB=0.01
+  RAM llama-server pid=25248 wsGB=19.09
+  RAM vmmemWSL pid=3180 wsGB=1.93
+  RAM Code pid=8908 wsGB=0.62
+  RAM Memory Compression pid=4808 wsGB=0.49
+  RAM Code pid=26212 wsGB=0.31
+  RAM MsMpEng pid=5760 wsGB=0.2
+  RAM Code pid=19844 wsGB=0.16
+  RAM powershell pid=22284 wsGB=0.15
+DONE

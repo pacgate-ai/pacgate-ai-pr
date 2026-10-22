@@ -647,20 +647,7 @@ Select-String -Path "pacgate-ai\deploy\client-bundle\compose.bundle.yaml" -Patte
 
 Expected: one mount line mapping it to `.../middlewares/uploads_middleware.py`.
 
-- [ ] **Step 3: Push to fork/main via the Contents API**
-
-git-over-HTTPS is unreliable on this machine; the Contents API works. Run:
-
-```powershell
-cd c:\Users\pacga\github-pr\pacgate-law
-powershell -NoProfile -ExecutionPolicy Bypass -File runtime\push-patch-1016.ps1
-```
-
-The script (created in Step 4) reads the file, LF-normalizes it, base64-encodes it, and PUTs it to `pacgate-ai/pacgate-ai-pr` on `main`.
-
-Expected: HTTP 200/201 with a commit SHA.
-
-- [ ] **Step 4: Create the push script**
+- [ ] **Step 3: Create the push script**
 
 Create `runtime/push-patch-1016.ps1`:
 
@@ -716,6 +703,18 @@ $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
 $resp = Invoke-RestMethod -Uri $uri -Headers $h -Method Put -Body $bytes -ContentType "application/json; charset=utf-8"
 Write-Output ("pushed: " + $resp.commit.sha)
 ```
+
+- [ ] **Step 4: Run the push script**
+
+Run:
+```powershell
+cd c:\Users\pacga\github-pr\pacgate-law
+powershell -NoProfile -ExecutionPolicy Bypass -File runtime\push-patch-1016.ps1
+```
+
+git-over-HTTPS is unreliable on this machine; the Contents API works. The script reads the file, LF-normalizes it, base64-encodes it, and PUTs it to `pacgate-ai/pacgate-ai-pr` on `main`.
+
+Expected: HTTP 200/201 with a commit SHA printed.
 
 - [ ] **Step 5: Verify the push landed**
 

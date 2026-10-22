@@ -1,0 +1,50 @@
+﻿=== AIPC1 DIAG 3 - 2026-10-10 20:45:38 ===
+
+===== 1. 401 ISOLATION - fresh login, then /matters with FULL body =====
+token length: 287  first8: eyJ0eXAi  last8: lgPo-XP0
+VIA-NGINX  Bearer   -> [{"id":"1699e56d-c1c2-41c3-aeac-6de20b30fa43","tenant_id":"d64908b0-bbb8-48fc-be95-76a0988fb160","name":"warmup-cc9bc891...
+DIRECT     Bearer   -> |HTTP:000
+NO-AUTH    baseline -> |HTTP:401
+LOWER-CASE header   -> [{"id":"1699e56d-c1c2-41c3-aeac-6de20b30fa43","tenant_id":"d64908b0-bbb8-48fc-be95-76a0988fb160","name":"warmup-cc9bc891...
+
+===== 2. FULL PROCESS LIST by WorkingSet (top 18) =====
+  llama-server                 pid=25248   ws=   18.31GB  cpuMin=    48.4
+  vmmemWSL                     pid=3180    ws=    2.16GB  cpuMin=        
+  Memory Compression           pid=4808    ws=    0.69GB  cpuMin=        
+  Code                         pid=8908    ws=    0.65GB  cpuMin=     4.3
+  Code                         pid=26212   ws=    0.30GB  cpuMin=     1.4
+  MsMpEng                      pid=5760    ws=    0.22GB  cpuMin=        
+  msedge                       pid=8732    ws=    0.17GB  cpuMin=     0.1
+  msedge                       pid=17628   ws=    0.14GB  cpuMin=     0.0
+  Code                         pid=19844   ws=    0.14GB  cpuMin=     0.5
+  explorer                     pid=8268    ws=    0.12GB  cpuMin=     0.9
+  pwsh                         pid=2360    ws=    0.11GB  cpuMin=     0.1
+  com.docker.backend           pid=18092   ws=    0.11GB  cpuMin=     4.5
+  Secure System                pid=332     ws=    0.11GB  cpuMin=        
+  pwsh                         pid=27064   ws=    0.11GB  cpuMin=     0.0
+  Code                         pid=11228   ws=    0.09GB  cpuMin=     1.8
+  Code                         pid=23436   ws=    0.08GB  cpuMin=     0.2
+  powershell                   pid=21092   ws=    0.08GB  cpuMin=     0.0
+  Notion                       pid=16680   ws=    0.06GB  cpuMin=     0.7
+Sum of all process WS: 27.3 GB
+
+===== 3. DEER-FLOW restart forensics =====
+RestartCount=0 OOMKilled=False ExitCode=0 StartedAt=2026-10-10T11:24:52.998678816Z FinishedAt=0001-01-01T00:00:00Z
+
+===== 4. PERF REPRO: nemotron warm generation (200 tokens, timed) =====
+wall=109.8s  http_line={"model":"nemotron-3.5-lightning:30b-a3b","created_at":"2026-10-10T12:47:52.0285845Z","response":"","thinking":"Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User says: \"Say exactly:","done":true,"done_reason":"length","context":[10,25708,1010,11,1010,10,3263,1010,67935,10693,1058,86803,1071,8521,6193,2794,1070,1045,13257,11,1010,10,1503,19464,1010,12,1010,11745,1681,1261,11483,2832,2100,1049,1046,1032,1603,25280,73448,7777,16196,24185,1256,1462,7777,8223,1058,1429,67935,10693,1058],"total_duration":109528559400,"load_duration":21429800,"prompt_eval_count":27,"prompt_eval_cached_count":0,"prompt_eval_duration":310166000,"eval_count":24,"eval_duration":572382000}|HTTP:200 T:109.741279
+prompt_eval_count=27 prompt_eval_duration=310166000 eval_count=24 eval_duration=572382000
+GEN SPEED = 41.9 tokens/sec  (benchmark reference: 17.5 t/s on this box, 30.7 t/s earlier)
+response: 
+
+===== 5. CLOUD MODEL REPRO: deepseek-v4.1-flash:cloud direct ping =====
+wall=1.9s  resp=|HTTP:200 T:1.876485
+
+===== 6. WSL + pagefile config =====
+.wslconfig: ABSENT (no WSL memory cap)
+AutomaticManagedPagefile=True
+
+===== 7. GPU VRAM detail via ollama ps (post-test) =====
+  nemotron-3.5-lightning:30b-a3b vram=12.99GB total=24.05GB
+FreeRAM now: 0.45 GB
+DONE

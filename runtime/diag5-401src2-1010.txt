@@ -1,0 +1,38 @@
+﻿=== AIPC1 DIAG 5 - 2026-10-10 20:50:49 ===
+
+===== 1. DEER-FLOW container env (PACGATE/ADAPTER vars) =====
+PACGATE_API_PASSWORD=***REDACTED***
+PACGATE_API_URL=http://pacgate-api:8080
+PACGATE_API_EMAIL=admin@pacgate-law.com
+GATEWAY_CORS_ORIGINS=http://localhost:8089,http://localhost:8090,http://pacgate-ai01:8089,http://172.30.144.1:8089,http://172.22.224.1:8089,http://192.168.0.124:8089,http://100.107.211.51:8089
+PACGATE_JWT_TOKEN=***REDACTED***
+PACGATE_TENANT_ID=pacgate-law
+PYTHONPATH=/app/adapters:/app/backend
+PACGATE_MATTER_ID=769225d9-804c-4a3f-8775-8dcc4c676d0e
+
+===== 2. Find deerflow.db + runs table =====
+/app/backend/.deer-flow/checkpoints.db
+/app/backend/.deer-flow/data/checkpoints.db
+/app/backend/.deer-flow/data/deer-flow.db
+/app/backend/.deer-flow/data/deerflow.db
+/app/backend/.deer-flow/deerflow.db
+
+===== 3. Runs history (correct path) =====
+dbs: []
+
+===== 4. Adapter auth: how does deer-flow call pacgate-api? (source grep) =====
+
+===== 5. Adapter 401 handling (re-login logic present?) =====
+
+===== 6. Frontend better-auth session expiry config =====
+
+===== 7. pacgate-api JWT secret rotation check (would invalidate all tokens) =====
+OPENVIKING_CONF_CONTENT={ "ser***
+PACGATE_JWT_SECRET=d47d39***
+PACGATE_JWT_TOKEN=***
+host .env JWT lines (names only): PACGATE_JWT_SECRET, PACGATE_JWT_TOKEN
+
+===== 8. Ollama eviction/error census - FULL DAY (server-1.log + rotated) =====
+server-5.log: lines=58136 evictions=19 server_errors=46 llama_starts=88 lastWrite=10/08/2026 17:58:24
+server-4.log: lines=25103 evictions=26 server_errors=36 llama_starts=62 lastWrite=10/08/2026 22:42:33
+server-3.log: lines=351 evictions=0 server_errors=0 llama_starts=0 lastWrite=10/08/2026 22:44:00

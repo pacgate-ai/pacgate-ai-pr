@@ -1,0 +1,22 @@
+﻿
+=== OPENVIKING MCP ===
+[PASS] API key : present (32 chars)
+[TIME] health : 190 ms OpenViking is healthy (service initialized, storage: VikingFS)
+[PASS] openviking MCP : responds
+
+=== REMEMBER + FIND (async extraction) ===
+[TIME] remember (write accepted) : 1583 ms extraction is async 鈥?polling find()
+[PASS] find (recall) : marker surfaced after 75469ms (5 polls)
+
+=== PGVECTOR STATE ===
+kb_chunks with embeddings:   1835 
+kb_chunks indexes:  kb_chunks_pkey  idx_kb_chunks_tenant_matter  idx_kb_chunks_document  idx_kb_chunks_content_tsv  idx_kb_chunks_jurisdiction  idx_kb_chunks_source_level  idx_kb_chunks_jurisdiction_matter  idx_kb_chunks_data_level  idx_kb_chunks_matter_data_level  idx_kb_chunks_embedding  idx_kb_chunks_sanitization 
+[TIME] vector count query : 178 ms matter-scoped:   1828 
+
+=== EMBEDDING LANE ===
+[TIME] nomic-embed-text : 2085 ms dims=768
+
+=== OPENVIKING STORAGE ===
+openviking data: 11M	/app/.openviking
+openviking mounts:
+C:\Users\pacga\github-pr\pacgate-law\pacgate-ai\deploy\client-bundle\openviking -> /app/.openviking

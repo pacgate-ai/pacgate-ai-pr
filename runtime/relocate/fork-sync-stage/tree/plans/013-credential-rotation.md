@@ -1,0 +1,371 @@
+# 013 — Credential Rotation and History Purge
+
+Priority: **P0 — do this before anything else** · Effort: **S–M** · Depends on: —
+
+## Status
+
+Redaction is **done and pushed to origin**. The fork is a **one-click fix** (see
+below) — no credential transfer needed. Rotation and history purge are
+**outstanding**.
+
+## Push state (verified 2026-09-16)
+
+| Location | State |
+| --- | --- |
+| Local `HEAD` (`af8438c`) | redacted |
+| `origin/main` (`JZKK720`) | **redacted — pushed and verified** |
+| fork `main` (`pacgate-ai`) | **STILL LIVE — but fixable without credentials** |
+
+## Recommended fix for the fork: GitHub's Sync fork (no git credentials)
+
+`git push` to the fork fails with `permission denied` because
+`git-credential-manager` holds credentials for **`JZKK720` only** (confirmed via
+`git-credential-manager github list`). **No credential needs to be transferred to
+git** — the fork is a strict ancestor of `origin/main`, so it can be
+fast-forwarded from the browser:
+
+1. Sign in to GitHub **in the browser** as an account with write access to
+   `pacgate-ai/pacgate-ai-pr` (its owner is the `pacgate-ai` account).
+   *"Sync fork" is only rendered for users with write access* — it is not visible
+   signed-out, so this step is required.
+   **Use the rotated password, not the leaked one** (see Step 1).
+2. Open `https://github.com/pacgate-ai/pacgate-ai-pr`.
+   GitHub reports *"This branch is 9 commits behind JZKK720/pacgate-ai-pr:main"*.
+3. Click **Sync fork → Update branch**.
+
+Verified preconditions — GitHub's own compare view states *"Able to merge. These
+branches can be automatically merged."*:
+
+| Check | Result |
+| --- | --- |
+| fork `main` is an ancestor of `origin/main` | **yes** |
+| fork has commits origin lacks (would block non-FF) | **none** |
+| GitHub compare verdict | **Able to merge** (fast-forward) |
+| all three credential files redacted at `origin/main` | **yes** |
+| workflow fix present at `origin/main` | **yes** |
+
+Then re-run `scripts/check-credential-state.ps1` — all three columns must read
+`clean`.
+
+> **Do NOT sign in to git (or GitHub) using the leaked password.** The value is
+> compromised; rotate first, then sign in with the new one.
+
+**Fallback** (only if you prefer git, requires interactive sign-in):
+
+```powershell
+git credential-manager github login            # sign in as the pacgate-ai account
+git push https://github.com/pacgate-ai/pacgate-ai-pr.git main
+git credential-manager github logout JZKK720   # return to the original account
+```
+
+## Why this is P0
+
+On 2026-09-15 a credential sweep found three tracked files holding **real,
+working credentials** in a **public** repository. Redacting them stops *new*
+exposure from fresh clones of `HEAD`. It does **not**:
+
+- undo the exposure that already happened,
+- remove the values from git history, or
+- remove them from every existing clone (both AIPCs have one).
+
+**Treat every value below as compromised. Rotation is mandatory, not optional.**
+
+## What was exposed
+
+| File | Exposed material |
+| --- | --- |
+| `pacgate-ai/pacgate-ai-assets/…/pacgate-ai-remote-handbook/OPERATOR.md` | `pacgate-ai` GitHub account email, ID, and plaintext password |
+| `pacgate-ai/pacgate-ai-assets/…/MCP授权/法律数据库MCP.md` | Legal-portal unified login + password (chineselaw / pkulaw / qcc) |
+| `pacgate-ai/pacgate-ai-assets/…/MCP授权/境外法律数据库和网站.md` | CourtListener, Vaquill, EUR-Lex, Ansvars, fyopen passwords **and two API keys** |
+
+All three were present on both `origin/main` (`JZKK720`) and fork `main`
+(`pacgate-ai`), both public, introduced by `01a4644` (2026-08-13).
+
+## Done already (2026-09-15/16)
+
+- All 10 credential-bearing lines **redacted** in place; markdown tables left
+  structurally intact so they still render.
+- `OPERATOR.md`'s false claim *"This file is gitignored"* corrected, and its
+  "look up the value in the table above" instruction repointed at the password
+  manager.
+- Root `.gitignore` hardened with a credential-hygiene block. Note the
+  `pacgate-ai-assets` subtree previously had **no** guard at all.
+- Repo-wide re-scan returns **CLEAN** (no literal credential values in tracked
+  text files).
+- Redaction pushed to `origin` and verified by reading the remote blob, not by
+  trusting the push.
+
+## ⚠️ Sequencing: do the GHCR release BEFORE the history rewrite
+
+The two outstanding items interact, and the order matters:
+
+1. **First, sync the fork** (one click, above) and **fire the GHCR release**
+   (`plans/011` / `012`). The workflow fix now lets CI go green, and this is the
+   first release carrying the `.docx` and search fixes.
+2. **Then rotate and rewrite history.**
+
+Why this order: the release publishes **image tags**, not commits. A force-push
+rewrite after the release does not invalidate published tags, so clients keep
+pulling the same images. Doing it the other way round means rebuilding and
+re-tagging a release immediately afterwards.
+
+Evidence this is safe: the currently published images carry **no**
+`org.opencontainers.image.source` label (they predate the provenance labels
+added in `48eb8c1`), so no package is bound to a specific commit. Even so,
+**verify pullability after any force-push** before relying on it:
+
+```powershell
+.\scripts\check-ghcr-pull.ps1 -Targets "pacgate-ai/pacgate-api:0.1.9","pacgate-ai/pacgate-mcp:0.1.9","pacgate-ai/deer-flow-pacgate:0.1.10","pacgate-ai/deer-flow-frontend-pacgate:0.1.11"
+```
+
+### ⚠️ The purge breaks `install.ps1 -Update` on both AIPCs (found 2026-09-16)
+
+**Status: release 0.1.13 is done, so the rewrite is now unblocked. But do NOT run
+it without reading this.**
+
+Measured blast radius (dry run, this tree):
+
+| Measure | Value |
+| --- | --- |
+| Commits rewritten | **185 of 188** (`01a4644..HEAD`) |
+| Tags invalidated | 7 local (`v0.1.3`..`v0.1.9`); the fork's tags are separate objects |
+| Repos affected | origin **and** fork — `01a4644` is an ancestor of both |
+
+The coupling nobody had noted: **plan 014 step 1 makes `-Update` run
+`git pull --ff-only`, and a force-pushed rewrite is by definition not
+fast-forwardable.** So on any machine holding an existing clone — both AIPCs —
+the sequence is:
+
+1. You force-push the rewritten history.
+2. AIPC runs `.\install.ps1 -Update`.
+3. `git pull --ff-only` fails; install.ps1 prints
+   `[WARN] Repo has diverged from origin/main - not fast-forwardable` and
+   **skips the repo refresh while continuing with the image update.**
+
+Step 3 is the designed, safe behaviour (it refuses rather than merging), and it is
+why the purge is not an emergency: the machine keeps working on its current repo
+content and still picks up new images. But it means **the repo-based half of every
+future update silently stops landing** on that machine until someone re-clones.
+That is precisely the silent-staleness class plan 014 exists to eliminate, so the
+rewrite must be paired with a re-clone of both AIPCs, not treated as a
+repo-side change that arrives by itself.
+
+Required sequence if the purge is run:
+
+1. Rotate (Step 1 below) — unchanged, and still the part that actually reduces risk.
+2. Purge + force-push both remotes.
+3. **Re-clone on AIPC1 and AIPC2**, or `git fetch && git reset --hard origin/main`
+   on each, then verify with `.\scripts\verify-delivery-state.ps1`
+   (`fork == origin` must read yes).
+4. Confirm `-Update` is fast-forwardable again on both machines.
+
+Note 3 is the step that is easy to forget, because the failure it prevents is
+invisible: nothing errors, the repo just stops moving.
+
+
+## Step 1 — Rotate (do this first)
+
+Rotation must precede the history purge: the purge removes the values from
+history, but anyone who already cloned has them.
+
+### Verified account state (2026-09-16, checked directly in the browser)
+
+**The security log shows no sign of misuse.** Every event is from Thailand
+(`124.120.26.84` — this operator) or Beijing (`210.12.78.25` — the firm), with
+Singapore `77.83.241.96` for the Copilot Chat app. Every login shows
+`user.new_device_used` → `two_factor_requested` → `two_factor_challenge_success`,
+i.e. **2FA was satisfied on every sign-in**. No unexplained geolocation, no
+unrecognised access. The keys were public, but nothing indicates they were used.
+
+That is a reason to stop treating this as an emergency — not a reason to skip it.
+Published keys must still be assumed compromised.
+
+**Personal access token revoked:** `pacgate-ghcr-push` (`write:packages`, created
+2026-09-13 16:43 GMT+7 from Beijing) — **now deleted**. Verified redundant before
+revoking: the release workflow authenticates with
+`secrets.GITHUB_TOKEN` (`build-ghcr.yml:95`) and greps to **zero** references to
+any PAT secret, and no script under `scripts/` reads `GHCR_PAT` /
+`PACKAGES_TOKEN` / `GITHUB_TOKEN`. It was superseded by the per-repo token that
+0.1.12/0.1.13 already use.
+
+**Authorized OAuth apps on `pacgate-ai` — 8, with usage:**
+
+| App | Last used | Note |
+| --- | --- | --- |
+| Visual Studio Code | within the last week | **in use — keep** |
+| Git Credential Manager | within the last 3 weeks | **in use — keep** |
+| Cloudflare | within the last 2 weeks | **in use — keep** |
+| Apify | never | revoke candidate |
+| Ollama | never | revoke candidate |
+| OpenRouter | never | revoke candidate |
+| Tailscale | never | grant now stale; tokens already re-issued Sep 11 |
+| FireCrawl | (token re-issued Sep 11) | keep if FireCrawl is in use |
+
+The original redaction note said "remove the OAuth grant" for every app. That is
+too blunt by half: three are actively used, and revoking *Visual Studio Code* or
+*Git Credential Manager* would break the tooling doing this work, while revoking
+Tailscale could cut remote access to the AIPCs.
+
+### ⚠️ Two things the original plan missed
+
+**(1) The API keys ARE consumed at runtime, so rotation is not purely external.**
+
+Verified wiring (names, not values):
+
+| Key | Referenced in |
+| --- | --- |
+| `COURT_LISTENER_API_KEY` | `compose.prod.yaml` (passed to pacgate-search) |
+| `VAQUILL_API_KEY` | `compose.prod.yaml`, `.env.example`, Rust (3 refs) |
+| `FYOPEN_API_KEY` | `compose.prod.yaml`, Rust (4 refs) |
+| `ANSVAR_API_KEY` | `compose.prod.yaml`, `.env.example`, Rust (1 ref) |
+| `YUANDIAN_API_KEY` / `PKULAW_API_KEY` / `QCC_API_KEY` | `compose.prod.yaml`, Rust (4 refs each) |
+| `OPENCORPORATES_API_KEY` | `compose.prod.yaml`, `.env.example`, Rust (3 refs) |
+| `FIRECRAWL_API_KEY` | `qm.config.jsonc` (sandbox `secretEnv`) |
+
+Because `compose.prod.yaml` loads all `API_KEY`-suffixed vars into the container,
+**rotating one of these means editing `.env` on every AIPC too** or that connector
+stops answering. That is a deployment step, not just account hygiene — and it is
+why rotation needs a per-machine checklist, not only dashboard visits.
+
+**(2) The real rotation burden is a shared Outlook account.**
+
+At least **seven** services authenticate with `pacgate.ai01@outlook.com`
+(sometimes as user `PacgateLaw`): courtlistener, vaquill, eur-lex, ansvar,
+fyopen, chineselaw, pkulaw, qcc. Rotating each *service* password is
+straightforward; rotating the *identity* that resets them all is the riskier
+change and should be decided deliberately. The exposure includes the account
+password and an MCP "统一密码" (a single shared password for the Chinese
+databases), so several services likely share one secret — meaning one reset may
+cover many rows.
+
+### Actions
+
+| Credential | Action | Owner |
+| --- | --- | --- |
+| `pacgate-ghcr-push` PAT | ✅ **revoked** (redundant) | done |
+| Apify / Ollama / OpenRouter OAuth grants | ✅ **revoked** — never used | done |
+| Tailscale OAuth grant | Revoke if Tailscale is not needed for AIPC access | decide |
+| `pacgate-ai` GitHub password | Change, then `git credential reject` locally | **you** — I will not touch credentials |
+| courtlistener / vaquill API tokens | Regenerate in their dashboards | **you** |
+| The 6 Chinese/overseas DB passwords | Reset via the Outlook account; use a password manager, never a repo file | **you** |
+| `.env` on each AIPC | Update the rotated connector keys | follow-up per machine |
+
+**Good news:** GHCR images are pulled **anonymously**, so neither the password
+rotation nor revoking OAuth grants affects client installs or the image
+packages. Package visibility is governed separately.
+
+### ⚠️ Correcting the priority: this is NOT a client-deployment blocker
+
+The user pushed back with a concrete argument — *"these are the client's private
+credentials, each implementation and deployment is different, so why rotate now?"*
+— and **the argument is right.** I had overstated the operational coupling by
+reading a comment as a requirement.
+
+What I claimed vs what the evidence shows:
+
+| Claim I made | Reality |
+| --- | --- |
+| "The API keys are consumed at runtime" | True but misleading: `env_file: .env` **tolerates** them |
+| "Rotating one means editing `.env` on every AIPC" | **Wrong.** No connector key is *required* — verified: not one appears as a bare `${VAR}` in `compose.prod.yaml`. They are named only in a comment (`compose.prod.yaml:32-34`) and loaded via `env_file` (`:35-36`) |
+| "The real burden is a shared Outlook account" | True, but it is the **firm's** account for the **firm's** research sources |
+
+**A client deployment is unaffected.** `deploy/client-bundle/.env.example`
+declares only `PACGATE_DB_PASSWORD`, `PACGATE_JWT_SECRET`, `PACGATE_TENANT_ID`,
+`PACGATE_API_EMAIL`, `PACGATE_API_PASSWORD`, `PACGATE_JWT_TOKEN`,
+`PACGATE_MATTER_ID`, `PACGATE_COOKIE_SECURE`, `GATEWAY_CORS_ORIGINS`,
+`OPENVIKING_ROOT_API_KEY`, `OPENVIKING_API_KEY` — **not one connector key.** Absent
+them, connectors report `available=false` and search falls back to free sources:
+a documented graceful degradation, not a broken install.
+
+So rotation is **internal hygiene on the firm's own paid accounts** — worth doing,
+entirely on the firm's schedule, blocking nothing.
+
+**And it is weaker than I framed it.** The security log shows 2FA satisfied on
+every sign-in and all events from Thailand (operator) or Beijing (firm). No misuse
+indicators.
+
+**One exception worth keeping distinct:** `FIRECRAWL_API_KEY` is listed in
+`qm.config.jsonc`'s sandbox `secretEnv` and is now written by `setup-qm.ps1`. That
+one **is** operationally relevant to a deployment, though still optional.
+
+### Revocation record (2026-09-16)
+
+Revoked via each app's own connection page
+(`/settings/connections/applications/<id>`), **not** the page-level "Revoke all" —
+worth noting because the app-list page exposes `Revoke` buttons that open a dialog
+reading *"revoke access for everything"*. Selecting that would have revoked all 8,
+including three in active use. The per-app page names the app explicitly
+(*"Ollama will no longer be able to access the GitHub API"*), which is the
+confirmable control.
+
+| App | Result |
+| --- | --- |
+| Apify | revoked |
+| Ollama | revoked |
+| OpenRouter | revoked |
+
+**Grants: 8 → 5.** Remaining are exactly the ones to keep: Cloudflare (used 2
+weeks ago), FireCrawl, Git Credential Manager (3 weeks — this is what authenticates
+`git push`), Tailscale (decision pending), Visual Studio Code (last week — the
+tooling). Verified afterwards that `git ls-remote` still authenticates and
+`verify-delivery-state.ps1` still passes: **nothing depended on the revoked grants.**
+
+
+
+## Step 2 — Purge history
+
+Both repos need this, and the rewrite is **destructive** — coordinate first.
+
+```powershell
+# Install once: pip install git-filter-repo
+git filter-repo --invert-paths `
+  --path "pacgate-ai/pacgate-ai-assets/pacgate-ai/assets/assets/pacgate-ai-remote-handbook/OPERATOR.md" `
+  --path "pacgate-ai/pacgate-ai-assets/pacgate-ai/assets/assets/智库资料收集/智库资料收集/MCP授权/法律数据库MCP.md" `
+  --path "pacgate-ai/pacgate-ai-assets/pacgate-ai/assets/assets/智库资料收集/智库资料收集/MCP授权/境外法律数据库和网站.md"
+```
+
+Then force-push **both** remotes and tell anyone with a clone to re-clone rather
+than pull. A rewrite changes every commit hash from `01a4644` onward.
+
+Before publishing this, consider whether the whole `pacgate-ai-assets/` subtree
+(59 files of client business material) belongs in a public repo at all. Removing
+three files fixes this incident; a subtree that was never intended for the public
+eye is the underlying condition.
+
+## Step 3 — Prevent recurrence
+
+- [ ] The `.gitignore` hygiene block is in place (done).
+- [ ] Add a CI secret scan (`gitleaks` or GitHub secret scanning) so a future
+      leak fails the pipeline instead of reaching `main`.
+- [ ] **Extend the audit method.** The 2026-09-01 public-flip audit cleared this
+      repo while all three files were present. It searched token *literals*
+      (`sk-`, `ghp_`, `AKIA`, `xox`, PEM, Bearer) and never matched
+      password-shaped prose or markdown tables. My own first generic scanner
+      missed them the same way. A publish-readiness audit must cover:
+      - CJK credential keywords — `密码` / `密钥` / `账号` / `账户` / `统一登录`
+      - markdown **table** credential rows, not just `key: value`
+      - filenames announcing secrets — `OPERATOR.md`, `*授权*`, `*密钥表*`
+      - **the whole history**, not just `HEAD`
+- [ ] Run `scripts/detect-literal-credentials.ps1` before any visibility change.
+
+## Verification
+
+```powershell
+# Must print CLEAN
+pwsh -NoProfile -File .\scripts\detect-literal-credentials.ps1
+
+# Confirm the three files are gone from history
+git log --all --oneline -- "**/OPERATOR.md" "**/法律数据库MCP.md" "**/境外法律数据库和网站.md"
+
+# Confirm the repos still serve images (rotation must not break this)
+.\scripts\check-ghcr-pull.ps1 -Targets "pacgate-ai/pacgate-api:0.1.9"
+```
+
+## Definition of done
+
+- Every credential in the table above is rotated.
+- OAuth grants on the `pacgate-ai` account reviewed and pruned.
+- Both repos rewritten and force-pushed; collaborators advised to re-clone.
+- `git log --all` no longer finds the three files.
+- A secret-scanning gate exists so the next one fails CI.
+- Decision recorded on whether `pacgate-ai-assets/` stays public.

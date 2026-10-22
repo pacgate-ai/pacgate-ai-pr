@@ -28,46 +28,66 @@
 # `model '<tag>' not found`. `:cloud` tags are exempt - they need no local weights.
 # scripts/audit-model-tags.ps1 enforces this.
 
-# Pacgate 2026-10-10 (AIPC1-ONLY fallback, pre-authorized in
-# HANDOFF-PUSH-AND-REBUILD-0.1.25.md): gemma4-12b is now the DEFAULT on this
-# machine. Evidence (runtime/diag1..6-*-1010): nemotron-30b is 24.05GB total
-# against 16GB VRAM - 13GB in VRAM + ~11GB spilled to host RAM. With the host
-# at 0.45GB free RAM the spilled pages thrash: today's Ollama log shows 13
-# evictions, 18 server errors, 34 model loads and 30 slow POSTs in ~2.5h, and
-# a 27-token test call queued 108s behind an 18k-token agent call (prefill on
-# the spilled half ran at ~195 t/s vs ~580 t/s fully-in-VRAM). gemma4:12b
-# (12GB q8_0) fits ENTIRELY in VRAM: no spill, no evictions, ~3x faster
-# prefill, and host RAM recovers ~16GB. Tag choice: q8_0 (NOT qat) because
-# openviking's VLM and pacgate-api's workflow tiers (.env PACGATE_MODEL_*)
-# already use q8_0 on this machine - one shared runner slot, zero cross-lane
-# swaps. nemotron stays in the picker as a deliberate heavy option. This
-# roster change is LOCAL-ONLY (user directive 2026-09-21/10-09): do NOT
-# upstream. The 2026-10-07 nemotron max_tokens cap note still applies to the
-# nemotron entry below (thinking-loop guard).
-#
-# ── 2026-10-16 CONTEXT-CAP FIX (LOCAL-ONLY) — resolves the AIPC1 memory wall ──
-# Root cause of the "every session hits the RAM wall" symptom: `gemma4:12b-it-q8_0`
-# declares a 262144-token context. deer-flow calls Ollama over the OpenAI-compat
-# route (`/v1/chat/completions`), and Ollama 0.40.5 auto-fits THAT route up to the
-# model's full declared context — a per-request `options.num_ctx` is not honoured
-# there, and the server-side `OLLAMA_CONTEXT_LENGTH` default is not applied to it
-# either (both verified 2026-10-16). gemma4 uses mostly sliding-window layers
-# (n_swa 1024) but 8 GLOBAL-attention layers whose KV grows linearly with context;
-# at 262144 those 8 layers alone need ~2176 MiB of KV, which does not fit beside
-# the 11613 MiB of weights in the 16GB card. Ollama therefore splits the runner
-# across CPU+GPU ("2%/98% CPU/GPU"): ~12.4 GB of weights get CPU-mapped and ~8.5 GB
-# of KV lands in host RAM, so llama-server commits ~21 GB and host free RAM sits at
-# ~1 GB. That is the wall — before any container is even counted.
-#
-# Fix: use the DERIVED tag `gemma4-legal:12b-chat` = `FROM gemma4:12b-it-q8_0` with
-# `PARAMETER num_ctx 131072`. 131072 is still >3x the 40000 auto-escalation
-# threshold below, so usable context is unchanged; the runner fits 100% in VRAM.
-# Recreate it with: deploy/client-bundle/ensure-context-capped-model.ps1 (see ollama-models.txt).
-# Verified 2026-10-16: 100% GPU, VRAM 15567 MiB, llama-server commit 21.0 GB -> 13.0 GB,
-# host free 1.2 GB -> 9.7 GB, cold load 165 s -> 20 s, vision still correct.
-# NOTE: every local role below points at this SAME tag on purpose — a mixed roster
-# would swap the two variants in and out of VRAM on every background call.
+# Pacgate 2026-10-07: nemotron-3.5-lightning is now the DEFAULT. It is the most
+# capable local MOE (1M context, tools + thinking) and benchmarked clean end to
+# end. CRITICAL: its max_tokens MUST stay at 8192 or below. Nemotron's thinking
+# channel can run unbounded on this Ollama build - with the previous 16384 cap it
+# burned the entire budget on thinking tokens, produced no visible content, and
+# tripped deer-flow's 420s stall detector ("no astream output ... aborting").
+# Verified 2026-10-07: num_predict 300/1024 -> clean stop, correct content;
+# unset/16384 -> 14k+ token thinking loops with empty content.
+# Why 8192 and not lower: nemotron generates at ~24 t/s on the 8060S iGPU, so
+# 8192 tokens is ~5.7 min of worst-case generation - inside the 420s stall
+# detector's window only because thinking tokens stream continuously and reset
+# it. 4096 was tested first but is too tight for heavy research runs (thinking +
+# long answers share one budget). Do NOT raise back to 16384.
 models:
+  # Pacgate 2026-10-19: WITHDRAWN from the shipped picker - 25.0 GB against a
+  # 16 GB AIPC card. On the dev box (96 GiB) it is excellent; on a client AIPC it
+  # cannot fit, so Ollama spills to CPU and the run presents as a hang with no
+  # error. Measured residency 25.0 GB (scripts/test-aipc-capacity-fit.ps1). Kept
+  # here, commented, so a larger machine can restore it deliberately.
+  #
+  # WITHDRAWING IT ALSO MOVED models[0]. The first ACTIVE entry is what an
+  # unpinned lane falls back to; that was this 30B, which is the 2026-10-17
+  # defect (every new thread loaded 25 GB). It is now gemma4-12b-local (7.2 GB).
+  # Do not re-order the list without checking what sits first.
+  # - name: nemotron-3.5-lightning-30b-local
+  #   display_name: Nemotron 3.5 Lightning 30B (Local)
+  #   description: 1M-token MOE. Requires 25 GB VRAM - NOT available on a 16 GB AIPC.
+  #   use: langchain_openai:ChatOpenAI
+  #   model: nemotron-3.5-lightning:30b-a3b
+  #   api_key: ollama
+  #   base_url: http://host.docker.internal:11434/v1
+  #   max_tokens: 8192
+  #   temperature: 0.1
+  #   supports_thinking: true
+  #   # Long thinking pauses on a 30B reasoning model - raise the stream chunk
+  #   # timeout so the gateway does not drop the connection mid-thought.
+  #   stream_chunk_timeout: 300
+
+  # ── AIPC1 CONTEXT-CAP (LOCAL-ONLY, 2026-10-16) ──────────────────────────────
+  # Every local role below points at the DERIVED tag `gemma4-legal:12b-chat`
+  # (= FROM gemma4:12b-it-q8_0 + PARAMETER num_ctx 131072), not at the upstream
+  # `gemma4:12b-it-qat`. Two reasons, both measured on THIS box:
+  #
+  # 1. The base tags declare a 262144-token context. deer-flow calls Ollama over
+  #    the OpenAI-compat route, where a per-request `options.num_ctx` is NOT
+  #    honoured and the server-wide OLLAMA_CONTEXT_LENGTH default is not applied
+  #    either (both verified 2026-10-16). gemma4 has 8 GLOBAL-attention layers
+  #    whose KV grows linearly; at 262144 those alone need ~2176 MiB, which does
+  #    not fit beside the weights, so Ollama splits the runner across CPU+GPU and
+  #    commits 18-27 GB of host RAM. That is the wall that stalled every session.
+  #    Capping in the TAG is route-independent and per-model, so it is the only
+  #    mechanism that works. Verified: 100% GPU, host free RAM 1.2 -> 9.7 GB,
+  #    cold load 165 s -> 20 s, vision still correct.
+  # 2. pacgate-api's workflow tiers (.env PACGATE_MODEL_MAIN/LOW) and openviking's
+  #    VLM already use this same tag. Converging deer-flow on it means ONE
+  #    resident model - a mixed roster would swap variants in and out of VRAM on
+  #    every background call.
+  #
+  # Recreate the tag with deploy/client-bundle/ensure-context-capped-model.ps1.
+  # Per-machine value: do NOT upstream this roster (user directive 2026-09-21).
   - name: gemma4-12b-local
     display_name: Gemma 4 12B (Local)
     description: >-
@@ -83,120 +103,49 @@ models:
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 8192
     temperature: 0.1
-    # ── 2026-10-16 REASONING-BURN FIX (LOCAL-ONLY) ──────────────────────────
-    # This entry declared no thinking settings at all, which made the UI's
-    # "thinking off" toggle a NO-OP for the local chat model: factory.py only
-    # emits a disable directive when `has_thinking_settings` is true (i.e. the
-    # entry declares `when_thinking_enabled` or `thinking`), so with neither
-    # declared nothing was sent and Ollama defaulted to reasoning ON.
-    # Verified on Ollama 0.40.5: reasoning_effort=none is the ONLY lever that
-    # works (thinking.type=disabled and think=false are both ignored).
-    # Thinking ON is unaffected: when_thinking_enabled is empty, so no directive
-    # is sent and the model reasons as before.
+    # Pacgate 2026-10-20: SUPPRESS THE REASONING CHANNEL on local models too.
+    #
+    # The two cloud entries below have carried this fix since 2026-10-09; the
+    # local ones never did, and the omission was expensive. gemma4 is a
+    # thinking-capable model, so when the caller builds it with
+    # thinking_enabled=False and the config sets NO when_thinking_disabled,
+    # `deer-flow-model-factory.py` matches none of its disable branches and
+    # sends nothing - the model then spends the whole max_tokens budget on
+    # invisible `reasoning` and returns EMPTY content.
+    #
+    # Measured live 2026-10-20 against the local Ollama /v1 endpoint with a
+    # title-shaped prompt (max_tokens 200):
+    #   without reasoning_effort=none -> 7.7 s, 200/200 tokens, 809 chars of
+    #                                    reasoning, content = "" (finish=length)
+    #   with    reasoning_effort=none -> 0.48 s, 9 tokens, clean title
+    # That is 16x the latency for zero output on EVERY title, memory and
+    # summarization call, and it also holds the Ollama server slot open that
+    # much longer - which is exactly what makes concurrent utility lanes look
+    # like a hang. `supports_reasoning_effort` must be true as well or the
+    # factory strips the key again (see the pop at the end of the merge).
+    supports_thinking: true
     supports_reasoning_effort: true
     when_thinking_disabled:
       reasoning_effort: none
-
-  - name: nemotron-3.5-lightning-30b-local
-    display_name: Nemotron 3.5 Lightning 30B (Local, heavy)
-    description: >-
-      Most capable local MOE (1M context, thinking + tools) but 24GB total on
-      a 16GB VRAM card: ~11GB spills to host RAM. On AIPC1 this caused
-      eviction/reload cycling (13 evictions in 2.5h on 2026-10-10) and
-      2-3min first-token latency under RAM pressure. Pick deliberately for
-      1M-ctx workloads; expect slow prefill while host RAM is tight.
-      max_tokens MUST stay at 8192 or below (thinking-loop guard).
-    use: langchain_openai:ChatOpenAI
-    model: nemotron-3.5-lightning:30b-a3b
-    api_key: ollama
-    base_url: http://host.docker.internal:11434/v1
-    max_tokens: 8192
-    temperature: 0.1
-    supports_thinking: true
-    # Long thinking pauses on a 30B reasoning model — raise the stream chunk
-    # timeout so the gateway does not drop the connection mid-thought.
-    stream_chunk_timeout: 300
 
   # Dedicated memory-update model. Referenced by memory.model_name below.
   # Background memory updates run OUTSIDE any user-visible run, so a runaway
   # generation here hogs the single Ollama runner slot and stalls every chat
   # (observed 2026-10-07: 43k+ token loop). Memory facts are short JSON - a hard
   # 2048 cap is generous and cannot loop meaningfully.
-  # Pacgate 2026-10-08 (tuning pass, LOCAL-ONLY): helper entries pinned to the
-  # SAME tag as the chat default (nemotron-30b) = zero VRAM swap. gemma4 and
-  # nemotron cannot coexist in 16GB VRAM (23.7GB + 6.5GB weights), so every
-  # background call on gemma4 evicted the chat model and paid 9-37s reloads
-  # (10 reloads in 11 min observed). The max_tokens caps keep the
-  # runaway-generation protection.
   - name: gemma4-12b-memory
-    display_name: "[internal] Memory updater (Gemma 12B, capped)"
-    description: Internal background memory-update model. Hard 2048-token cap. Same context-capped tag as chat default - no VRAM swap. Not intended for chat; kept visible because deer-flow has no hide-from-picker flag (frontend filter = upstream-PR candidate).
+    display_name: Gemma 4 12B (Memory, capped)
+    description: Internal model for background memory updates. Hard 2048-token cap. Same context-capped tag as the chat default - no VRAM swap. Safe to pick for short tasks.
     use: langchain_openai:ChatOpenAI
     model: gemma4-legal:12b-chat
     api_key: ollama
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 2048
     temperature: 0.1
-    # ── 2026-10-16 REASONING-BURN FIX (LOCAL-ONLY) ──────────────────────────
-    # Same defect the two cloud models below were fixed for on 2026-10-09, but
-    # never applied to the local roles. Verified by direct reproduction of this
-    # exact call path (MemoryUpdater._get_model() -> model.invoke()):
-    #   completion_tokens=2048, content="" (0 chars), finish_reason="length"
-    #   -> _parse_memory_update_response raises
-    #      "No valid memory update JSON object found: line 1 column 1 (char 0)"
-    # The 2048 cap was consumed ENTIRELY by the model's separate `reasoning`
-    # channel, so the JSON body was never emitted. 100% failure rate, ~174 s
-    # burned per attempt on the single Ollama runner slot.
-    #
-    # Why the existing guards did not catch it: factory.py only emits a disable
-    # directive when `has_thinking_settings` is true, i.e. when the entry
-    # declares `when_thinking_enabled` or `thinking`. This entry declared
-    # neither, so `thinking_enabled=False` from updater.py:395 was a no-op and
-    # NO directive was sent — Ollama then defaulted to reasoning ON.
-    #
-    # Verified on Ollama 0.40.5 /v1/chat/completions (A/B/C/D, same prompt):
-    #   no control            -> reasoning 1970 chars, 35 s
-    #   reasoning_effort=none -> reasoning    0 chars, 10 s   <-- only working lever
-    #   thinking.type=disabled-> reasoning 1945 chars, 33 s   (IGNORED)
-    #   think=false           -> reasoning 1963 chars, 33 s   (IGNORED)
-    # supports_reasoning_effort MUST be true or factory.py pops the key back out.
-    supports_reasoning_effort: true
-    when_thinking_disabled:
-      reasoning_effort: none
-
-  - name: gemma4-12b-summarizer
-    display_name: "[internal] Summarizer (Gemma 12B, capped)"
-    description: Internal conversation-summarization model. Hard 4096-token cap. Same context-capped tag as chat default - no VRAM swap. Not intended for chat.
-    use: langchain_openai:ChatOpenAI
-    model: gemma4-legal:12b-chat
-    api_key: ollama
-    base_url: http://host.docker.internal:11434/v1
-    max_tokens: 4096
-    temperature: 0.1
-    # Same reasoning-burn fix as gemma4-12b-memory above (verified 2026-10-16).
-    # The summarizer is the most expensive internal role (it receives ~17k real
-    # tokens, see the summarization block below), so an unsuppressed reasoning
-    # channel here is the single largest avoidable cost on the runner slot.
-    supports_reasoning_effort: true
-    when_thinking_disabled:
-      reasoning_effort: none
-
-  # Pacgate 2026-10-15: explicit pin for the title role (see the `title:` block).
-  # Previously unpinned, so title fell through to models[0] - local only by
-  # ordering accident. Same tag as chat default and the other internal roles, so no
-  # VRAM swap. The cap matches the memory updater's; title output is a few words.
-  - name: gemma4-12b-title
-    display_name: "[internal] Title generator (Gemma 12B, capped)"
-    description: Internal first-exchange title model. Hard 2048-token cap. Same context-capped tag as chat default - no VRAM swap. Not intended for chat.
-    use: langchain_openai:ChatOpenAI
-    model: gemma4-legal:12b-chat
-    api_key: ollama
-    base_url: http://host.docker.internal:11434/v1
-    max_tokens: 2048
-    temperature: 0.1
-    # Same reasoning-burn fix as gemma4-12b-memory above (verified 2026-10-16).
-    # Title output is a few words; a 2048 cap spent on reasoning would truncate
-    # it to empty exactly like the memory updater.
+    # Same reasoning-channel fix as gemma4-12b-local above (2026-10-20). This
+    # entry matters MOST: memory updates are unattended and fire on every turn,
+    # so an unbudgeted reasoning burn here is invisible but constant.
+    supports_thinking: true
     supports_reasoning_effort: true
     when_thinking_disabled:
       reasoning_effort: none
@@ -226,21 +175,29 @@ models:
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 8192
     temperature: 0.1
+    # Pacgate 2026-10-20: same reasoning-channel suppression as the gemma4
+    # entries. This model is used as the pacgate-api MID tier and as a research
+    # fallback, and a MID call that silently returns empty content is
+    # indistinguishable from a hang at the UI.
+    supports_thinking: true
+    supports_reasoning_effort: true
+    when_thinking_disabled:
+      reasoning_effort: none
 
-  - name: ornith-1.5-35b-local
-    display_name: Ornith 1.5 35B (Local, heavy)
-    description: >-
-      Heaviest local model for complex research. 35B-class capability, but 21GB
-      weights exceed the 16GB VRAM budget - first use pays a 2-4min model swap
-      and runs partly from CPU. Benchmark 2026-10-08: 24.3 t/s gen, 34 t/s
-      prefill (vs default nemotron 30.7/30). Pick deliberately for hard
-      analysis; use the default for everything else.
-    use: langchain_openai:ChatOpenAI
-    model: ornith-1.5:35b
-    api_key: ollama
-    base_url: http://host.docker.internal:11434/v1
-    max_tokens: 8192
-    temperature: 0.1
+  # Pacgate 2026-10-19: WITHDRAWN from the shipped picker - 22.0 GB against a
+  # 16 GB AIPC card. Same failure mode as the 30B above: it loads, spills to CPU
+  # and presents as a stall rather than an error. Measured residency 22.0 GB
+  # (scripts/test-aipc-capacity-fit.ps1). Commented rather than deleted so a
+  # machine with more VRAM can restore it deliberately.
+  # - name: ornith-1.5-35b-local
+  #   display_name: Ornith 1.5 35B (Local)
+  #   description: Heavier local model for complex research. Requires 22 GB VRAM.
+  #   use: langchain_openai:ChatOpenAI
+  #   model: ornith-1.5:35b
+  #   api_key: ollama
+  #   base_url: http://host.docker.internal:11434/v1
+  #   max_tokens: 8192
+  #   temperature: 0.1
 
   # Pacgate 2026-09-21: DISABLED. The tag below is not pre-pulled by
   # ollama-models.txt and is not installed on either AIPC. Selecting it in the
@@ -274,9 +231,7 @@ models:
   #   max_tokens: 8192
   #   temperature: 0.1
   #   supports_thinking: true
-  #   stream_chunk_timeout: 300   <- was live by accident (attached to the
-  #   ornith-35b entry above); commented out 2026-10-10 during the AIPC1
-  #   fallback edit. Re-enable inside the 26b block if that entry returns.
+    stream_chunk_timeout: 300
 
   # ── Cloud-routed models (via ollama.com / `ollama signin`) ────────────────
   # Pacgate 2026-10-07 (rev 2, per user choice): the cloud roster is the TWO
@@ -358,20 +313,30 @@ models:
 # chooses it explicitly. Only the AUTOMATIC path changed.
 model_routing:
   enabled: true
-  # Pacgate 2026-10-07: nemotron is now BOTH the default and the escalation
-  # target. Its 1M context makes the old gemma4-overflow escalation redundant -
-  # the model that overflows at 40k tokens is no longer the one holding the
-  # conversation. local_model and cloud_model point at the same entry; the
-  # schema key name is unchanged (renaming would break deer-flow's config).
-  # Pacgate 2026-10-10 (AIPC1 fallback): both targets = gemma4-12b-local.
-  # With the default AND escalation target on the same fully-in-VRAM model,
-  # escalation is a no-op by design - the point is that no automatic path can
-  # pull the 24GB nemotron into VRAM behind the user's back.
+  # Pacgate 2026-10-19: the escalation target is gemma4-12b-local (7.2 GB). It was
+  # nemotron-3.5-lightning-30b-local until that entry was withdrawn for not fitting
+  # a 16 GB AIPC card - and leaving it here would have been worse than the picker
+  # bug it came from: escalation fires AUTOMATICALLY, so a 25 GB target would load
+  # on a 16 GB machine without anyone choosing it. That is the silent stall this
+  # whole change exists to remove.
+  #
+  # The 2026-10-07 rationale (nemotron's 1M context made gemma4-overflow redundant)
+  # no longer holds, because that model is no longer shippable. With a 12B target,
+  # `message_token_threshold` below is doing the real work: escalation now happens
+  # when the conversation is genuinely large, and it stays on the same resident
+  # model rather than swapping in a bigger one. deer-flow's schema keeps the key
+  # name `cloud_model`; read it as "the escalation target".
   local_model: gemma4-12b-local
-  # LOCAL, not cloud. Renaming this key would break deer-flow's config schema, so
-  # it is still called cloud_model; read it as "the escalation target".
   cloud_model: gemma4-12b-local
   message_token_threshold: 40000
+  # Pacgate 2026-10-17: DEAD SIGNAL, left at the schema default on purpose.
+  # Measured live on 0.1.31: the bound surface is 44 tools (7 sandbox + 2
+  # builtins + 35 MCP), so `tool_count >= 200` is unreachable and escalation is
+  # decided by message_token_threshold ALONE. Raising MCP servers would not make
+  # it fire either - that count is the raw tool list, taken BEFORE tool_search
+  # deferral, and it never exceeds ~44 with the three servers we ship. Kept (not
+  # removed) because the key is part of deer-flow's config schema and a future
+  # deployment with a genuinely large surface can still use it.
   tool_count_threshold: 200
 
 # Pacgate 2026-10-07: pin background memory updates to a dedicated capped model.
@@ -382,73 +347,82 @@ model_routing:
 # recur. (MemoryConfig.model_name, deerflow/agents/memory/updater.py.)
 memory:
   storage_class: pacgate_deerflow_adapter.storage.PacgateMemoryStorage
-  # Pacgate 2026-10-10 (AIPC1 fallback): repinned to gemma4-12b-memory. With
-  # gemma4-q8_0 as the chat default, a nemotron-tagged memory call would swap
-  # the 24GB model into VRAM on EVERY background update - the exact failure
-  # mode documented 2026-10-08 (10 reloads in 11 min), just in reverse. A
-  # same-tag pin = no swap. The 2026-10-08 invalid-JSON concern is mitigated:
-  # the 2048 cap still holds, and gemma4's JSON reliability is why it was the
-  # memory pin originally.
   model_name: gemma4-12b-memory
 
-# Pacgate 2026-10-15: pin the TITLE role explicitly. It was the one internal role
-# with no model_name, so create_chat_model() fell through to
-# `config.models[0].name` (factory.py:105-106). That made its locality an
-# ORDERING ACCIDENT: it stays on-device only while `gemma4-12b-local` happens to
-# be the first entry in `models:`. Reorder that block and put a `-cloud` entry
-# first and the title step - which receives the FIRST USER MESSAGE, exactly like
-# the summarizer - would start egressing to ollama.com with no config change and
-# no picker interaction: the case the header above forbids ("egress as a side
-# effect of ... not touching the picker").
+# Pacgate 2026-10-17: PIN the title-generation model.
 #
-# Same tag as the chat default and the other internal roles, so this costs no VRAM
-# and introduces no swap. Title generation is bounded by
-# DEERFLOW_TITLE_INVOKE_TIMEOUT_S (8s, set in compose.*.yaml), and the middleware
-# already falls back to a local title on timeout.
+# Root cause (measured live, 2026-10-17): `title.model_name` was unset, so
+# `title_middleware.py` fell through to `create_chat_model()` with no name,
+# which resolves to `models[0]`. That is nemotron-3.5-lightning:30b-a3b, a
+# 25 GB resident model. TitleMiddleware runs on EVERY new thread, so the first
+# message of a fresh thread loaded a 25 GB model onto the single Ollama runner
+# slot. On a 16 GB dGPU that either OOMs or evicts the model the user's chat is
+# already running on, and the next real call then pays a full model reload -
+# which is what the 420 s "no astream output" stall watchdog eventually kills.
+#
+# The title prompt asks for <=6 words / <=60 chars and is already bounded by
+# DEERFLOW_TITLE_INVOKE_TIMEOUT_S=8 in compose, so it needs no 30B model.
+# gemma4-12b-local shares its Ollama tag with the memory pin above, so title and
+# memory work converge on ONE resident model instead of adding a third.
 title:
-  model_name: gemma4-12b-title
+  model_name: gemma4-12b-local
 
-# Pacgate 2026-10-09 (LOCAL-ONLY round-2 tuning, PDF-analysis thread 5d7b42df):
-# summarization.enabled is upstream; the model pin + thresholds below are
-# this machine's tuning. Round-2: trigger=12000 fired but per-call input
-# stayed ~80k because count_tokens_approximately (chars/4) UNDERCOUNTS CJK +
-# markdown ~2.7x and langchain's scaling correction is capped at 1.25x - every
-# configured value is worth ~2.2-3.3x more REAL tokens. Fix: use ~2.5x smaller
-# configured values so the REAL window matches intent (trigger 5000 ≈ 13-16k
-# real, fires early; keep 4000 ≈ 10-13k real preserved). Context floor after
-# fix: ~19.5k tools+sys + ~12k preserved + summary ≈ 33-36k.
+# Pacgate 2026-10-09: ENABLE conversation summarization. Root cause this
+# fixes: summarization was UNCONFIGURED (null -> disabled by default), so
+# long threads grew unbounded. The trigger counts MESSAGE tokens only
+# (~16k for 50 msgs) while real per-call input is ~83k (12k tools+system +
+# 16k messages + cloud overhead), so the old 48k threshold was structurally
+# unreachable - summarization never fired and every call re-sent the full
+# 83k context (1.3-1.7M tokens burned per document run, 60-120s per call).
+# All three 2026-10-08 stalls ("no astream output for 420s") happened at
+# input=64-65k. This note USED to claim that was "exactly the 65536-token ctx
+# slot Ollama allocates". That is wrong, and was corrected 2026-10-17 after
+# measuring it: deer-flow never sends `num_ctx` (this config passes only
+# max_tokens and temperature), and Ollama 0.40.5 then loads the model at its
+# OWN maximum - 262144 for gemma4, not 65536. Verified: with no num_ctx,
+# `ollama ps` reports CONTEXT 262144.
 #
-# Pacgate 2026-10-15 (MEASURED, not estimated): chars/4 was only half the story.
-# count_tokens_approximately undercounts this workload by **2.13x**, measured on
-# AIPC1 with the real 8000-counted-token summarization prompt:
-#     counted 7,981  ->  real prompt_eval_count 17,018
-# So trim_tokens_to_summarize=8000 sends ~17k REAL tokens to the summarizer, not
-# 8k. That is why a "capped" summary step is genuinely expensive:
-#     prefill 17,018 tok @ 124 tok/s = 136.8s
-#     gen      1,102 tok @   6.3 tok/s = 174.3s     -> 311.4s measured
-# and at this model's own max_tokens=4096 the generation alone is ~650s, putting
-# the step near ~787s. deer-flow cancels a run that yields no astream chunk for
-# DEERFLOW_STREAM_IDLE_TIMEOUT_S (default 420s), and a summarization step is a
-# single ainvoke inside ONE superstep, so it emits nothing for its whole
-# duration. That is exactly how run ad509d43 (thread 96a4f39e) was killed at
-# 16:07:56, 420s after its last chunk - AFTER it had already written
-# pacgate-ai-blog.docx/.pdf at 16:00:56. The budget is now 1200s (compose).
-# Keeping BOTH models pinned to the local tag is deliberate: the summarizer sees
-# the entire conversation, including matter facts, so routing it to a `:cloud`
-# model would be egress the user never chose - which this file forbids above
-# ("it does not accept egress as a side effect of prompt size, upload, or not
-# touching the picker"). Do NOT repin the summarizer to a cloud tag to make it
-# faster; trim_tokens_to_summarize is the safe lever if the step must shrink.
+# So 64-65k was the input SIZE at which the run stalled, not a hard context
+# ceiling - which is exactly why the fix was summarization (bounding input)
+# rather than a ctx change. Do not "fix" a future stall by lowering num_ctx:
+# the whole 8k -> 262k range costs only 7.7 -> 7.9 GB on gemma4, so context
+# width is not what constrains a 16 GB card. The weights are.
+# 12000 message-tokens engages after ~40 messages; keep=12000 preserves the
+# recent verbatim context. (The old note here claimed no model_name pin was
+# needed because "the summarizer runs on the default chat model (same runner
+# slot, no VRAM swap)" - that was wrong and is corrected at the pin below.)
+# Verified live
+# 2026-10-09: hook fired, summary executed, next model call input bounded
+# 32,770 (was 83k).
 summarization:
   enabled: true
-  # Pacgate 2026-10-10 (AIPC1 fallback): same-tag repin, see memory block above.
-  model_name: gemma4-12b-summarizer
+  # Pacgate 2026-10-17: PIN the summarizer model, like memory and title above.
+  #
+  # Measured live on 0.1.31: `summarization.model_name` was unset, so
+  # `_create_summarization_middleware` took its `else` branch ->
+  # `create_chat_model(thinking_enabled=False)` -> `models[0]` ->
+  # nemotron-3.5-lightning:30b-a3b, 25 GB resident. The pre-2026-10-17 comment
+  # here claimed "the summarizer runs on the default chat model (same runner
+  # slot, no VRAM swap)". That was FALSE on both counts: the middleware never
+  # receives the chat model, so it does not follow the user's picker choice, and
+  # "the default" is a 25 GB model that does not fit a 16 GB dGPU.
+  #
+  # Effect before the pin: a long thread crossing the 12000-token trigger made a
+  # SECOND invisible model call - on the same single Ollama runner slot as the
+  # user's chat, and on a different, oversized model. That is the "hang while
+  # another lane works" signature.
+  #
+  # gemma4-12b-local shares the Ollama tag `gemma4:12b-it-qat` with the memory pin,
+  # so chat, title, memory and summarization now all converge on ONE resident
+  # model. The 8192 cap is kept (not the 2048 memory cap) because summary length
+  # is less predictable than a short fact block.
+  model_name: gemma4-12b-local
   trigger:
     - type: tokens
-      value: 5000
+      value: 12000
   keep:
     type: tokens
-    value: 4000
+    value: 12000
   trim_tokens_to_summarize: 8000
 
 sandbox:
@@ -504,24 +478,33 @@ uploads:
 # The sandbox tools (bash/ls/read_file/etc.) are NOT MCP tools, so they remain
 # always-bound; only the MCP servers (pacgate/firecrawl/officecli/legal) defer.
 tool_search:
-  # PacGate 2026-10-17: RE-ENABLED. The 2026-09-12 failure was not the mechanism —
-  # it was that the routing index was empty. `build_mcp_routing_middleware` returns
-  # None unless a deferred tool carries routing.mode="prefer" AND non-empty keywords,
-  # and no connector declared either. With an empty index nothing pre-seeds the
-  # schemas a request obviously needs, so every model called an MCP tool without
-  # promoting first -> "deferred, not promoted" loop, never reaching write_file.
+  # Pacgate 2026-10-21: ENABLED, with the failure mode fixed rather than avoided.
   #
-  # Both halves are now in place: the v2.1.0 routing subsystem is back-ported
-  # (see the "on-demand tool routing" mounts in compose.bundle.yaml), and the
-  # due-diligence connectors in deer-flow-extensions-config.json declare
-  # routing.mode/keywords/priority. The keywords are the load-bearing part —
-  # without them this flag reintroduces the loop.
+  # It was disabled on 2026-09-12 with this evidence: "deferral makes ALL models
+  # call MCP tools without promoting first -> 'deferred, not promoted' loop, never
+  # reaching write_file." That was accurate, but the cause was the middleware, not
+  # the models: on a blocked call it returned an error telling the model to call
+  # tool_search first and retry. Small local models (gemma4:12b, ornith-1.5:9b)
+  # routinely fail to complete that two-step dance, so the run burned turns and
+  # never reached the tool it wanted.
   #
-  # Rationale: 153 MCP tool schemas measured 69,313 tokens of an 80,791-token prompt
-  # (~83%). Deferral replaces them with a 1,547-token names-only listing plus the
-  # tool_search tool and a ~5-schema discovery payload.
+  # patches/deer-flow-deferred-tool-filter.py now promotes the tool on first call
+  # and executes it in the SAME turn, so deferral is invisible to the model. The
+  # schema is bound from the next turn on, which is exactly when it is worth paying
+  # for.
+  #
+  # WHY IT IS WORTH IT (measured on the HX370 box, 0.1.34):
+  #   MCP tool schemas      32,023 chars (~8,005 tokens)
+  #   sandbox + builtins    10,559 chars (~2,639 tokens)
+  #   total bound           42,582 chars (~10,645 tokens)
+  # Deferring the MCP half removes 75% of the bound surface from every call. At the
+  # measured 528 tok/s prefill that is ~15 s of fixed cost per turn, on every turn.
+  #
+  # The sandbox tools (bash/ls/read_file/write_file/str_replace/glob/grep) are NOT
+  # MCP tools, so they stay always-bound - which is what the agent actually uses:
+  # across 828 checkpoints and 2,664 tool calls on this box, bash/read_file/
+  # write_file/str_replace/present_files carried 2,284 of them.
   enabled: true
-  auto_promote_top_k: 5  # clamp range is 1..5; 5 maximises keyword-hit breadth
 
 # Persist LangGraph thread state + thread list to SQLite. Without a
 # 'checkpointer' section deer-flow falls back to InMemoryStore, so the thread

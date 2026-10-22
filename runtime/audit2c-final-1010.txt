@@ -1,0 +1,4 @@
+﻿KB search lane: MCP kb_search (matter-scoped): 92ms len=2 []
+sanitize routes in OpenAPI: 
+kb/search routes: 
+document routes: 

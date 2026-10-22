@@ -1,0 +1,780 @@
+﻿=== CLEANUP AUDIT - 2026-10-10 21:19:21 ===
+
+===== 0. DISK FREE =====
+C: free 314.5 GB / used 615.9 GB
+
+===== 1. TOP-LEVEL items (nested repos measured separately) =====
+  runtime/                                405.2 MB    1747 files
+  docs/                                     0.2 MB      12 files
+  .vscode/                                  0.2 MB       2 files
+  AGENTS.md                                 0.0 MB       1 files
+  DEER-FLOW-INTEGRATION.md                  0.0 MB       1 files
+  mcp_final_verify.txt                      0.0 MB       1 files
+  mcp_verify.txt                            0.0 MB       1 files
+  verify_mcp.txt                            0.0 MB       1 files
+  .env                                      0.0 MB       1 files
+  containers.txt                            0.0 MB       1 files
+  .gitignore                                0.0 MB       1 files
+
+===== 1b. NESTED REPOS + heavy dirs (targeted) =====
+  \.git                                                         94.3 MB     443 files
+  \deer-flow\frontend\node_modules                        absent
+  \deer-flow\backend\.venv                                absent
+  \deer-flow\backend\.deer-flow                           absent
+  \pacgate-ai\deploy\client-bundle\data                      2,188.2 MB     390 files
+  \pacgate-ai\pacgate-ai\target                           absent
+  \pacgate-ai-assets                                            89.3 MB     281 files
+
+===== 2. RUNTIME/ by extension =====
+  .zip           3 files     370.58 MB
+  .pdf          81 files      21.41 MB
+  .ps1         869 files       1.73 MB
+  .html         27 files       1.65 MB
+  .yaml         55 files       1.64 MB
+  .docx         10 files       1.36 MB
+  .png          12 files       1.07 MB
+  .json         21 files       1.05 MB
+  .rs           88 files       1.02 MB
+  .md          109 files       0.98 MB
+  .txt         198 files       0.81 MB
+  .py          118 files       0.45 MB
+                16 files       0.44 MB
+  .log           8 files       0.30 MB
+  .lock          2 files       0.19 MB
+  .ts           17 files       0.14 MB
+  .svg           6 files       0.12 MB
+  .drawio        5 files       0.05 MB
+  .xlsx          5 files       0.05 MB
+  .tsx           1 files       0.04 MB
+  .patch         4 files       0.02 MB
+  .js           14 files       0.02 MB
+  .sql          11 files       0.02 MB
+  .css           2 files       0.02 MB
+  .yml           2 files       0.02 MB
+  .toml         35 files       0.02 MB
+  .conf          2 files       0.01 MB
+  .example       3 files       0.01 MB
+  .bak           1 files       0.01 MB
+  .gitattributes     1 files       0.00 MB
+  .done          3 files       0.00 MB
+  .dockerignore     1 files       0.00 MB
+  .jsonc         1 files       0.00 MB
+  .sh            1 files       0.00 MB
+  .mmd           9 files       0.00 MB
+  .gitignore     5 files       0.00 MB
+  .template      1 files       0.00 MB
+TOTAL runtime: 1747 files, 405.2 MB
+
+===== 3. RUNTIME/ age buckets =====
+  0-2d       235 files    369.29 MB
+  3-7d       297 files      0.34 MB
+  8-14d        2 files      0.01 MB
+  15-30d    1211 files     35.59 MB
+  >30d         2 files      0.02 MB
+
+===== 4. RUNTIME/ git state =====
+tracked: 230  ignored: 23  untracked-nonignored: 0
+NOTE: total files on disk = tracked + ignored + untracked-nonignored
+disk total: 1747  => untracked-nonignored = 1494
+tracked files (committed + in mirror backup):
+  runtime/AUTHORITATIVE-credential-check.ps1
+  runtime/AUTHORITATIVE-credential-status.txt
+  runtime/DELETE-IMPACT-ANALYSIS.md
+  runtime/E2E-REPORT-0.1.25-20261009.md
+  runtime/HANDOFF-PUSH-AND-REBUILD-0.1.25.md
+  runtime/README.md
+  runtime/REGRESSION-AUDIT-1010.md
+  runtime/RUNTIME-INVENTORY.md
+  runtime/VOLUME-INVESTIGATION-FINDINGS.md
+  runtime/analyze-git-history.ps1
+  runtime/analyze-install-mechanics.ps1
+  runtime/analyze-relocation.ps1
+  runtime/audit-tracked-vs-excluded.ps1
+  runtime/bindmount-deletion-experiment.txt
+  runtime/breakdown-client-bundle.ps1
+  runtime/capture-runtime.ps1
+  runtime/check-all-exposed-remote.ps1
+  runtime/check-authored-files-for-leaks.ps1
+  runtime/check-exposure-control.ps1
+  runtime/check-submodule-credentials.ps1
+  runtime/check-volume-generations.ps1
+  runtime/client-bundle-breakdown.txt
+  runtime/commit-msg-secfix.txt
+  runtime/compare-volume-mtime.ps1
+  runtime/credential-scan-results.txt
+  runtime/critical-verification.txt
+  runtime/debug-1009/FINDINGS.md
+  runtime/delete-impact-bindmounts.txt
+  runtime/delete-impact-counts.txt
+  runtime/delete-impact-full.txt
+  runtime/delete-impact-verdict.txt
+  runtime/delivery-mechanics.txt
+  runtime/experiment-bindmount-delete.ps1
+  runtime/exposure-control-results.txt
+  runtime/final-encoding-verdict.ps1
+  runtime/final-encoding-verdict.txt
+  runtime/gap1-1009.ps1
+  runtime/gap1-1009b.ps1
+  runtime/gap1-api-push-1009.ps1
+  runtime/gap1-contents-push-1009.ps1
+  runtime/gap1-diag-1009.ps1
+  runtime/gap1-lf-fix-1009.ps1
+  runtime/git-history-options.txt
+  runtime/hardcoded-path-references.txt
+  runtime/install-mechanics.txt
+  runtime/investigate-volume-contents.ps1
+  runtime/leak-selfcheck-results.txt
+  runtime/probe-upstream-access.ps1
+  runtime/project-name-and-volumes.txt
+  runtime/relocate/ALL-CREDENTIAL-GATE.txt
+  runtime/relocate/ARCHIVE-OLD-LOCATION.txt
+  runtime/relocate/ASSETS-CREDENTIAL-RISK.txt
+  runtime/relocate/ASSETS-DATA-RISK.txt
+  runtime/relocate/ASSETS-STRUCTURE.txt
+  runtime/relocate/BASELINE-COMMIT.txt
+  runtime/relocate/BLOCKER-DIAGNOSIS.txt
+  runtime/relocate/BUILD-CONTEXT-SIZE.txt
+  runtime/relocate/BUILD-DEERFLOW.done
+  runtime/relocate/BUILD-FRONTEND.done
+  runtime/relocate/BUILD-PATH-FIX-VERIFY.txt
+  runtime/relocate/BUILD-RUST-VERIFY.txt
+  runtime/relocate/BUILD-SURVIVAL-EVIDENCE.txt
+  runtime/relocate/BUILDKIT-CHECK.txt
+  runtime/relocate/BUILT-IMAGE-E2E.txt
+  runtime/relocate/BUILT-IMAGE-HTTP.txt
+  runtime/relocate/BUNDLE-COMPLETENESS.txt
+  runtime/relocate/BUNDLE-DECISIVE.txt
+  runtime/relocate/BUNDLE-FIX.txt
+  runtime/relocate/BUNDLE-TRUTH.txt
+  runtime/relocate/CJK-DECISIVE-TEST.txt
+  runtime/relocate/CJK-DIAGNOSIS.txt
+  runtime/relocate/CODING-READINESS.txt
+  runtime/relocate/COMPOSE-NAME-VERIFY.txt
+  runtime/relocate/CUTOVER-RESULT.txt
+  runtime/relocate/CUTOVER-RESUME.txt
+  runtime/relocate/DRY-RUN-RESULT.txt
+  runtime/relocate/E2E-STATUS.txt
+  runtime/relocate/EXTRACTION-AUDIT.txt
+  runtime/relocate/FINAL-STATE.txt
+  runtime/relocate/FINAL-TASKS-RECON.txt
+  runtime/relocate/FIX-DEERFLOW-SRC.txt
+  runtime/relocate/FLATTEN-BREAKAGE.txt
+  runtime/relocate/IMAGE-SWAP-RISK.txt
+  runtime/relocate/LOCAL-MIRROR-FIX.txt
+  runtime/relocate/LOCAL-MIRROR.txt
+  runtime/relocate/MERGE-COMPLETENESS.txt
+  runtime/relocate/MIRROR-PULL.txt
+  runtime/relocate/MOUNT-AUDIT.txt
+  runtime/relocate/MOUNTS-RAW.txt
+  runtime/relocate/PATH-MAP.txt
+  runtime/relocate/PHASE1-COMMIT.txt
+  runtime/relocate/PHASE1-RESUME.txt
+  runtime/relocate/PHASE1-VERIFY.txt
+  runtime/relocate/POST-CUTOVER-FUNCTIONAL.txt
+  runtime/relocate/POST-FAILURE-ASSESS.txt
+  runtime/relocate/PROBE-CJK-PATHS.txt
+  runtime/relocate/RECON-BEFORE-EXECUTE.txt
+  runtime/relocate/RECONCILE-VERIFIED.txt
+  runtime/relocate/RECONCILE.txt
+  runtime/relocate/RECOVERY.txt
+  runtime/relocate/REHEARSAL-RESULT.txt
+  runtime/relocate/REMOTE-OPTIONS.txt
+  runtime/relocate/ROLLBACK-ANCHOR.txt
+  runtime/relocate/RUNTIME-STATE-GAP.txt
+  runtime/relocate/STAGE-PREVIEW.txt
+  runtime/relocate/TASK2-DOCREWRITE.txt
+  runtime/relocate/TASK2-HITS.txt
+  runtime/relocate/TASK2-SCAN.txt
+  runtime/relocate/TASK2-SCAN2.txt
+  runtime/relocate/WHY-MISSING.txt
+  runtime/relocate/archive-old.ps1
+  runtime/relocate/assess-failure.ps1
+  runtime/relocate/assets-data-risk.ps1
+  runtime/relocate/audit-extraction.ps1
+  runtime/relocate/baseline-commit.ps1
+  runtime/relocate/build-context-size.ps1
+  runtime/relocate/build-deerflow-inner.ps1
+  runtime/relocate/build-deerflow.ps1
+  runtime/relocate/build-frontend-detached.ps1
+  runtime/relocate/build-frontend-inner.ps1
+  runtime/relocate/build-others.ps1
+  runtime/relocate/build-rust.ps1
+  runtime/relocate/build-survival-evidence.ps1
+  runtime/relocate/buildkit-check.ps1
+  runtime/relocate/built-image-e2e.ps1
+  runtime/relocate/built-image-http.ps1
+  runtime/relocate/bundle-completeness.ps1
+  runtime/relocate/bundle-decisive.ps1
+  runtime/relocate/bundle-fix.ps1
+  runtime/relocate/bundle-truth.ps1
+  runtime/relocate/check-all-credential-gate.ps1
+  runtime/relocate/check-assets-credential-risk.ps1
+  runtime/relocate/check-container-deps.ps1
+  runtime/relocate/check-credential-safety.ps1
+  runtime/relocate/check-gitignore-gap.ps1
+  runtime/relocate/check-runtime-gap.ps1
+  runtime/relocate/coding-readiness.ps1
+  runtime/relocate/commit-buildfix.ps1
+  runtime/relocate/commit-buildpass.ps1
+  runtime/relocate/commit-cutover.ps1
+  runtime/relocate/commit-detached.ps1
+  runtime/relocate/commit-dockerignore.ps1
+  runtime/relocate/commit-e2e.ps1
+  runtime/relocate/commit-final-tasks.ps1
+  runtime/relocate/commit-mirror.ps1
+  runtime/relocate/commit-mirrorfix.ps1
+  runtime/relocate/commit-plan.ps1
+  runtime/relocate/commit-task2.ps1
+  runtime/relocate/commit-task3prep.ps1
+  runtime/relocate/commit-tools.ps1
+  runtime/relocate/commit-zz.ps1
+  runtime/relocate/container-dependency-check.txt
+  runtime/relocate/credential-safety-on-move.txt
+  runtime/relocate/cutover-resume.ps1
+  runtime/relocate/decide-placement.ps1
+  runtime/relocate/diagnose-blockers.ps1
+  runtime/relocate/diagnose-cjk.ps1
+  runtime/relocate/diagnose-why-missing.ps1
+  runtime/relocate/dry-run-validate.ps1
+  runtime/relocate/e2e-status.ps1
+  runtime/relocate/final-state.ps1
+  runtime/relocate/final-state2.ps1
+  runtime/relocate/final-tasks-recon.ps1
+  runtime/relocate/fix-deerflow-src.ps1
+  runtime/relocate/flatten-breakage.ps1
+  runtime/relocate/gitignore-gap-check.txt
+  runtime/relocate/gitignore-verification.txt
+  runtime/relocate/image-swap-risk.ps1
+  runtime/relocate/inspect-assets.ps1
+  runtime/relocate/inventory-BEFORE.json
+  runtime/relocate/local-mirror.ps1
+  runtime/relocate/merge-completeness.ps1
+  runtime/relocate/mirror-pull.ps1
+  runtime/relocate/mount-audit.ps1
+  runtime/relocate/mounts-raw.ps1
+  runtime/relocate/path-map.ps1
+  runtime/relocate/pdf-hit-context.py
+  runtime/relocate/phase1-commit.ps1
+  runtime/relocate/phase1-resume.ps1
+  runtime/relocate/phase1-stage.ps1
+  runtime/relocate/phase1-verify.ps1
+  runtime/relocate/placement-decision.txt
+  runtime/relocate/post-cutover-functional.ps1
+  runtime/relocate/preflight.ps1
+  runtime/relocate/preview-stage.ps1
+  runtime/relocate/probe-cjk-paths.ps1
+  runtime/relocate/recon-before-execute.ps1
+  runtime/relocate/reconcile-verified.ps1
+  runtime/relocate/reconcile.ps1
+  runtime/relocate/recover-move.ps1
+  runtime/relocate/rehearse.ps1
+  runtime/relocate/remote-options.ps1
+  runtime/relocate/scan-handbook-pdfs.py
+  runtime/relocate/task2-docrewrite.ps1
+  runtime/relocate/task2-hits.ps1
+  runtime/relocate/task2-scan.ps1
+  runtime/relocate/task2-scan2.ps1
+  runtime/relocate/task3-cutover-v1.ps1.bak
+  runtime/relocate/task3-cutover.ps1
+  runtime/relocate/test-cjk-decisive.ps1
+  runtime/relocate/verify-build-paths.ps1
+  runtime/relocate/verify-compose-names.ps1
+  runtime/relocate/verify-gitignore-rules.ps1
+  runtime/relocate/verify-rust-build.ps1
+  runtime/relocation-analysis.txt
+  runtime/runtime-inventory.json
+  runtime/scan-credential-history.ps1
+  runtime/scan-hardcoded-paths.ps1
+  runtime/secfix-0-clone.ps1
+  runtime/secfix-1-prepare.ps1
+  runtime/secfix-10-e2e-branding.ps1
+  runtime/secfix-1b-sync-fork.ps1
+  runtime/secfix-2-api-commit-v2.ps1
+  runtime/secfix-2-api-commit.ps1
+  runtime/secfix-3-ff-and-pr.ps1
+  runtime/secfix-4-secret-state.ps1
+  runtime/secfix-4b-run11-verify.ps1
+  runtime/secfix-5-digest-compare.ps1
+  runtime/secfix-6-branding-test.ps1
+  runtime/secfix-7-pull-images.ps1
+  runtime/secfix-8-pull-ghcr.ps1
+  runtime/secfix-9-up-and-verify.ps1
+  runtime/secfix-dbg-commit.ps1
+  runtime/submodule-credential-status.txt
+  runtime/test-delete-impact.ps1
+  runtime/tracked-vs-excluded-audit.txt
+  runtime/volume-contents-investigation.txt
+  runtime/volume-coupling.txt
+  runtime/volume-generations.txt
+  runtime/volume-mtime.txt
+
+===== 5. RUNTIME/ largest 20 files =====
+      368.46 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\archive-scratch-2026-10-10.zip
+        4.87 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\original-concept\Pacgate AI Law Firm 浅色科技版.pdf
+        1.41 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\contracts\preapproval-contract-draft\out\pdf-bundle.zip
+        1.26 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\contracts\preapproval-contract-draft\out\pdf-bundle\service_contract_zh_v4.pdf
+        1.20 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\Moritz 深度调研（2025-2026）.pdf
+        1.09 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\Crosby 深度调研（2025-2026）.pdf
+        0.98 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\Harvey 2026年4月全景调研.pdf
+        0.95 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\deploy\graphify-graph.json
+        0.88 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\contracts\preapproval-contract-draft\out\pdf-bundle\hardware_contract_zh_v4.pdf
+        0.84 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\deploy\graph.html
+        0.80 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\crosby-tech-architecture-analysis.pdf
+        0.73 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\Harvey Agent技术应用调研（2026年4月）.pdf
+        0.71 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\contracts\preapproval-contract-draft\out\out.zip
+        0.68 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\generated\phase1-clarification\pdf-export\annex-a-en.pdf
+        0.60 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\generated\phase1-clarification\pdf-export\reply-en.pdf
+        0.60 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\generated\phase1-clarification\pdf-export\reply-zh-check.png
+        0.59 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\original-concept\法律AI系统产品设计框架.pdf
+        0.58 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\generated\phase1-clarification\pdf-export\annex-c-en.pdf
+        0.50 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\generated\phase1-clarification\pdf-export\annex-b-en.pdf
+        0.47 MB  C:\Users\pacga\github-pr\pacgate-law\runtime\relocate\fork-sync-stage\tree\scope-assets\generated\phase1-clarification\pdf-export\annex-d-en.pdf
+
+===== 6. ROOT loose files =====
+        0.00 MB  .env
+        0.00 MB  .gitignore
+        0.02 MB  AGENTS.md
+        0.00 MB  containers.txt
+        0.01 MB  DEER-FLOW-INTEGRATION.md
+        0.00 MB  mcp_final_verify.txt
+        0.00 MB  mcp_verify.txt
+        0.00 MB  verify_mcp.txt
+
+===== 7. RUNTIME/ mentions in tracked docs (AGENTS.md + docs/**/*.md) =====
+unique runtime/ mentions: 27
+runtime/apply-wf-fix.ps1
+runtime/AUTHORITATIVE-credential-check.ps1
+runtime/backup-pre-0.1.24-20261007
+runtime/capture-runtime.ps1
+runtime/check-all-exposed-remote.ps1
+runtime/check-authored-files-for-leaks.ps1
+runtime/check-exposure-control.ps1
+runtime/client-bundle-breakdown.txt
+runtime/credential-scan-results.txt
+runtime/critical-verification.txt
+runtime/deerflow-provision-user.py
+runtime/delivery-mechanics.txt
+runtime/exposure-control-results.txt
+runtime/hardcoded-path-references.txt
+runtime/leak-selfcheck-results.txt
+runtime/README.md
+runtime/relocate
+runtime/relocate/verify-gitignore-rules.ps1
+runtime/runtime-inventory.json
+runtime/RUNTIME-INVENTORY.md
+runtime/scan-credential-history.ps1
+runtime/scan-hardcoded-paths.ps1
+runtime/test-delete-impact.ps1
+runtime/volume-contents-investigation.txt
+runtime/volume-generations.txt
+runtime/VOLUME-INVESTIGATION-FINDINGS.md
+runtime/volume-mtime.txt
+
+===== 8. RUNTIME/ subdirectories (with sizes) =====
+  relocate                                         34.4 MB     756 files
+
+===== 9. OLD-FILE FAMILIES (>14 days, grouped by name pattern) =====
+  s-sanitize-by-format*           4 files      0.01 MB
+  fork-frontend-check*            4 files      0.01 MB
+  ee-run*                         4 files      0.01 MB
+  version-check*                  3 files      0.00 MB
+  s-decisive*                     3 files      0.01 MB
+  upgrade--temp-index*            3 files      0.24 MB
+  s-commit*                       3 files      0.01 MB
+  upgrade---delta*                3 files      0.00 MB
+  cred-tree-check*                2 files      0.00 MB
+  upgrade---bundle-diff*          2 files      0.00 MB
+  upgrade---zh-diagnose*          2 files      0.00 MB
+  h-verify-restore*               2 files      0.00 MB
+  ghcr--public-check*             2 files      0.00 MB
+  pull-anon-test*                 2 files      0.00 MB
+  ee-pdf-diag*                    2 files      0.00 MB
+  ghcr--check*                    2 files      0.00 MB
+  assets-temp-index*              2 files      0.02 MB
+  final-encoding-verdict*         2 files      0.00 MB
+  fork-sync-stage*                2 files      0.00 MB
+  fork-main-detail*               2 files      0.01 MB
+  upgrade---agents-db*            2 files      0.00 MB
+  latest-run-detail*              2 files      0.00 MB
+  upgrade---rematerialize*        2 files      0.00 MB
+  plan*                           2 files      0.00 MB
+  plan-tail*                      2 files      0.00 MB
+  fork-tags-detail*               2 files      0.01 MB
+  h-wouldlose*                    2 files      0.03 MB
+  s-docx-final*                   2 files      0.00 MB
+  h-conflicts*                    2 files      0.03 MB
+  version-matrix*                 2 files      0.00 MB
+  upgrade---live-auth*            2 files      0.00 MB
+  s-dbg*                          2 files      0.00 MB
+  s-docx-browser*                 2 files      0.00 MB
+  runtime-inventory*              2 files      0.04 MB
+  h-map*                          2 files      0.03 MB
+  h-deploy-map*                   2 files      0.00 MB
+  double-nest-check*              2 files      0.00 MB
+  release-state-doc*              2 files      0.00 MB
+  upgrade---commit*               2 files      0.00 MB
+  assets-redo*                    2 files      0.01 MB
+  upgrade---ee-diag*              2 files      0.00 MB
+  s-routes*                       2 files      0.00 MB
+  h-compose-cmp*                  2 files      0.01 MB
+  upgrade---model-config*         1 files      0.00 MB
+  upgrade---mounts*               1 files      0.00 MB
+  upgrade---wf-models*            1 files      0.00 MB
+  upgrade---model-list*           1 files      0.00 MB
+  upgrade---ollama-list*          1 files      0.00 MB
+  upgrade---crosscheck*           1 files      0.00 MB
+  upgrade---cloud-rigorous*       1 files      0.00 MB
+  upgrade---tier-check*           1 files      0.00 MB
+  upgrade---reachability*         1 files      0.00 MB
+  upgrade---local-test*           1 files      0.00 MB
+  upgrade---final-model*          1 files      0.00 MB
+  upgrade---divergence*           1 files      0.00 MB
+  upgrade---raw-models*           1 files      0.00 MB
+  upgrade---restart-verify*       1 files      0.00 MB
+  upgrade---final-models*         1 files      0.00 MB
+  upgrade---confirm*              1 files      0.00 MB
+  upgrade---vision-mount*         1 files      0.00 MB
+  upgrade---patch-loaded*         1 files      0.00 MB
+  upgrade---vision-wire*          1 files      0.00 MB
+  upgrade---vision-code*          1 files      0.00 MB
+  upgrade---vision-check*         1 files      0.00 MB
+  upgrade---verify-edits*         1 files      0.00 MB
+  upgrade---branches*             1 files      0.00 MB
+  upgrade---newer-cloud*          1 files      0.00 MB
+  upgrade---yaml-validate*        1 files      0.00 MB
+  upgrade---doc-context*          1 files      0.00 MB
+  upgrade---validate-remove*      1 files      0.00 MB
+  upgrade---validate*             1 files      0.00 MB
+  upgrade---mount-check*          1 files      0.00 MB
+  upgrade---upstream-rest*        1 files      0.00 MB
+  smoke-conn*                     1 files      0.00 MB
+  smoke-m*                        1 files      0.00 MB
+  smoke-matters*                  1 files      0.00 MB
+  secfix--up-and-verify*          1 files      0.00 MB
+  secfix-dbg-commit*              1 files      0.00 MB
+  smoke-agents*                   1 files      0.01 MB
+  staged-status*                  1 files      0.00 MB
+  staged-tree-check*              1 files      0.00 MB
+  submodule-credential-status*    1 files      0.00 MB
+  smoke-wf*                       1 files      0.00 MB
+  stack-upgrade*                  1 files      0.00 MB
+  staged-review*                  1 files      0.00 MB
+  secfix--api-commit-v*           1 files      0.01 MB
+  secfix--api-commit*             1 files      0.01 MB
+  secfix--ff-and-pr*              1 files      0.00 MB
+  secfix--prepare*                1 files      0.00 MB
+  secfix--ee-branding*            1 files      0.00 MB
+  secfix-b-sync-fork*             1 files      0.00 MB
+  secfix--branding-test*          1 files      0.00 MB
+  secfix--pull-images*            1 files      0.00 MB
+  secfix--pull-ghcr*              1 files      0.00 MB
+  secfix--secret-state*           1 files      0.00 MB
+  secfix-b-run-verify*            1 files      0.00 MB
+  secfix--digest-compare*         1 files      0.00 MB
+  upgrade---final*                1 files      0.00 MB
+  upgrade---preflight*            1 files      0.00 MB
+  upgrade---ee-logged*            1 files      0.00 MB
+  upgrade---live-upload*          1 files      0.00 MB
+  upgrade---live-sanitize*        1 files      0.00 MB
+  upgrade---live-gate*            1 files      0.00 MB
+  upgrade---audit-logged*         1 files      0.00 MB
+  upgrade---runner*               1 files      0.00 MB
+  upgrade---summarize*            1 files      0.00 MB
+  upgrade---ee-runner*            1 files      0.00 MB
+  upgrade---read-log*             1 files      0.00 MB
+  upgrade---audit-suite*          1 files      0.00 MB
+  upgrade---assess*               1 files      0.00 MB
+  upgrade---fetch*                1 files      0.00 MB
+  upgrade---fork-sync*            1 files      0.00 MB
+  test-delete-impact*             1 files      0.00 MB
+  test-pushes*                    1 files      0.00 MB
+  tracked-vs-excluded-audit*      1 files      0.00 MB
+  upgrade---upstream-detail*      1 files      0.00 MB
+  upgrade---upstream-scope*       1 files      0.00 MB
+  upgrade---upstream-files*       1 files      0.00 MB
+  upgrade---merge-prep*           1 files      0.00 MB
+  upgrade---layout*               1 files      0.00 MB
+  upgrade---upstream-tree*        1 files      0.00 MB
+  upgrade---vision-final*         1 files      0.00 MB
+  upgrade---bom-check*            1 files      0.00 MB
+  upgrade---eval-desczh*          1 files      0.00 MB
+  upgrade---verify-agents*        1 files      0.00 MB
+  upgrade---provision-sanitizer*    1 files      0.00 MB
+  upgrade---provision-ocr*        1 files      0.00 MB
+  upgrade---stored-zh*            1 files      0.00 MB
+  upgrade---sanitizer-prep*       1 files      0.00 MB
+  upgrade---gate-test*            1 files      0.00 MB
+  upgrade---ocr-test*             1 files      0.00 MB
+  upgrade---zh-parse*             1 files      0.00 MB
+  upgrade---audit-prep*           1 files      0.00 MB
+  upgrade---env-keys*             1 files      0.00 MB
+  upgrade---mirror*               1 files      0.00 MB
+  upgrade---agent-check*          1 files      0.00 MB
+  upgrade---branding*             1 files      0.00 MB
+  upgrade---register-probe*       1 files      0.00 MB
+  upgrade---final-state*          1 files      0.00 MB
+  upgrade---agent-deep*           1 files      0.00 MB
+  upgrade---agent-trace*          1 files      0.00 MB
+  upgrade---agents-api*           1 files      0.00 MB
+  upgrade---cred-and-db*          1 files      0.00 MB
+  upgrade---ocr-health*           1 files      0.00 MB
+  upgrade---provision-check*      1 files      0.00 MB
+  upgrade---san-ee-launch*        1 files      0.00 MB
+  version-endpoint-check*         1 files      0.00 MB
+  volume-contents-investigation*    1 files      0.00 MB
+  verify-namespaces*              1 files      0.00 MB
+  valcfg*                         1 files      0.00 MB
+  valyaml*                        1 files      0.00 MB
+  volume-coupling*                1 files      0.00 MB
+  wf-section*                     1 files      0.00 MB
+  zh-sample*                      1 files      0.00 MB
+  volume-mtime*                   1 files      0.00 MB
+  volume-generations*             1 files      0.00 MB
+  VOLUME-INVESTIGATION-FINDINGS*    1 files      0.00 MB
+  upgrade-verify*                 1 files      0.00 MB
+  upgrade---san-log*              1 files      0.00 MB
+  upgrade---live-pipeline*        1 files      0.00 MB
+  upgrade---smoke-fix*            1 files      0.00 MB
+  upgrade---san-ee*               1 files      0.00 MB
+  upgrade---smoke*                1 files      0.00 MB
+  upgrade---route-check*          1 files      0.00 MB
+  upgrade--san-ee*                1 files      0.01 MB
+  upgrade-frontend*               1 files      0.00 MB
+  upgrade--san-ee-local*          1 files      0.00 MB
+  upgrade---live-routes*          1 files      0.00 MB
+  upgrade---route-diag*           1 files      0.00 MB
+  upgrade---recreate-verify*      1 files      0.00 MB
+  upgrade---handoff-rest*         1 files      0.00 MB
+  upgrade---file-delta*           1 files      0.00 MB
+  upgrade---full-inventory*       1 files      0.00 MB
+  upgrade---lstree-debug*         1 files      0.00 MB
+  upgrade---tree-direct*          1 files      0.00 MB
+  upgrade---clean-delta*          1 files      0.00 MB
+  upgrade---map-verify*           1 files      0.00 MB
+  upgrade---final-delta*          1 files      0.00 MB
+  upgrade---nested-detail*        1 files      0.00 MB
+  upgrade---disk-truth*           1 files      0.00 MB
+  upgrade---nested-truth*         1 files      0.00 MB
+  upgrade---final-tree*           1 files      0.00 MB
+  upgrade---stage-commit*         1 files      0.00 MB
+  upgrade---push-state*           1 files      0.00 MB
+  upgrade---tree-check*           1 files      0.00 MB
+  upgrade---vision-retry*         1 files      0.00 MB
+  upgrade---vision-real*          1 files      0.00 MB
+  upgrade---count-pins*           1 files      0.00 MB
+  upgrade---verify-delta*         1 files      0.00 MB
+  upgrade---mystery*              1 files      0.00 MB
+  upgrade---patch-check*          1 files      0.00 MB
+  upgrade---fork-relation*        1 files      0.00 MB
+  upgrade---upstreamable*         1 files      0.00 MB
+  upgrade---content-diff*         1 files      0.00 MB
+  upgrade---plan-check*           1 files      0.00 MB
+  upgrade---runtime-check*        1 files      0.00 MB
+  upgrade---cred-gate*            1 files      0.00 MB
+  upgrade---apply*                1 files      0.00 MB
+  upgrade---stage-delta*          1 files      0.00 MB
+  upgrade---pull*                 1 files      0.00 MB
+  upgrade---cors-check*           1 files      0.00 MB
+  upgrade---cors-fix*             1 files      0.00 MB
+  upgrade---ee*                   1 files      0.00 MB
+  upgrade---compose-validate*     1 files      0.00 MB
+  upgrade---up*                   1 files      0.00 MB
+  upgrade---stage*                1 files      0.00 MB
+  upgrade---config-diffs*         1 files      0.00 MB
+  upgrade---install-diff*         1 files      0.00 MB
+  upgrade---name-key*             1 files      0.00 MB
+  upgrade---safety-checks*        1 files      0.00 MB
+  upgrade---prod-name*            1 files      0.00 MB
+  upgrade---ci-diff*              1 files      0.00 MB
+  upgrade---stage-inspect*        1 files      0.00 MB
+  upgrade---index-check*          1 files      0.00 MB
+  upgrade---toplevel*             1 files      0.00 MB
+  upgrade---premerge*             1 files      0.00 MB
+  upgrade---materialize*          1 files      0.00 MB
+  secfix--clone*                  1 files      0.00 MB
+  deerflow-file-conversion*       1 files      0.01 MB
+  deerflow-FILE_UPLOAD*           1 files      0.01 MB
+  critical-verification*          1 files      0.00 MB
+  cred-manager-check*             1 files      0.00 MB
+  credential-scan-results*        1 files      0.00 MB
+  deerflow-provision-user*        1 files      0.00 MB
+  delete-impact-full*             1 files      0.00 MB
+  delete-impact-verdict*          1 files      0.00 MB
+  delete-impact-counts*           1 files      0.00 MB
+  DELETE-IMPACT-ANALYSIS*         1 files      0.01 MB
+  delete-impact-bindmounts*       1 files      0.01 MB
+  crate-location-check*           1 files      0.00 MB
+  chunk-branding-check*           1 files      0.00 MB
+  ci-poll*                        1 files      0.00 MB
+  check-volume-generations*       1 files      0.00 MB
+  check-remote-tags*              1 files      0.00 MB
+  check-submodule-credentials*    1 files      0.00 MB
+  ci-status*                      1 files      0.00 MB
+  commit-sync*                    1 files      0.00 MB
+  compare-volume-mtime*           1 files      0.00 MB
+  commit-msg-secfix*              1 files      0.00 MB
+  clean-stage*                    1 files      0.00 MB
+  client-bundle-breakdown*        1 files      0.00 MB
+  fork-delta*                     1 files      0.00 MB
+  fork-sync-crate-check*          1 files      0.00 MB
+  fix-staging*                    1 files      0.00 MB
+  final-truth*                    1 files      0.00 MB
+  final-verify-ee*                1 files      0.00 MB
+  fork-sync-delta*                1 files      0.00 MB
+  frontend-digest-compare*        1 files      0.00 MB
+  frontend-serving-check*         1 files      0.00 MB
+  frontend-digest-check*          1 files      0.00 MB
+  fork-sync-removed*              1 files      0.00 MB
+  frontend-branding-test*         1 files      0.00 MB
+  final-ee-verify*                1 files      0.00 MB
+  disk-truth*                     1 files      0.00 MB
+  dispatch*                       1 files      0.00 MB
+  disaster-check*                 1 files      0.00 MB
+  delivery-mechanics*             1 files      0.00 MB
+  df-cleanup*                     1 files      0.00 MB
+  dispatch-capability-check*      1 files      0.00 MB
+  experiment-bindmount-delete*    1 files      0.00 MB
+  exposure-control-results*       1 files      0.00 MB
+  execute-nested-sync*            1 files      0.00 MB
+  ee-extract-diag*                1 files      0.00 MB
+  ee-state-check*                 1 files      0.00 MB
+  assets-final-push*              1 files      0.00 MB
+  assets-keep-paths*              1 files      0.00 MB
+  assets-exclusion-list*          1 files      0.00 MB
+  assets-cred-paths-for-git*      1 files      0.00 MB
+  assets-diff-status*             1 files      0.00 MB
+  assets-localonly-check*         1 files      0.00 MB
+  assets-mcp-scan*                1 files      0.00 MB
+  assets-merge-local*             1 files      0.00 MB
+  assets-mcp-paths*               1 files      0.00 MB
+  assets-mcp-extract*             1 files      0.00 MB
+  assets-mcp-paths-raw*           1 files      0.00 MB
+  assets-cred-gate*               1 files      0.00 MB
+  analyze-relocation*             1 files      0.00 MB
+  apply-wf-fix*                   1 files      0.00 MB
+  analyze-install-mechanics*      1 files      0.00 MB
+  agents-raw*                     1 files      0.01 MB
+  analyze-git-history*            1 files      0.00 MB
+  archive-stale-scaffold*         1 files      0.00 MB
+  assets-content-gate*            1 files      0.00 MB
+  assets-cred-exclusions*         1 files      0.00 MB
+  assets-commit-clean*            1 files      0.00 MB
+  assets-blob-scan*               1 files      0.00 MB
+  assets-clean-branch*            1 files      0.00 MB
+  branding-final*                 1 files      0.00 MB
+  branding-test*                  1 files      0.00 MB
+  branding-detail*                1 files      0.00 MB
+  branding*                       1 files      0.00 MB
+  branding-decisive*              1 files      0.00 MB
+  breakdown-client-bundle*        1 files      0.00 MB
+  check-exposure-control*         1 files      0.00 MB
+  check-pull-state*               1 files      0.00 MB
+  check-authored-files-for-leaks*    1 files      0.00 MB
+  capture-runtime*                1 files      0.01 MB
+  check-all-exposed-remote*       1 files      0.00 MB
+  bindmount-deletion-experiment*    1 files      0.00 MB
+  assets-redundancy-check*        1 files      0.00 MB
+  assets-remote-state*            1 files      0.00 MB
+  assets-raw-paths*               1 files      0.00 MB
+  assets-preserve-local*          1 files      0.00 MB
+  assets-push*                    1 files      0.00 MB
+  assets-remove-by-sha*           1 files      0.00 MB
+  audit-tracked-vs-excluded*      1 files      0.00 MB
+  AUTHORITATIVE-credential-check*    1 files      0.00 MB
+  audit-suite*                    1 files      0.01 MB
+  assets-restore-and-stage*       1 files      0.00 MB
+  audit-suite-utf*                1 files      0.00 MB
+  get-origin-tags*                1 files      0.00 MB
+  namespace-verify*               1 files      0.00 MB
+  nested-ignore-check*            1 files      0.00 MB
+  merge-fix-branch*               1 files      0.00 MB
+  list-frontend-imgs*             1 files      0.00 MB
+  m-models*                       1 files      0.00 MB
+  nested-origin-check*            1 files      0.00 MB
+  pacgate-mcp-server*             1 files      0.03 MB
+  path-truth*                     1 files      0.00 MB
+  origin-tags*                    1 files      0.00 MB
+  ocr-app*                        1 files      0.00 MB
+  origin-branches*                1 files      0.00 MB
+  leak-selfcheck-results*         1 files      0.00 MB
+  hardcoded-path-references*      1 files      0.00 MB
+  hooks-compare*                  1 files      0.00 MB
+  handoff-snapshot*               1 files      0.00 MB
+  handoff--preflight*             1 files      0.00 MB
+  HANDOFF-AIPC-...upstream*       1 files      0.01 MB
+  index-rebuild*                  1 files      0.00 MB
+  layout-check*                   1 files      0.00 MB
+  layout-inventory*               1 files      0.00 MB
+  investigate-volume-contents*    1 files      0.00 MB
+  index-truth*                    1 files      0.00 MB
+  install-mechanics*              1 files      0.00 MB
+  restore-dockerignore*           1 files      0.00 MB
+  restore-nested-final*           1 files      0.00 MB
+  restage-fork*                   1 files      0.00 MB
+  relocation-analysis*            1 files      0.00 MB
+  remote-tags*                    1 files      0.00 MB
+  restore-nested*                 1 files      0.00 MB
+  scan-credential-history*        1 files      0.00 MB
+  scan-hardcoded-paths*           1 files      0.00 MB
+  s-docx*                         1 files      0.00 MB
+  s-final-verify*                 1 files      0.00 MB
+  s-docx-test*                    1 files      0.00 MB
+  recreated-dir-check*            1 files      0.00 MB
+  post-sync-path-check*           1 files      0.00 MB
+  pre-upgrade-check*              1 files      0.00 MB
+  post-sync-fixes*                1 files      0.00 MB
+  pin-compose*                    1 files      0.00 MB
+  post-purge-state*               1 files      0.00 MB
+  precommit-state*                1 files      0.00 MB
+  push-dryrun-results*            1 files      0.00 MB
+  README*                         1 files      0.01 MB
+  purge-phantom*                  1 files      0.00 MB
+  probe-upstream-access*          1 files      0.00 MB
+  project-name-and-volumes*       1 files      0.00 MB
+  h-finalize*                     1 files      0.00 MB
+  h-postinstall-state*            1 files      0.00 MB
+  h-FINAL*                        1 files      0.00 MB
+  h-extcfg-show*                  1 files      0.00 MB
+  h-final-verify*                 1 files      0.00 MB
+  h-prod-parity*                  1 files      0.00 MB
+  h-run-install*                  1 files      0.00 MB
+  h-stage-commit*                 1 files      0.00 MB
+  h-restore-extcfg*               1 files      0.00 MB
+  h-pull-abs*                     1 files      0.00 MB
+  h-pullrisk*                     1 files      0.00 MB
+  h-extcfg-check*                 1 files      0.00 MB
+  h-baseline*                     1 files      0.00 MB
+  h-commit*                       1 files      0.00 MB
+  h-authgate*                     1 files      0.00 MB
+  git-history-options*            1 files      0.00 MB
+  h-apply-wiring*                 1 files      0.00 MB
+  h-compose-eq*                   1 files      0.00 MB
+  h-delta*                        1 files      0.00 MB
+  h-divergence*                   1 files      0.00 MB
+  h-copy-scripts*                 1 files      0.00 MB
+  h-compose-equivalence*          1 files      0.00 MB
+  h-compose-safety*               1 files      0.00 MB
+  hs-pdf-diag*                    1 files      0.00 MB
+  hs-tenant*                      1 files      0.00 MB
+  hs-models-auth*                 1 files      0.00 MB
+  hs-extract-diag*                1 files      0.00 MB
+  hs-modelprobe*                  1 files      0.00 MB
+  hs-tier-test*                   1 files      0.00 MB
+  handoff--ground-truth*          1 files      0.00 MB
+  handoff--ownership*             1 files      0.00 MB
+  handoff--find*                  1 files      0.00 MB
+  handoff--extract*               1 files      0.00 MB
+  handoff--fetch*                 1 files      0.00 MB
+  hs-context*                     1 files      0.00 MB
+  h-version-compose*              1 files      0.00 MB
+  h-volume-check*                 1 files      0.00 MB
+  h-verify-exists*                1 files      0.00 MB
+  h-step*                         1 files      0.00 MB
+  h-validate*                     1 files      0.00 MB
+  h-wf-fix*                       1 files      0.05 MB
+  h-workflow-baseline*            1 files      0.00 MB
+  hs-commit*                      1 files      0.00 MB
+  h-wfmount-locate*               1 files      0.00 MB
+  h-wfdump*                       1 files      0.00 MB
+  h-wflocate*                     1 files      0.00 MB
+DONE

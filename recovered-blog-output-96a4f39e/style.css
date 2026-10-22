@@ -1,0 +1,10 @@
+@page { size: A4; margin: 2cm; }
+body { font-family: "Noto Serif CJK SC", serif; line-height: 1.7; }
+h1 { font-size: 1.6em; }
+h2 { font-size: 1.3em; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+h3 { font-size: 1.1em; }
+code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; }
+pre { background: #f8f8f8; padding: 10px; border-radius: 5px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+blockquote { border-left: 4px solid #888; padding-left: 12px; color: #555; }

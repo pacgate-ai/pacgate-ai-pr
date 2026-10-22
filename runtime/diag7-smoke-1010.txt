@@ -1,0 +1,30 @@
+﻿=== AIPC1 DIAG 7 SMOKE - 2026-10-10 21:06:06 ===
+
+===== 1. deer-flow healthy + config live =====
+health: {"detail":{"code":"not_authenticated","message":"Authentication required"}}|HTTP:401
+default: gemma4-12b-local | tag: gemma4:12b-it-q8_0 | mem: gemma4-12b-memory | summ: gemma4-12b-summarizer
+
+===== 2. gemma4-12b q8_0 warm generation (timed) =====
+wall=19.1s  http={"model":"gemma4:12b-it-q8_0","created_at":"2026-10-10T13:06:33.9028988Z","response":"","thinking":"The user wants me to say exactly: \"PACGATE-FALLBACK-OK\".\n\"PACGATE","done":true,"done_reason":"length","context":[2,105,9731,107,98,107,106,107,105,2364,107,37889,7121,236787,51053,149981,236772,138152,29632,236772,7676,106,107,105,4368,107,100,45518,107,818,2430,8150,786,531,1879,7121,236787,623,89670,149981,236772,138152,29632,236772,7676,3056,107,236775,89670,149981],"total_duration":18847660300,"load_duration":17275446300,"prompt_eval_count":26,"prompt_eval_cached_count":0,"prompt_eval_duration":291107000,"eval_count":24,"eval_duration":1276944000}|HTTP:200 T:19.078867
+load_duration=17275446300 prompt_eval=26@0.3s eval=24@1.3s
+GEN SPEED = 18.8 t/s
+response: 
+
+===== 3. VRAM + RAM after fallback =====
+  loaded: gemma4:12b-it-q8_0 vram=12.33GB total=12.33GB
+FreeRAM: 4.92 GB (was 0.45GB under nemotron)
+llama-server WS: 12.16 GB (was 18.3GB)
+
+===== 4. GPU engine utilization (gemma4 fully in VRAM?) =====
+  pid_11228_luid_0x00000000_0x0000f7f4_phys_0_eng_0_engtype_3d = 1.9%
+  pid_6616_luid_0x00000000_0x0000f7f4_phys_0_eng_7_engtype_video codec engine = 1.7%
+  MEM pid_15732_luid_0x00000000_0x0000f7f4_phys_0 = 13.38GB
+  MEM pid_2680_luid_0x00000000_0x0000f7f4_phys_0 = 0.21GB
+  MEM pid_19232_luid_0x00000000_0x0000f7f4_phys_0 = 0.12GB
+  MEM pid_11228_luid_0x00000000_0x0000f7f4_phys_0 = 0.11GB
+
+===== 5. Ollama log since restart - evictions? =====
+evictions in last 60 lines: 0
+  time=2026-10-10T21:06:32.328+08:00 level=INFO source=llama_server.go:1374 msg="llama-server started in 15.34 seconds"
+  time=2026-10-10T21:06:32.330+08:00 level=INFO source=llama_server.go:1374 msg="llama-server started in 15.34 seconds"
+DONE

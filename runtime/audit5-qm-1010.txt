@@ -1,0 +1,51 @@
+﻿
+=== QM CONTAINERS vs COMPOSE ===
+compose defines: qm-pacgate-core, qm-pacgate-web-ui, qm-pacgate-portal, qm-pacgate-auth, qm-pacgate-admin, qm-mailpit, qm-pacgate-pg
+running:
+qm-sbx-personal-pacgate-ai01-outlook-com-a32eb1|Exited (137) 35 hours ago
+qm-pacgate-core|Up 2 days
+qm-pacgate-portal|Up 2 days
+qm-pacgate-auth|Up 2 days
+qm-pacgate-web-ui|Up 2 days
+qm-pacgate-admin|Up 2 days
+qm-pacgate-pg|Up 2 days
+qm-mailpit|Up 2 days (healthy)
+[PASS] container qm-pacgate-core : qm-pacgate-core|Up 2 days
+[PASS] container qm-pacgate-web-ui : qm-pacgate-web-ui|Up 2 days
+[PASS] container qm-pacgate-portal : qm-pacgate-portal|Up 2 days
+[PASS] container qm-pacgate-auth : qm-pacgate-auth|Up 2 days
+[PASS] container qm-pacgate-admin : qm-pacgate-admin|Up 2 days
+[PASS] container qm-mailpit : qm-mailpit|Up 2 days (healthy)
+[PASS] container qm-pacgate-pg : qm-pacgate-pg|Up 2 days
+
+=== DIGEST PIN CHECK ===
+[PASS] digest qm-pacgate-core : matches pinned sha256:bee03e7f2271
+[PASS] digest qm-pacgate-portal : matches pinned sha256:e245dfc2c12a
+[PASS] digest qm-pacgate-auth : matches pinned sha256:27f2e1467adc
+[PASS] digest qm-pacgate-admin : matches pinned sha256:ec071338547e
+
+=== HEALTH ===
+[TIME] portal http://localhost:8181/healthz : 242 ms HTTP 200
+[TIME] core http://localhost:8180/healthz : 41 ms HTTP 200
+[TIME] mailpit : 46 ms HTTP 404
+
+=== AUTH GATES (401 = correct) ===
+[PASS] portal front door gate : 401 (auth enforced)
+[PASS] core root gate : 401 (auth enforced)
+[PASS] core api gate : 401 (auth enforced)
+
+=== SANDBOX WIRING ===
+core sandbox env: FLY_BASE_IMAGE=ghcr.io/jzkk720/pacgate-sandboxes@sha256:52e867fcb195f07c5ff32fc78e8ac3f35d000ebd5f34d6c8d792c602f6eae65b LOCAL_SANDBOX_IMAGE=qm-pacgate-sandbox-local:latest
+core docker CLI: /usr/local/bin/docker Docker version 28.5.2, build ecc6942
+core docker socket: srw-rw----    1 root     root             0 Oct  7 04:44 /var/run/docker.sock
+sandbox-local image: qm-pacgate-sandbox-local:latest
+sandbox containers: qm-sbx-personal-pacgate-ai01-outlook-com-a32eb1 Exited (137) 35 hours ago
+
+=== QM DB ===
+databases:  postgres  | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           |   qm        | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           |   template0 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           | =c/postgres          +            |          |          |                 |            |            |            |           | postgres=CTc/postgres  template1 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           | =c/postgres          +            |          |          |                 |            |            |            |           | postgres=CTc/postgres
+
+=== MAGIC-LINK READINESS ===
+transport: 
+allowlist: pacgate.ai01@outlook.com
+RESEND_API_KEY set: False
+[TIME] mailpit messages : 0 ms total=3

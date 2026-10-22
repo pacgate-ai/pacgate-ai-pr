@@ -1,0 +1,31 @@
+﻿
+=== 1. /version WITH AUTH ===
+AUTH /version FAIL: 远程服务器返回错误: (404) 未找到。
+
+=== 2. MCP ROUTE DISCOVERY ===
+nginx mcp lines:
+# /pacgate/. The pacgate-mcp bridge talks to pacgate-api:8080 directly on the compose
+POST /pacgate-mcp/mcp -> HTTP 404
+POST /mcp -> HTTP 404
+POST /pacgate/mcp -> HTTP 401
+container-internal pacgate-mcp:8000/mcp reachable from deer-flow
+
+=== 3. CONNECTORS DETAIL ===
+: available= reason=
+: available= reason=
+: available= reason=
+: available= reason=
+: available= reason=
+: available= reason=
+: available= reason=
+: available= reason=
+: available= reason=
+: available= reason=
+
+=== 4. WORKFLOWS SHAPE ===
+workflows count: 222
+categories type: Object[]
+categories count: 222
+
+=== 5. EXTENSIONS CONFIG COUNT ===
+MCP servers in container: 30

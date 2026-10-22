@@ -1,0 +1,181 @@
+﻿=== AIPC1 DIAG 4 - 2026-10-10 20:49:22 ===
+
+===== 1. LIVE OLLAMA server.log (FileShare read) - last 120 lines =====
+total lines: 15457
+slot create_check: id  0 | task 3504 | created context checkpoint 2 of 32 (pos_min = 18154, pos_max = 18154, n_tokens = 18155, size = 65.555 MiB)
+slot print_timing: id  0 | task 3504 | n_gen =    103, tg =  33.19 t/s, tg_3s =  33.51 t/s
+slot print_timing: id  0 | task 3504 | n_gen =    226, tg =  36.66 t/s, tg_3s =  40.14 t/s
+slot print_timing: id  0 | task 3504 | n_gen =    345, tg =  37.44 t/s, tg_3s =  39.03 t/s
+slot print_timing: id  0 | task 3504 | n_gen =    460, tg =  37.54 t/s, tg_3s =  37.82 t/s
+slot print_timing: id  0 | task 3504 | n_gen =    574, tg =  37.61 t/s, tg_3s =  37.89 t/s
+slot print_timing: id  0 | task 3504 | n_gen =    679, tg =  37.12 t/s, tg_3s =  34.67 t/s
+slot print_timing: id  0 | task 3504 | n_gen =    790, tg =  37.05 t/s, tg_3s =  36.65 t/s
+slot print_timing: id  0 | task 3504 | n_gen =    900, tg =  36.97 t/s, tg_3s =  36.37 t/s
+slot print_timing: id  0 | task 3504 | n_gen =   1013, tg =  37.00 t/s, tg_3s =  37.26 t/s
+slot print_timing: id  0 | task 3504 | n_gen =   1107, tg =  36.43 t/s, tg_3s =  31.22 t/s
+slot print_timing: id  0 | task 3504 | n_gen =   1231, tg =  36.85 t/s, tg_3s =  41.17 t/s
+slot print_timing: id  0 | task 3504 | n_gen =   1337, tg =  36.71 t/s, tg_3s =  35.11 t/s
+slot print_timing: id  0 | task 3504 | n_gen =   1464, tg =  37.09 t/s, tg_3s =  41.64 t/s
+slot print_timing: id  0 | task 3504 | n_gen =   1588, tg =  37.38 t/s, tg_3s =  41.12 t/s
+slot print_timing: id  0 | task 3504 | n_gen =   1706, tg =  37.49 t/s, tg_3s =  39.09 t/s
+[GIN] 2026/10/10 - 20:47:42 | 200 |     110.192ms |       127.0.0.1 | GET      "/v1/models"
+[GIN] 2026/10/10 - 20:47:42 | 404 |            0s |       127.0.0.1 | GET      "/api/v1/models"
+[GIN] 2026/10/10 - 20:47:42 | 404 |            0s |       127.0.0.1 | GET      "/props"
+[GIN] 2026/10/10 - 20:47:42 | 200 |     100.532ms |       127.0.0.1 | GET      "/v1/models"
+slot print_timing: id  0 | task 3504 | n_gen =   1829, tg =  37.68 t/s, tg_3s =  40.59 t/s
+slot print_timing: id  0 | task 3504 | n_gen =   1951, tg =  37.81 t/s, tg_3s =  39.84 t/s
+slot print_timing: id  0 | task 3504 | prompt eval time =   93155.46 ms / 18159 tokens (    5.13 ms per token,   194.93 tokens per second)
+slot print_timing: id  0 | task 3504 |        eval time =   54234.69 ms /  2048 tokens (   26.49 ms per token,    37.74 tokens per second)
+slot print_timing: id  0 | task 3504 |       total time =  147390.15 ms / 20207 tokens
+slot print_timing: id  0 | task 3504 |    graphs reused =       4195
+slot print_timing: id  0 | task 3504 | draft acceptance = 0.85676 ( 1292 accepted /  1508 generated), mean len =  2.71
+slot print_timing: id  0 | task 3504 |      acc per pos = (0.908, 0.805)
+spec common_specu: statistics        draft-mtp: #calls(b,g,a) =    4   4243   4243, #gen drafts =   4243, #acc drafts =  3714, #gen tokens =   8485, #acc tokens =  6930, #mean acc len = 2.63, #acc rate/pos = (0.875, 0.758), dur(b,g,a) = 0.019, 49208.925, 6.629 ms
+slot      release: id  0 | task 3504 | stop processing: n_tokens = 20206, truncated = 0
+srv  update_slots: all slots are idle
+[GIN] 2026/10/10 - 20:47:51 | 200 |         2m27s |       127.0.0.1 | POST     "/v1/chat/completions"
+srv  server_strea: conv_id= (empty=1)
+slot get_availabl: id  0 | task -1 |  - checking sim = 0.296 (8/27) > 0.100
+slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.296 (> 0.100 thold), f_keep = 0.000
+srv  get_availabl: updating prompt cache
+srv   prompt_save:  - saving prompt with length 20206, total state size = 130.710 MiB (draft: 19.964 MiB)
+srv          load:  - looking for better prompt, base f_keep = 0.000, f_sim = 0.296
+srv          load:    - prompt with length    5340, lcp =       8, f_keep = 0.001, f_sim = 0.296
+srv          load:    - prompt with length    5621, lcp =       8, f_keep = 0.001, f_sim = 0.296
+srv          load:    - prompt with length    1850, lcp =       8, f_keep = 0.004, f_sim = 0.296
+srv          load:    - prompt with length   20206, lcp =       8, f_keep = 0.000, f_sim = 0.296
+srv        update:  - cache state: 4 prompts, 748.311 MiB (limits: 8192.000 MiB, 65536 tokens, 361447 est)
+srv        update:    - prompt 0000020B46799690:    5340 tokens, checkpoints:  2,   167.516 MiB
+srv        update:    - prompt 0000020B464BF440:    5621 tokens, checkpoints:  2,   168.474 MiB
+srv        update:    - prompt 0000020B3BAA6A90:    1850 tokens, checkpoints:  2,   151.003 MiB
+srv        update:    - prompt 0000020B4661CDA0:   20206 tokens, checkpoints:  2,   261.318 MiB
+srv  get_availabl: prompt cache update took 111.12 ms
+slot launch_slot_: id  0 | task -1 | sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> ?min-p -> ?xtc -> ?temp-ext -> dist 
+slot launch_slot_: id  0 | task -1 | sampler params: 
+	repeat_last_n = 64, repeat_penalty = 1.000, frequency_penalty = 0.000, presence_penalty = 0.000
+	dry_multiplier = 0.000, dry_base = 1.750, dry_allowed_length = 2, dry_penalty_last_n = 64
+	top_k = 40, top_p = 0.950, min_p = 0.000, xtc_probability = 0.000, xtc_threshold = 0.100, typical_p = 1.000, top_n_sigma = -1.000, temp = 1.000
+	mirostat = 0, mirostat_lr = 0.100, mirostat_ent = 5.000, adaptive_target = -1.000, adaptive_decay = 0.900
+slot launch_slot_: id  0 | task 4297 | processing task, is_child = 0
+slot   operator(): id  0 | task 4297 | new prompt, n_ctx_slot = 65536, n_keep = 4, task.n_tokens = 27
+slot   operator(): id  0 | task 4297 | checking checkpoint with [18154, 18154] against 8...
+slot   operator(): id  0 | task 4297 | checking checkpoint with [17646, 17646] against 8...
+slot   operator(): id  0 | task 4297 | forcing full prompt re-processing due to lack of cache data (likely due to SWA or hybrid/recurrent memory, see https://github.com/ggml-org/llama.cpp/pull/13194#issuecomment-2868343055)
+slot   operator(): id  0 | task 4297 | erased invalidated context checkpoint (pos_min = 17646, pos_max = 17646, n_tokens = 17647, n_swa = 0, pos_next = 0, size = 65.053 MiB)
+slot   operator(): id  0 | task 4297 | erased invalidated context checkpoint (pos_min = 18154, pos_max = 18154, n_tokens = 18155, n_swa = 0, pos_next = 0, size = 65.555 MiB)
+slot   operator(): id  0 | task 4297 | cached n_tokens = 0, memory_seq_rm [0, end)
+slot   operator(): id  0 | task 4297 | cached n_tokens = 23, memory_seq_rm [23, end)
+slot init_sampler: id  0 | task 4297 | init sampler, took 0.01 ms, tokens: text = 27, total = 27
+slot create_check: id  0 | task 4297 | created context checkpoint 1 of 32 (pos_min = 22, pos_max = 22, n_tokens = 23, size = 47.641 MiB)
+slot print_timing: id  0 | task 4297 | prompt eval time =     310.17 ms /    27 tokens (   11.49 ms per token,    87.05 tokens per second)
+slot print_timing: id  0 | task 4297 |        eval time =     572.38 ms /    24 tokens (   24.89 ms per token,    40.18 tokens per second)
+slot print_timing: id  0 | task 4297 |       total time =     882.55 ms /    51 tokens
+slot print_timing: id  0 | task 4297 |    graphs reused =       4201
+slot print_timing: id  0 | task 4297 | draft acceptance = 1.00000 (   15 accepted /    15 generated), mean len =  2.88
+slot print_timing: id  0 | task 4297 |      acc per pos = (1.000, 0.875)
+spec common_specu: statistics        draft-mtp: #calls(b,g,a) =    5   4251   4251, #gen drafts =   4251, #acc drafts =  3722, #gen tokens =   8500, #acc tokens =  6945, #mean acc len = 2.63, #acc rate/pos = (0.876, 0.758), dur(b,g,a) = 0.021, 49312.588, 6.644 ms
+slot      release: id  0 | task 4297 | stop processing: n_tokens = 50, truncated = 0
+srv  update_slots: all slots are idle
+[GIN] 2026/10/10 - 20:47:52 | 200 |         1m49s |       127.0.0.1 | POST     "/api/generate"
+[GIN] 2026/10/10 - 20:47:54 | 200 |    1.6667872s |       127.0.0.1 | POST     "/api/generate"
+[GIN] 2026/10/10 - 20:47:54 | 200 |            0s |       127.0.0.1 | GET      "/api/ps"
+[GIN] 2026/10/10 - 20:48:42 | 200 |     50.9331ms |       127.0.0.1 | GET      "/v1/models"
+[GIN] 2026/10/10 - 20:48:42 | 404 |            0s |       127.0.0.1 | GET      "/api/v1/models"
+[GIN] 2026/10/10 - 20:48:42 | 404 |            0s |       127.0.0.1 | GET      "/props"
+[GIN] 2026/10/10 - 20:48:42 | 200 |     48.6684ms |       127.0.0.1 | GET      "/v1/models"
+[GIN] 2026/10/10 - 20:49:01 | 200 |            0s |       127.0.0.1 | GET      "/api/version"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     50.3301ms |       127.0.0.1 | GET      "/api/tags"
+[GIN] 2026/10/10 - 20:49:01 | 200 |            0s |       127.0.0.1 | GET      "/api/experimental/model-recommendations"
+[GIN] 2026/10/10 - 20:49:01 | 200 |       536.4µs |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |            0s |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |            0s |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     21.4593ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     20.8403ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     21.3436ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     22.9373ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     24.0448ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     24.5711ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     25.6246ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |            0s |       127.0.0.1 | GET      "/api/version"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     45.6932ms |       127.0.0.1 | GET      "/api/tags"
+[GIN] 2026/10/10 - 20:49:01 | 200 |            0s |       127.0.0.1 | GET      "/api/experimental/model-recommendations"
+[GIN] 2026/10/10 - 20:49:01 | 200 |            0s |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |            0s |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |       507.1µs |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |        23.6ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     25.2005ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     26.2673ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |      27.338ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     28.4046ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |      28.428ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:01 | 200 |     30.4534ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:19 | 200 |            0s |       127.0.0.1 | GET      "/api/version"
+[GIN] 2026/10/10 - 20:49:19 | 200 |     46.9964ms |       127.0.0.1 | GET      "/api/tags"
+[GIN] 2026/10/10 - 20:49:19 | 200 |            0s |       127.0.0.1 | GET      "/api/experimental/model-recommendations"
+[GIN] 2026/10/10 - 20:49:19 | 200 |            0s |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:19 | 200 |       534.5µs |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:19 | 200 |            0s |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:19 | 200 |      12.774ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:19 | 200 |      20.301ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:19 | 200 |     24.6013ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:19 | 200 |     27.5353ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:19 | 200 |     27.9684ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:19 | 200 |     27.5275ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/10 - 20:49:19 | 200 |     29.7231ms |       127.0.0.1 | POST     "/api/show"
+
+===== 2. OLLAMA ENV - Machine scope + process-level =====
+ollama pid=20280 start=10/10/2026 18:34:09
+
+===== 3. DEER-FLOW adapter + gateway 401s today =====
+matches: 25
+  DF: 2026-10-10 12:09:42 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=74509 output=338 total=74847 input_token_details={'cache_read': 65034}
+  DF: 2026-10-10 12:09:42 - deerflow.agents.middlewares.sandbox_audit_middleware - INFO - [SandboxAudit] {"timestamp": "2026-10-10T12:09:42.175438+00:00", "thread_id": "fcd96702-40ad-4f0d-982c-8c56e8b1ac69", "command": "echo \"=== PACGATE env vars ===\"; env | grep -i pacgate | sed -E 's/(KEY|TOKEN|SECRET|PASSWORD)=.{0,8}.*/\\1=***REDACTED***/I'; echo; echo \"=== MCP / API related ===\"; env | grep -iE 'mcp|api_key|base_url|tenant|matter|token' | sed -E 's/(KEY|TOKEN|SECRET|PASSWORD)=.{0,8}.*/\\1=***REDACTED***/I' | head -40", "verdict": "pass"}
+  DF: 2026-10-10 12:10:54 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=76323 output=411 total=76734 input_token_details={'cache_read': 65186}
+  DF: 2026-10-10 12:10:54 - deerflow.agents.middlewares.sandbox_audit_middleware - INFO - [SandboxAudit] {"timestamp": "2026-10-10T12:10:54.885241+00:00", "thread_id": "fcd96702-40ad-4f0d-982c-8c56e8b1ac69", "command": "cd /mnt/user-data/workspace && python3 - <<'PY'\nimport os\nkeys=[k for k in os.environ if any(s in k.upper() for s in ('PACGATE','MCP','API_KEY','TOKEN','BASE_URL','TENANT','MATTER'))]\nfor k in sorted(keys):\n    v=os.environ[k]\n    if any(s in k.upper() for s in ('KEY','TOKEN','SECRET','PASSWORD')):\n        v=(v[:6]+'...REDACTED') if v else '(empty)'\n    print(f\"{k} = {v}\")\nprint(\"--- total env vars:\", len(os.environ))\nPY", "verdict": "pass"}
+  DF: 2026-10-10 12:11:49 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=76853 output=765 total=77618 input_token_details={'cache_read': 76194}
+  DF: 2026-10-10 12:14:07 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=73222 output=673 total=73895 input_token_details={'cache_read': 65034}
+  DF: 2026-10-10 12:15:57 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=72953 output=75 total=73028 input_token_details={'cache_read': 65028}
+  DF: 2026-10-10 12:29:43 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=69001 output=316 total=69317 input_token_details={'cache_read': 0}
+  DF: 2026-10-10 12:29:46 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=72213 output=398 total=72611 input_token_details={'cache_read': 66944}
+  DF: 2026-10-10 12:31:05 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=76930 output=583 total=77513 input_token_details={'cache_read': 66944}
+  DF: INFO:     172.23.0.3:38444 - "GET /api/threads/fcd96702-40ad-4f0d-982c-8c56e8b1ac69/token-usage HTTP/1.1" 200 OK
+  DF: INFO:     172.23.0.3:55174 - "GET /api/threads/fcd96702-40ad-4f0d-982c-8c56e8b1ac69/token-usage HTTP/1.1" 200 OK
+  DF: INFO:     172.23.0.3:57350 - "GET /api/threads/561a86f3-306e-43ad-9686-2a384a404dd7/token-usage HTTP/1.1" 200 OK
+  DF: INFO:     172.23.0.3:42716 - "GET /api/threads/561a86f3-306e-43ad-9686-2a384a404dd7/token-usage HTTP/1.1" 200 OK
+  DF: 2026-10-10 12:31:05 - mcp.client.streamable_http - INFO - Received session ID: 93e59642272a41adb83f7b1401d86d6e
+  DF: 2026-10-10 12:32:09 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=78026 output=510 total=78536 input_token_details={'cache_read': 76928}
+  DF: 2026-10-10 12:33:31 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=78200 output=331 total=78531 input_token_details={'cache_read': 66944}
+  DF: 2026-10-10 12:34:21 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=78696 output=94 total=78790 input_token_details={'cache_read': 66944}
+  DF: 2026-10-10 12:34:51 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=78950 output=185 total=79135 input_token_details={'cache_read': 78592}
+  DF: 2026-10-10 12:37:02 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=78354 output=3351 total=81705 input_token_details={'cache_read': 66944}
+  DF: 2026-10-10 12:39:30 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=73062 output=157 total=73219 input_token_details={'cache_read': 66944}
+  DF: 2026-10-10 12:42:22 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=73308 output=143 total=73451 input_token_details={'cache_read': 66944}
+  DF: 2026-10-10 12:44:11 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=72684 output=88 total=72772 input_token_details={'cache_read': 66944}
+  DF: 2026-10-10 12:44:53 - deerflow.agents.middlewares.token_usage_middleware - INFO - LLM token usage: input=72815 output=716 total=73531 input_token_details={'cache_read': 66944}
+  DF: INFO:     172.23.0.3:39892 - "GET /api/threads/561a86f3-306e-43ad-9686-2a384a404dd7/token-usage HTTP/1.1" 200 OK
+
+===== 4. DEER-FLOW cloud-model errors today (429/timeout/flash) =====
+matches: 5
+  DF: 2026-10-10 11:43:18 - deerflow.agents.lead_agent.agent - INFO - Create Agent(default) -> thinking_enabled: True, reasoning_effort: None, model_name: deepseek-v4.1-flash-cloud, is_plan_mode: False, subagent_enabled: False, max_concurrent_subagents: 3
+  DF: 2026-10-10 11:56:39 - deerflow.agents.lead_agent.agent - INFO - Create Agent(default) -> thinking_enabled: True, reasoning_effort: medium, model_name: deepseek-v4.1-flash-cloud, is_plan_mode: True, subagent_enabled: False, max_concurrent_subagents: 3
+  DF: 2026-10-10 11:57:29 - deerflow.agents.lead_agent.agent - INFO - Create Agent(default) -> thinking_enabled: True, reasoning_effort: medium, model_name: deepseek-v4.1-flash-cloud, is_plan_mode: True, subagent_enabled: False, max_concurrent_subagents: 3
+  DF: 2026-10-10 12:05:15 - deerflow.agents.lead_agent.agent - INFO - Create Agent(default) -> thinking_enabled: True, reasoning_effort: medium, model_name: deepseek-v4.1-flash-cloud, is_plan_mode: True, subagent_enabled: False, max_concurrent_subagents: 3
+  DF: 2026-10-10 12:29:31 - deerflow.agents.lead_agent.agent - INFO - Create Agent(default) -> thinking_enabled: True, reasoning_effort: high, model_name: deepseek-v4.1-flash-cloud, is_plan_mode: True, subagent_enabled: True, max_concurrent_subagents: 3
+
+===== 5. DEER-FLOW runs today - status/model/error from deerflow.db =====
+Traceback (most recent call last):
+  File "/tmp/qruns.py", line 4, in <module>
+    rows = db.execute("SELECT id, status, model_name, error, created_at FROM runs ORDER BY created_at DESC LIMIT 15").fetchall()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such table: runs
+
+===== 6. CLOUD RETEST with full body capture =====
+wall=1.1s
+{"model":"deepseek-v4.1-flash","created_at":"2026-10-10T12:49:26.992759649Z","response":"","thinking":"The user wants me to reply with exactly \"CLOUD-OK-101","done":true,"done_reason":"length","total_duration":202576919,"prompt_eval_count":42,"prompt_eval_cached_count":0,"eval_count":16}
+
+===== 7. WHO ELSE CALLS OLLAMA - open-webui/hermes config check =====
+ghcr.io/open-webui/open-webui:main env=PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 GPG_KEY=A035C8C19219BA821ECEA86B64E628F8D684696D PYTHON_VERSION=3.11.15 PYTHON_SHA256=272179ddd9a2e41a0fc8e42e33dfbdca0b3711aa5abf372d3f2d51543d09b625 PYTHONUNBUFFERED=1 ENV=prod PORT=8080 USE_OLLAMA_DOCKER=false USE_CUDA_DOCKER=false USE_SLIM_DOCKER=false USE_CUDA_DOCKER_VER=cu128 USE_EMBEDDING_MODEL_DOCKER=sentence-transformers/all-MiniLM-L6-v2 USE_RERANKING_MODEL_DOCKER= USE_AUXILIARY_EMBEDDING_MODEL_DOCKER=TaylorAI/bge-micro-v2 OLLAMA_BASE_URL=/ollama OPENAI_API_BASE_URL= OPENAI_API_KEY= WEBUI_SECRET_KEY= SCARF_NO_ANALYTICS=true DO_NOT_TRACK=true ANONYMIZED_TELEMETRY=false WHISPER_MODEL=base WHISPER_MODEL_DIR=/app/backend/data/cache/whisper/models RAG_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2 RAG_RERANKING_MODEL= AUXILIARY_EMBEDDING_MODEL=TaylorAI/bge-micro-v2 SENTENCE_TRANSFORMERS_HOME=/app/backend/data/cache/embedding/models TIKTOKEN_ENCODING_NAME=cl100k_base TIKTOKEN_CACHE_DIR=/app/backend/data/cache/tiktoken HF_HOME=/app/backend/data/cache/embedding/models HOME=/root UV_LINK_MODE=copy WEBUI_BUILD_VERSION=02dc3e689ceac915a870b373318b99c029ddf603 DOCKER=true 
+
+===== 8. FreeRAM snapshot =====
+FreeRAM now: 0.66 GB
+DONE

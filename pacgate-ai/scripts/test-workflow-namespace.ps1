@@ -211,8 +211,13 @@ $exempt = @('scripts/test-workflow-mutations.ps1')
 foreach ($dir in @('scripts', 'deploy')) {
     $dirPath = Join-Path $repoRoot $dir
     if (-not (Test-Path -LiteralPath $dirPath)) { continue }
+    # `deploy/client-bundle/data/` is deer-flow's gitignored RUNTIME state. Its
+    # sandbox workspace holds a full copy of this repo from whenever an agent last
+    # cloned it, so scanning it flags the stale snapshot's own scripts - a false
+    # positive that appears on every machine that has ever run deer-flow.
     $files = @(Get-ChildItem -LiteralPath $dirPath -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Extension -in @('.ps1', '.psm1', '.py', '.sh') })
+        Where-Object { $_.Extension -in @('.ps1', '.psm1', '.py', '.sh') } |
+        Where-Object { $_.FullName -notmatch '\\deploy\\client-bundle\\data\\' })
     foreach ($f in $files) {
         $rel = $f.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
         if ($exempt -contains $rel) { continue }

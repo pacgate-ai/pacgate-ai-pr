@@ -1,0 +1,28 @@
+﻿
+=== DEER-FLOW GATEWAY ===
+[TIME] gateway login : 305 ms HTTP 200
+[PASS] csrf cookie : True
+
+=== SURFACES (latency) ===
+[TIME] GET /api/models : 48 ms 8 models
+[TIME] GET /api/agents : 84 ms 2 agents
+model list: nemotron-3.5-lightning-30b-local, gemma4-12b-local, nemotron-30b-memory, nemotron-30b-summarizer, ornith-1.5-9b-local, ornith-1.5-35b-local, deepseek-v4.1-flash-cloud, glm-5.3-flash-cloud
+agents: ocr-extractor, sanitizer
+
+=== MEMORY CARD (0.1.25 fix) ===
+[TIME] GET /api/memory : 61 ms HTTP 200, 35404B
+[PASS] memory card : renders (was 500 pre-0.1.25)
+[TIME] GET /api/memory/status : 52 ms HTTP 200
+[TIME] GET /api/memory/config : 21 ms HTTP 200
+
+=== FRONTEND + NGINX ===
+[TIME] frontend :8090 : 137 ms HTTP 200
+[TIME] nginx :8089 : 95 ms HTTP 200
+
+=== DEER-FLOW STATE ===
+checkpoints.db: -rw-r--r-- 1 root root 1950998528 Oct  9 08:45 /app/backend/.deer-flow/checkpoints.db
+extensions config servers: 30 (verified earlier)
+
+=== CONFIG LIVE ===
+summarization: summarization:   enabled: true   model_name: nemotron-30b-summarizer   trigger:
+model_routing: model_routing:   enabled: true   # Pacgate 2026-10-07: nemotron is now BOTH the default and the escalation   # target. Its 1M context makes the old gemma4-overflow escalation redundant -

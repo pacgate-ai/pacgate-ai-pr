@@ -286,7 +286,34 @@ if (Test-Path 'pacgate-ai/.dockerignore') {
         ForEach-Object { "pacgate-ai/$_" })
 }
 
-$changed = @(& git diff --name-only "$resolved..HEAD" 2>$null | Where-Object { $_ })
+# LAYOUT-AWARE COMPARISON.
+#
+# This clone is a MONOREPO whose `pacgate-ai/` subtree IS the upstream repo, and
+# its history is unrelated to upstream's (different root commit). `git diff
+# <upstream-sha>..HEAD` therefore compares two unrelated trees and reports every
+# file as changed - a false failure that says nothing about provenance.
+#
+# When HEAD is not a descendant of the built revision, compare CONTENT instead:
+# the local subtree tree against the published revision's root tree. That is the
+# question the gate actually asks ("does what we ship equal what was built?"),
+# and it is answerable without a shared history.
+$subtree = 'pacgate-ai'
+$sharedHistory = $false
+& git merge-base --is-ancestor $resolved HEAD 2>$null
+if ($LASTEXITCODE -eq 0) { $sharedHistory = $true }
+
+if ($sharedHistory) {
+    $changed = @(& git diff --name-only "$resolved..HEAD" 2>$null | Where-Object { $_ })
+}
+else {
+    Info "HEAD is not a descendant of $builtRev (unrelated history) - comparing the '$subtree/' subtree by content"
+    $changed = @(& git diff --name-only "$resolved" "HEAD:$subtree" 2>$null | Where-Object { $_ })
+    if ($LASTEXITCODE -ne 0) {
+        Exit-NotYetAssertable "could not diff the '$subtree/' subtree against $builtRev, so the tag-to-artifact file diff cannot be computed."
+    }
+    # Paths from that diff are relative to the upstream root, which is exactly the
+    # namespace $contextPrefixes is written in - no rewriting needed.
+}
 $affecting = @()
 $benign = @()
 foreach ($f in $changed) {

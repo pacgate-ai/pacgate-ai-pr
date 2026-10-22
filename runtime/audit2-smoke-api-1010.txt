@@ -1,0 +1,35 @@
+﻿
+=== AUTH ===
+[TIME] login : 280 ms token issued
+
+=== CORE SURFACES (latency) ===
+[TIME] GET /matters : 8 ms 10 items
+[TIME] GET /workflows : 62 ms 222 items
+[TIME] GET /search/health : 5 ms 10 items
+[PASS] connectors available : 9 / 10
+  yuandian: available=True
+  pkulaw: available=True
+  qcc: available=True
+  fyopen: available=True
+  courtlistener: available=True
+  sec_edgar: available=True
+  gleif: available=True
+  vaquill: available=True
+  eur-lex: available=True
+  opencorporates: available=False
+
+=== MATTER MEMORY LANE ===
+[TIME] GET matter memory : 6 ms version=2.0 facts=0
+
+=== KB SEARCH (pgvector) ===
+[TIME] POST /kb/search : 5687 ms chunks=1
+
+=== MCP LANE ===
+MCP: initialize: 18ms | tools/list: 4ms (19 tools) | list_matters: 232ms (len=3910)
+
+=== DOCUMENT PIPELINE ===
+[TIME] upload : 47 ms doc id=a8ea359b-7ff8-477e-946a-6085cfced5b2
+[TIME] extract : 107 ms incomplete=False len=105
+[TIME] sanitize T3 : 1302 ms verdict=pass redactions=2 mappings=2
+[PASS] download gate: HTTP 200 (verdict=pass -> gate OPEN)
+[PASS] cleanup: test doc deleted

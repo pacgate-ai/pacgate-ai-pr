@@ -1,0 +1,10 @@
+﻿=== KB SEARCH (GET, correct) ===
+[FAIL] kb search GET : HTTP 400
+
+=== DOCUMENT PIPELINE (corrected) ===
+[TIME] upload : 44 ms id=69ee0a5f-fd46-41d4-b6a5-3b1e4f7aac19
+[TIME] extract : 64 ms incomplete=False len=106
+[TIME] sanitize T3 : 7916 ms verdict=pass redactions=2 mappings=2
+[PASS] download gate: HTTP 200 (verdict=pass -> gate OPEN)
+[PASS] sanitize-status: {"document_state":"sanitized","chunk_states":["sanitized"],"latest_job":"c6d53824-c0a3-41af-88c8-25d4d8824d2d"}
+[PASS] cleanup: doc deleted

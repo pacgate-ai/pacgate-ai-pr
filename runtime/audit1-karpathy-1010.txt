@@ -1,0 +1,90 @@
+﻿
+=== K1 REPO HYGIENE ===
+[PASS] tracked tree clean : 0 modifications
+[NOTE] untracked files : 867 (runtime/ scratch 鈥?never committed by design)
+
+=== K2 TAG CONSISTENCY ===
+git describe: fatal: No tags can describe '34e0f2a1315cc326298d38dbe2a6dd8cfb4c2bc4'. Try --always, or create some tags.
+HEAD: 34e0f2a
+
+=== K3 VERSION SOURCES ===
+Cargo.toml: 0.1.25
+compose.bundle pins: 0.1.25
+api image label: 0.1.25
+[PASS] version agreement : Cargo=0.1.25 pins=0.1.25 label=0.1.25
+
+=== K4/K5 SECRETS ===
+[PASS] credential carriers : 0 in tracked tree (blob-SHA method)
+[PASS] .env untracked : not in git
+
+=== K6 PIN NAMESPACE ===
+namespaces in pins: jzkk720, volcengine
+[NOTE] namespace : jzkk720,volcengine (volcengine/openviking is third-party digest-pinned)
+
+=== K7/K8 DOCKER RUNTIME ===
+docker server: 29.8.2
+ocr-service|Up 8 hours
+deer-flow-frontend|Up 8 hours
+deer-flow|Up 8 hours
+pacgate-mcp|Up 8 hours
+pacgate-api|Up 8 hours
+qm-sbx-personal-pacgate-ai01-outlook-com-a32eb1|Exited (137) 35 hours ago
+qm-pacgate-core|Up 2 days
+open-webui|Up 2 days (healthy)
+hermes-gateway|Up 2 days (healthy)
+hermes-web|Up 13 seconds (health: starting)
+qm-pacgate-portal|Up 2 days
+qm-pacgate-auth|Up 2 days
+qm-pacgate-web-ui|Up 2 days
+qm-pacgate-admin|Up 2 days
+qm-pacgate-pg|Up 2 days
+qm-mailpit|Up 2 days (healthy)
+pacgate-nginx|Up 2 days
+pacgate-db|Up 2 days
+openviking|Up 2 days (healthy)
+odysseus-ntfy-1|Up 2 days
+cloudflare|Up 2 days
+hermes-postgres|Up 2 days (healthy)
+ironclawai-survey|Up 2 days
+odysseus-odysseus-1|Up 2 days
+odysseus-searxng-1|Up 2 days (healthy)
+odysseus-chromadb-1|Up 2 days
+dockhand|Up 2 days (healthy)
+
+[PASS] containers : 26 running / 27 total
+[PASS] health : no unhealthy containers
+[PASS] restart loops : none
+
+=== K9 RESOURCE FOOTPRINT ===
+ocr-service|0.15%|43.22MiB / 14.44GiB
+deer-flow-frontend|0.00%|129.9MiB / 14.44GiB
+deer-flow|0.16%|229.9MiB / 14.44GiB
+pacgate-mcp|0.24%|50.94MiB / 14.44GiB
+pacgate-api|0.00%|97.34MiB / 4GiB
+qm-pacgate-core|1.23%|331.1MiB / 14.44GiB
+open-webui|0.75%|557.8MiB / 14.44GiB
+hermes-gateway|0.28%|299.3MiB / 14.44GiB
+hermes-web|46.45%|59.88MiB / 14.44GiB
+qm-pacgate-portal|0.00%|31.23MiB / 14.44GiB
+qm-pacgate-auth|0.00%|38.49MiB / 14.44GiB
+qm-pacgate-web-ui|0.13%|64.73MiB / 14.44GiB
+qm-pacgate-admin|0.00%|50.47MiB / 14.44GiB
+qm-pacgate-pg|3.83%|124.6MiB / 14.44GiB
+qm-mailpit|0.00%|36.68MiB / 14.44GiB
+pacgate-nginx|0.00%|20.96MiB / 14.44GiB
+pacgate-db|0.00%|63.04MiB / 14.44GiB
+openviking|2.00%|376.5MiB / 14.44GiB
+odysseus-ntfy-1|0.00%|26.15MiB / 14.44GiB
+cloudflare|0.53%|33.54MiB / 14.44GiB
+hermes-postgres|0.00%|34.17MiB / 14.44GiB
+ironclawai-survey|0.00%|15.55MiB / 14.44GiB
+odysseus-odysseus-1|0.15%|592.5MiB / 14.44GiB
+odysseus-searxng-1|7.50%|112.2MiB / 14.44GiB
+odysseus-chromadb-1|0.00%|19.67MiB / 14.44GiB
+dockhand|0.09%|174.1MiB / 14.44GiB
+
+
+=== VOLUME SAFETY ===
+db volumes: client-bundle_pacgate-db-data, pacgate-ai-bundle_pacgate-db-data
+pacgate-db attached to: /var/lib/docker/volumes/pacgate-ai-bundle_pacgate-db-data/_data
+[PASS] volume pin : db on pacgate-ai-bundle_ volume (correct)
