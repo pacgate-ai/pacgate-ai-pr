@@ -119,3 +119,7 @@ deer-flow/
 # Revisit once the user decides: keep assets in their own repo, or absorb them.
 # See runtime/relocate/ASSETS-STRUCTURE.txt
 pacgate-ai-assets/
+
+# Pre-upgrade config backups contain live credentials (OPENVIKING_ROOT_API_KEY,
+# PACGATE_API_PASSWORD). Never commit them.
+runtime/backup-pre-*/
