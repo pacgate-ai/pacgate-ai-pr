@@ -12,13 +12,30 @@ gemma4:12b-it-qat
 qwen3.8:27b-mtp-q4_K_M
 
 # --- AIPC1-ONLY deer-flow fallback tag (2026-10-10, LOCAL-ONLY) ---
-# deer-flow-config.yaml on THIS machine now defaults to gemma4:12b-it-q8_0
-# (fully-in-VRAM fallback after the nemotron eviction/reload cycling diagnosis;
-# see runtime/diag1..7-*-1010 + runtime/AIPC1-DIAGNOSIS-REPORT-1010.md).
+# deer-flow-config.yaml on THIS machine now defaults to a context-capped
+# DERIVATIVE tag (2026-10-16 fix). The base q8_0 tag below still must be present:
+# it is the `FROM` source for the derivative AND is used directly by
+# `ollama create`/`show`, and by the nemotron/qwen picker entries' sibling docs.
 # q8_0 is already installed here (12GB) and is the tag openviking's VLM and
-# pacgate-api's workflow tiers already use on this box. The developer's
-# machine keeps qat as the deer-flow default - do NOT upstream this line.
+# pacgate-api's workflow tiers used BEFORE the 2026-10-16 cap fix. The
+# developer's machine keeps qat as its deer-flow default - do NOT upstream this.
+# NOTE: the base tag declares a 262144 context and therefore spills to host RAM
+# if you chat with it directly. Do not point a service at it - use the capped
+# derivative instead.
 gemma4:12b-it-q8_0
+
+# --- AIPC1 context-capped derivatives (2026-10-16, LOCAL-ONLY) ---
+# These are LOCAL DERIVATIVES: `ollama create` is not a registry pull, so
+# install.ps1 does NOT `ollama pull` these lines - the pull loop skips them and
+# materialises them from the base tags above instead (see the $localDerived map
+# in install.ps1). scripts/audit-model-tags.ps1 sees them here so the config
+# references resolve. To create them by hand on any AIPC:
+#   .\ensure-context-capped-model.ps1
+#   gemma4-legal:12b-chat = FROM gemma4:12b-it-q8_0      + num_ctx 131072
+#   qwen3.8-legal:27b-mid = FROM qwen3.8:27b-mtp-q4_K_M  + num_ctx  32768
+# Rationale + measurements: runtime/AIPC1-MEMORY-OPTIMIZATION-2026-10-16.md
+gemma4-legal:12b-chat
+qwen3.8-legal:27b-mid
 
 # --- RAG embeddings (required by pacgate-api, no alternative) ---
 nomic-embed-text:latest

@@ -364,6 +364,7 @@ def build_middlewares(
     available_skills: set[str] | None = None,
     app_config: AppConfig | None = None,
     deferred_setup=None,
+    mcp_routing_middleware=None,
 ):
     """Build the lead-agent middleware chain based on runtime configuration.
 
@@ -427,6 +428,20 @@ def build_middlewares(
     model_config = resolved_app_config.get_model_config(model_name) if model_name else None
     if model_config is not None and model_config.supports_vision:
         middlewares.append(ViewImageMiddleware())
+
+    # Auto-promote the schemas a request obviously needs, from operator-authored routing
+    # keywords, BEFORE the model is called. This MUST be installed before the deferred
+    # filter: assert_mcp_routing_before_deferred_filter raises if the order is reversed.
+    #
+    # Without this layer the deferred catalog has nothing to pre-seed from, and a model
+    # that calls an MCP tool without promoting first gets a "deferred, not promoted" loop
+    # (observed 2026-09-12, which is why tool_search was disabled).
+    #
+    # NOTE: build_middlewares may be called before `final_tools` exists at some sites, so
+    # the middleware is built by the caller and passed in; None means "no routing metadata
+    # configured", which is the honest degrade to model-initiated tool_search.
+    if mcp_routing_middleware is not None:
+        middlewares.append(mcp_routing_middleware)
 
     # Hide deferred tool schemas from model binding until tool_search promotes them.
     # The deferred set + catalog hash come from the build-time setup (assembled
@@ -498,7 +513,10 @@ def _make_lead_agent(config: RunnableConfig, *, app_config: AppConfig):
     # Lazy import to avoid circular dependency
     from deerflow.tools import get_available_tools
     from deerflow.tools.builtins import setup_agent, update_agent
-    from deerflow.tools.builtins.tool_search import assemble_deferred_tools
+    from deerflow.tools.builtins.tool_search import (
+        assemble_deferred_tools,
+        build_mcp_routing_middleware,
+    )
 
     cfg = _get_runtime_config(config)
     resolved_app_config = app_config
@@ -596,6 +614,11 @@ def _make_lead_agent(config: RunnableConfig, *, app_config: AppConfig):
         raw_tools = get_available_tools(model_name=model_name, subagent_enabled=subagent_enabled, app_config=resolved_app_config) + [setup_agent]
         filtered = filter_tools_by_skill_allowed_tools(raw_tools, skills_for_tool_policy)
         final_tools, setup = assemble_deferred_tools(filtered, enabled=resolved_app_config.tool_search.enabled)
+        setup_routing_middleware = build_mcp_routing_middleware(
+            final_tools,
+            setup,
+            top_k=resolved_app_config.tool_search.auto_promote_top_k,
+        )
         return create_agent(
             model=create_chat_model(name=model_name, thinking_enabled=thinking_enabled, app_config=resolved_app_config, attach_tracing=False),
             tools=final_tools,
@@ -605,6 +628,7 @@ def _make_lead_agent(config: RunnableConfig, *, app_config: AppConfig):
                 available_skills=set(_BOOTSTRAP_SKILL_NAMES),
                 app_config=resolved_app_config,
                 deferred_setup=setup,
+                mcp_routing_middleware=setup_routing_middleware,
             ),
             system_prompt=apply_prompt_template(
                 subagent_enabled=subagent_enabled,
@@ -623,6 +647,11 @@ def _make_lead_agent(config: RunnableConfig, *, app_config: AppConfig):
     raw_tools = get_available_tools(model_name=model_name, groups=agent_config.tool_groups if agent_config else None, subagent_enabled=subagent_enabled, app_config=resolved_app_config)
     filtered = filter_tools_by_skill_allowed_tools(raw_tools + extra_tools, skills_for_tool_policy)
     final_tools, setup = assemble_deferred_tools(filtered, enabled=resolved_app_config.tool_search.enabled)
+    setup_routing_middleware = build_mcp_routing_middleware(
+        final_tools,
+        setup,
+        top_k=resolved_app_config.tool_search.auto_promote_top_k,
+    )
     return create_agent(
         model=create_chat_model(name=model_name, thinking_enabled=thinking_enabled, reasoning_effort=reasoning_effort, app_config=resolved_app_config, attach_tracing=False),
         tools=final_tools,
@@ -633,6 +662,7 @@ def _make_lead_agent(config: RunnableConfig, *, app_config: AppConfig):
             available_skills=available_skills,
             app_config=resolved_app_config,
             deferred_setup=setup,
+            mcp_routing_middleware=setup_routing_middleware,
         ),
         system_prompt=apply_prompt_template(
             subagent_enabled=subagent_enabled,

@@ -572,8 +572,49 @@ else {
 # 5. Pull models (first install only)
 if (-not $Update) {
     Write-Host "`nPulling Ollama models (this takes a while on first run)..." -ForegroundColor Cyan
+    # Pacgate 2026-10-16: `ollama create` derivatives cannot be pulled from a
+    # registry - they are built locally from a base tag. Resolve them here after
+    # the pull loop so install.ps1 alone still produces a working roster.
+    # Derived tags are declared here, NOT in ollama-models.txt alone, because a
+    # bare `ollama pull gemma4-legal:12b-chat` returns HTTP 404.
+    $localDerived = @{
+        'gemma4-legal:12b-chat' = @{ Source = 'gemma4:12b-it-q8_0';     NumCtx = 131072 }
+        'qwen3.8-legal:27b-mid' = @{ Source = 'qwen3.8:27b-mtp-q4_K_M'; NumCtx = 32768 }
+    }
+    $derivedScript = Join-Path $PSScriptRoot 'ensure-context-capped-model.ps1'
+    if (-not (Test-Path $derivedScript)) {
+        # $PSScriptRoot is the script's own dir; the bundle may have been invoked
+        # from elsewhere, so fall back to the current directory.
+        $candidate = Join-Path (Get-Location) 'ensure-context-capped-model.ps1'
+        if (Test-Path $candidate) { $derivedScript = $candidate }
+    }
     foreach ($model in Get-Content ollama-models.txt -Encoding UTF8) {
         if ($model -and -not $model.StartsWith("#")) {
+            if ($localDerived.ContainsKey($model)) {
+                $spec = $localDerived[$model]
+                Write-Host "  Creating $model locally (FROM $($spec.Source), num_ctx $($spec.NumCtx))..." -ForegroundColor Yellow
+                # Warn, do not abort. install.ps1 sets $ErrorActionPreference='Stop',
+                # so a throw from the helper would terminate the whole install - but a
+                # derivative that could not be built is not fatal to the rest of the
+                # deploy (only lanes that use that tag are affected), and the previous
+                # behaviour for a failed model step was to carry on.
+                try {
+                    if (Test-Path $derivedScript) {
+                        & $derivedScript -NumCtx $spec.NumCtx -Source $spec.Source -Target $model
+                    }
+                    else {
+                        $mf = Join-Path $env:TEMP "Modelfile.$($model -replace '[:/]','-')"
+                        "FROM $($spec.Source)`nPARAMETER num_ctx $($spec.NumCtx)" | Set-Content -Path $mf -Encoding ASCII
+                        ollama create $model -f $mf
+                        Remove-Item $mf -Force -ErrorAction SilentlyContinue
+                    }
+                }
+                catch {
+                    Write-Host "  [WARN] could not create $model - $($_.Exception.Message)" -ForegroundColor Yellow
+                    Write-Host "         build it by hand: $(if (Test-Path $derivedScript) { $derivedScript } else { 'ollama create ' + $model })" -ForegroundColor Yellow
+                }
+                continue
+            }
             Write-Host "  Pulling $model..." -ForegroundColor Yellow
             ollama pull $model
         }

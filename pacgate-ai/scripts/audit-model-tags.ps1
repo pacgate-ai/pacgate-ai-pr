@@ -31,7 +31,10 @@ param(
     [string]$PrePullList = 'deploy/client-bundle/ollama-models.txt',
     # Optional: also require the tag to be present in a running ollama.
     [switch]$CheckInstalled,
-    [string]$OllamaBase = 'http://localhost:11434'
+    [string]$OllamaBase = 'http://localhost:11434',
+    # Pacgate 2026-10-16: .env overrides the compose ${VAR:-default} tier tags for
+    # the live stack; read it so the tier inventory matches what actually runs.
+    [string]$EnvFile = 'deploy/client-bundle/.env'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -180,6 +183,27 @@ foreach ($compose in @('deploy/client-bundle/compose.prod.yaml', 'deploy/client-
             $tierTags += $t
             if (-not $tierSources.ContainsKey($t)) { $tierSources[$t] = @() }
             $tierSources[$t] += "$compose ($var)"
+        }
+    }
+}
+# Pacgate 2026-10-16: deploy/client-bundle/.env overrides the PACGATE_MODEL_*
+# defaults above for the live stack (compose interpolates ${VAR:-default} from
+# .env, and pacgate-api also gets it via env_file). Without reading .env the
+# "pre-pulled but never requested" check flagged the CONTEXT-CAPPED tier tags
+# (gemma4-legal:12b-chat, qwen3.8-legal:27b-mid) as unused even though they are
+# exactly what the running containers use - a false negative that would hide a
+# genuine drift later. Read it as an additional tier source.
+if ($EnvFile -and (Test-Path $EnvFile)) {
+    foreach ($envLine in (Get-Content $EnvFile)) {
+        # Strip an inline comment and surrounding whitespace; tolerate `export `.
+        $line = ($envLine -replace '\s+#.*$', '').Trim()
+        if ($line -match '^(?:export\s+)?(PACGATE_MODEL_(?:MAIN|MID|LOW))\s*=\s*(.+)$') {
+            $t = Normalize-Tag $Matches[2].Trim().Trim('"', "'")
+            if ($t) {
+                $tierTags += $t
+                if (-not $tierSources.ContainsKey($t)) { $tierSources[$t] = @() }
+                $tierSources[$t] += "$EnvFile ($($Matches[1]))"
+            }
         }
     }
 }

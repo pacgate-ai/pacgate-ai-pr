@@ -44,20 +44,58 @@
 # roster change is LOCAL-ONLY (user directive 2026-09-21/10-09): do NOT
 # upstream. The 2026-10-07 nemotron max_tokens cap note still applies to the
 # nemotron entry below (thinking-loop guard).
+#
+# ── 2026-10-16 CONTEXT-CAP FIX (LOCAL-ONLY) — resolves the AIPC1 memory wall ──
+# Root cause of the "every session hits the RAM wall" symptom: `gemma4:12b-it-q8_0`
+# declares a 262144-token context. deer-flow calls Ollama over the OpenAI-compat
+# route (`/v1/chat/completions`), and Ollama 0.40.5 auto-fits THAT route up to the
+# model's full declared context — a per-request `options.num_ctx` is not honoured
+# there, and the server-side `OLLAMA_CONTEXT_LENGTH` default is not applied to it
+# either (both verified 2026-10-16). gemma4 uses mostly sliding-window layers
+# (n_swa 1024) but 8 GLOBAL-attention layers whose KV grows linearly with context;
+# at 262144 those 8 layers alone need ~2176 MiB of KV, which does not fit beside
+# the 11613 MiB of weights in the 16GB card. Ollama therefore splits the runner
+# across CPU+GPU ("2%/98% CPU/GPU"): ~12.4 GB of weights get CPU-mapped and ~8.5 GB
+# of KV lands in host RAM, so llama-server commits ~21 GB and host free RAM sits at
+# ~1 GB. That is the wall — before any container is even counted.
+#
+# Fix: use the DERIVED tag `gemma4-legal:12b-chat` = `FROM gemma4:12b-it-q8_0` with
+# `PARAMETER num_ctx 131072`. 131072 is still >3x the 40000 auto-escalation
+# threshold below, so usable context is unchanged; the runner fits 100% in VRAM.
+# Recreate it with: deploy/client-bundle/ensure-context-capped-model.ps1 (see ollama-models.txt).
+# Verified 2026-10-16: 100% GPU, VRAM 15567 MiB, llama-server commit 21.0 GB -> 13.0 GB,
+# host free 1.2 GB -> 9.7 GB, cold load 165 s -> 20 s, vision still correct.
+# NOTE: every local role below points at this SAME tag on purpose — a mixed roster
+# would swap the two variants in and out of VRAM on every background call.
 models:
   - name: gemma4-12b-local
     display_name: Gemma 4 12B (Local)
     description: >-
-      Default on this machine (AIPC1 fallback 2026-10-10). 12GB q8_0 fits
-      fully in the 16GB VRAM - no CPU spill, no evictions. Reliable
-      structured/tool calls and json_schema grammar. Shares the runner slot
-      with openviking VLM + pacgate-api workflow tiers (same q8_0 tag).
+      Default on this machine (AIPC1). Context-capped derivative of
+      gemma4:12b-it-q8_0: num_ctx 131072 instead of the model's declared
+      262144, so the runner fits 100% in the 16GB VRAM (no CPU spill, no
+      evictions, ~8 GB of host RAM reclaimed). Same weights, so structured/
+      tool calls, json_schema grammar and the multimodal projector are all
+      unchanged. Shares one runner slot with the internal roles below.
     use: langchain_openai:ChatOpenAI
-    model: gemma4:12b-it-q8_0
+    model: gemma4-legal:12b-chat
     api_key: ollama
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 8192
     temperature: 0.1
+    # ── 2026-10-16 REASONING-BURN FIX (LOCAL-ONLY) ──────────────────────────
+    # This entry declared no thinking settings at all, which made the UI's
+    # "thinking off" toggle a NO-OP for the local chat model: factory.py only
+    # emits a disable directive when `has_thinking_settings` is true (i.e. the
+    # entry declares `when_thinking_enabled` or `thinking`), so with neither
+    # declared nothing was sent and Ollama defaulted to reasoning ON.
+    # Verified on Ollama 0.40.5: reasoning_effort=none is the ONLY lever that
+    # works (thinking.type=disabled and think=false are both ignored).
+    # Thinking ON is unaffected: when_thinking_enabled is empty, so no directive
+    # is sent and the model reasons as before.
+    supports_reasoning_effort: true
+    when_thinking_disabled:
+      reasoning_effort: none
 
   - name: nemotron-3.5-lightning-30b-local
     display_name: Nemotron 3.5 Lightning 30B (Local, heavy)
@@ -92,23 +130,56 @@ models:
   # runaway-generation protection.
   - name: gemma4-12b-memory
     display_name: "[internal] Memory updater (Gemma 12B, capped)"
-    description: Internal background memory-update model. Hard 2048-token cap. Same tag as chat default - no VRAM swap. Not intended for chat; kept visible because deer-flow has no hide-from-picker flag (frontend filter = upstream-PR candidate).
+    description: Internal background memory-update model. Hard 2048-token cap. Same context-capped tag as chat default - no VRAM swap. Not intended for chat; kept visible because deer-flow has no hide-from-picker flag (frontend filter = upstream-PR candidate).
     use: langchain_openai:ChatOpenAI
-    model: gemma4:12b-it-q8_0
+    model: gemma4-legal:12b-chat
     api_key: ollama
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 2048
     temperature: 0.1
+    # ── 2026-10-16 REASONING-BURN FIX (LOCAL-ONLY) ──────────────────────────
+    # Same defect the two cloud models below were fixed for on 2026-10-09, but
+    # never applied to the local roles. Verified by direct reproduction of this
+    # exact call path (MemoryUpdater._get_model() -> model.invoke()):
+    #   completion_tokens=2048, content="" (0 chars), finish_reason="length"
+    #   -> _parse_memory_update_response raises
+    #      "No valid memory update JSON object found: line 1 column 1 (char 0)"
+    # The 2048 cap was consumed ENTIRELY by the model's separate `reasoning`
+    # channel, so the JSON body was never emitted. 100% failure rate, ~174 s
+    # burned per attempt on the single Ollama runner slot.
+    #
+    # Why the existing guards did not catch it: factory.py only emits a disable
+    # directive when `has_thinking_settings` is true, i.e. when the entry
+    # declares `when_thinking_enabled` or `thinking`. This entry declared
+    # neither, so `thinking_enabled=False` from updater.py:395 was a no-op and
+    # NO directive was sent — Ollama then defaulted to reasoning ON.
+    #
+    # Verified on Ollama 0.40.5 /v1/chat/completions (A/B/C/D, same prompt):
+    #   no control            -> reasoning 1970 chars, 35 s
+    #   reasoning_effort=none -> reasoning    0 chars, 10 s   <-- only working lever
+    #   thinking.type=disabled-> reasoning 1945 chars, 33 s   (IGNORED)
+    #   think=false           -> reasoning 1963 chars, 33 s   (IGNORED)
+    # supports_reasoning_effort MUST be true or factory.py pops the key back out.
+    supports_reasoning_effort: true
+    when_thinking_disabled:
+      reasoning_effort: none
 
   - name: gemma4-12b-summarizer
     display_name: "[internal] Summarizer (Gemma 12B, capped)"
-    description: Internal conversation-summarization model. Hard 4096-token cap. Same tag as chat default - no VRAM swap. Not intended for chat.
+    description: Internal conversation-summarization model. Hard 4096-token cap. Same context-capped tag as chat default - no VRAM swap. Not intended for chat.
     use: langchain_openai:ChatOpenAI
-    model: gemma4:12b-it-q8_0
+    model: gemma4-legal:12b-chat
     api_key: ollama
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 4096
     temperature: 0.1
+    # Same reasoning-burn fix as gemma4-12b-memory above (verified 2026-10-16).
+    # The summarizer is the most expensive internal role (it receives ~17k real
+    # tokens, see the summarization block below), so an unsuppressed reasoning
+    # channel here is the single largest avoidable cost on the runner slot.
+    supports_reasoning_effort: true
+    when_thinking_disabled:
+      reasoning_effort: none
 
   # Pacgate 2026-10-15: explicit pin for the title role (see the `title:` block).
   # Previously unpinned, so title fell through to models[0] - local only by
@@ -116,13 +187,19 @@ models:
   # VRAM swap. The cap matches the memory updater's; title output is a few words.
   - name: gemma4-12b-title
     display_name: "[internal] Title generator (Gemma 12B, capped)"
-    description: Internal first-exchange title model. Hard 2048-token cap. Same tag as chat default - no VRAM swap. Not intended for chat.
+    description: Internal first-exchange title model. Hard 2048-token cap. Same context-capped tag as chat default - no VRAM swap. Not intended for chat.
     use: langchain_openai:ChatOpenAI
-    model: gemma4:12b-it-q8_0
+    model: gemma4-legal:12b-chat
     api_key: ollama
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 2048
     temperature: 0.1
+    # Same reasoning-burn fix as gemma4-12b-memory above (verified 2026-10-16).
+    # Title output is a few words; a 2048 cap spent on reasoning would truncate
+    # it to empty exactly like the memory updater.
+    supports_reasoning_effort: true
+    when_thinking_disabled:
+      reasoning_effort: none
 
   # Pacgate 2026-10-07 (rev 2): qwen3.8:27b DEMOTED from the picker. Benchmark
   # on the 8060S iGPU (warm, ~3k ctx): dense 27B = 26 t/s gen / 225 t/s
@@ -427,7 +504,24 @@ uploads:
 # The sandbox tools (bash/ls/read_file/etc.) are NOT MCP tools, so they remain
 # always-bound; only the MCP servers (pacgate/firecrawl/officecli/legal) defer.
 tool_search:
-  enabled: false  # EVIDENCE (2026-09-12): deferral makes ALL models call MCP tools without promoting first -> "deferred, not promoted" loop, never reaching write_file. With tool names normalized to underscores, tools are now bound directly so the agent can use them reliably.
+  # PacGate 2026-10-17: RE-ENABLED. The 2026-09-12 failure was not the mechanism —
+  # it was that the routing index was empty. `build_mcp_routing_middleware` returns
+  # None unless a deferred tool carries routing.mode="prefer" AND non-empty keywords,
+  # and no connector declared either. With an empty index nothing pre-seeds the
+  # schemas a request obviously needs, so every model called an MCP tool without
+  # promoting first -> "deferred, not promoted" loop, never reaching write_file.
+  #
+  # Both halves are now in place: the v2.1.0 routing subsystem is back-ported
+  # (see the "on-demand tool routing" mounts in compose.bundle.yaml), and the
+  # due-diligence connectors in deer-flow-extensions-config.json declare
+  # routing.mode/keywords/priority. The keywords are the load-bearing part —
+  # without them this flag reintroduces the loop.
+  #
+  # Rationale: 153 MCP tool schemas measured 69,313 tokens of an 80,791-token prompt
+  # (~83%). Deferral replaces them with a 1,547-token names-only listing plus the
+  # tool_search tool and a ~5-schema discovery payload.
+  enabled: true
+  auto_promote_top_k: 5  # clamp range is 1..5; 5 maximises keyword-hit breadth
 
 # Persist LangGraph thread state + thread list to SQLite. Without a
 # 'checkpointer' section deer-flow falls back to InMemoryStore, so the thread

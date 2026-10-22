@@ -282,6 +282,21 @@ services:
       # invalidates it, so every memory/artifact call 401s until deer-flow
       # restarts. The patch re-logins once on 401 and retries.
       - ./patches/pacgate-adapter-client.py:/app/adapters/pacgate_deerflow_adapter/client.py:ro
+      # ── PacGate (on-demand tool routing 2026-10-17) ─────────────────────────
+      # 153 MCP tool schemas were bound into EVERY prompt: measured 69,313 of an
+      # 80,791-token prompt, ~83% of the fixed cost. tool_search defers them, but it
+      # could not be switched on: the v2.0.0 base has no mcp_routing_middleware and no
+      # build_mcp_routing_middleware, so an empty routing index reproduced the
+      # 2026-09-12 "deferred, not promoted" loop. These five mounts backport the v2.1.0
+      # routing subsystem. DELETE ALL FIVE at the v2.1.0 rebase (plan 023) - that base
+      # ships every one of them natively.
+      - ./patches/deer-flow-mcp-metadata.py:/app/backend/packages/harness/deerflow/tools/mcp_metadata.py:ro
+      - ./patches/mcp-routing-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/mcp_routing_middleware.py:ro
+      - ./patches/deer-flow-tool-search.py:/app/backend/packages/harness/deerflow/tools/builtins/tool_search.py:ro
+      - ./patches/deer-flow-tool-search-config.py:/app/backend/packages/harness/deerflow/config/tool_search_config.py:ro
+      - ./patches/deer-flow-utils-messages.py:/app/backend/packages/harness/deerflow/utils/messages.py:ro
+      - ./patches/deer-flow-extensions-config.py:/app/backend/packages/harness/deerflow/config/extensions_config.py:ro
+      - ./patches/deer-flow-mcp-tools.py:/app/backend/packages/harness/deerflow/mcp/tools.py:ro
       # Persist deer-flow's own SQLite state (threads/runs/admin account) across
       # container recreation. Without this, every `docker compose up -d` resets
       # the deer-flow admin account and chat history (first-boot each time).
