@@ -3,8 +3,8 @@
 **From:** AIPC1 (`pacgate-law` working copy)
 **To:** JZKK720 / `pacgate-ai-pr`
 **Date:** 2026-10-23
-**Base:** `v0.2.2` (`ddbb70ec571e`)
-**Patch:** `runtime/docgen-deterministic-fix.patch` (2 files, +269/−6)
+**Base:** `v0.2.3` (`d33553e2ed65`) — verified to apply with `git apply -p2`
+**Patch:** `runtime/docgen-deterministic-fix.patch` (2 files, +269/−6, LF endings)
 
 ---
 
@@ -13,7 +13,7 @@
 `POST /api/workflows/:id/execute` returns **HTTP 200 with an empty result** for
 every document-generation workflow. No document is written. Nothing errors.
 
-Reproduced on the pinned `0.2.2` stack, workflow `00000000-0000-0000-0000-000000001002`
+Reproduced on the pinned `0.2.3` stack, workflow `00000000-0000-0000-0000-000000001002`
 (项目概况表编制), which declares `tool: generate_docx` and whose `system_prompt`
 says "输出为Word文档（表格形式）":
 
@@ -124,8 +124,14 @@ Before the patch, the same gate on the same stack: `8 passed, 2 failed`.
 
 ## 6. Suggested release
 
-`0.2.3`, built from `v0.2.2` + this patch. Only `pacgate-api` changes; the other
+`0.2.4`, built from `v0.2.3` + this patch. Only `pacgate-api` changes; the other
 four images can be rebuilt unchanged so all five stay on one revision.
+
+> **Note on numbering.** This handoff was written against `v0.2.2` and suggested
+> `0.2.3`. Upstream released `0.2.3` as plan 029 (held-document review) without
+> this fix, so the next free number is `0.2.4`. The patch has been re-verified
+> against `v0.2.3` and applies cleanly (`git apply --check -p2` → exit 0); the
+> two files it touches are unchanged between `v0.2.2` and `v0.2.3`.
 
 After publishing, AIPC1 pulls and the gate goes green with no local build.
 
@@ -136,5 +142,5 @@ After publishing, AIPC1 pulls and the gate goes green with no local build.
 | `crates/pacgate-agent/src/lib.rs` | `is_generation_tool`, `generation_output_contract`, `extract_json_object`, `AgentLoop::run_generation_tool` |
 | `crates/pacgate-agent/src/workflow_executor.rs` | route generation steps through `run_generation_tool`; `step_filename` |
 
-Both compile clean against `v0.2.2` (`cargo build --release --bin pacgate-server`,
+Both compile clean against `v0.2.3` (`cargo build --release --bin pacgate-server`,
 no new warnings).

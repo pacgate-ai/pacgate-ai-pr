@@ -1,0 +1,12 @@
+# Patches must keep LF endings on every machine.
+#
+# `core.autocrlf=true` is set on this Windows box, so a patch committed with LF
+# is checked out with CRLF. `git apply` then fails against upstream's LF sources
+# with "patch does not apply" - the hunk context no longer matches. That is
+# exactly what happened to runtime/docgen-deterministic-fix.patch: it was
+# generated from CRLF working-tree files and could not be applied to v0.2.3.
+#
+# These files are consumed by `git apply` on a different machine, so their bytes
+# must be stable. Never normalise them.
+*.patch -text
+*.diff  -text
