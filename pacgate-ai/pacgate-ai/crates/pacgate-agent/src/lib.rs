@@ -47,80 +47,6 @@ pub struct ListDocumentsArgs {
     pub matter_id: String,
 }
 
-/// Parse a `structure` argument that arrived as a JSON string.
-///
-/// A model that serialises its own argument blob can also be cut off mid-object
-/// by the tier's `max_tokens`. Measured 2026-10-22 on the 项目概况表编制 step: the
-/// 27B emitted a correct `generate_docx` call whose `structure` string ended at
-/// `...使用限制。"]}]` with no closing brace, and the call failed with
-/// "EOF while parsing an object at line 1 column 3684". The document was never
-/// written, so the step reported a tool call that produced nothing.
-///
-/// A truncated structure is still usable: everything before the cut is valid
-/// content. Close the open containers and drop the incomplete trailing element,
-/// then parse. If that still fails the error is returned unchanged, so a
-/// genuinely malformed structure is never silently accepted.
-fn parse_structure_string(raw: &str) -> Result<serde_json::Value> {
-    if let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) {
-        return Ok(v);
-    }
-
-    let mut repaired = raw.trim_end().to_string();
-    // Drop a dangling partial token (e.g. `"text": "使用限`) back to the last
-    // structural character, then close whatever is still open.
-    while let Some(last) = repaired.chars().last() {
-        if matches!(last, '}' | ']' | '"' | '0'..='9' | 'e' | 'l') {
-            break;
-        }
-        repaired.pop();
-    }
-
-    let mut stack: Vec<char> = Vec::new();
-    let mut in_string = false;
-    let mut escaped = false;
-    for ch in repaired.chars() {
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-            continue;
-        }
-        match ch {
-            '"' => in_string = true,
-            '{' => stack.push('}'),
-            '[' => stack.push(']'),
-            '}' | ']' => {
-                stack.pop();
-            }
-            _ => {}
-        }
-    }
-    if in_string {
-        repaired.push('"');
-    }
-    // A trailing comma or a half-written key/value pair cannot be closed
-    // meaningfully; trim back to the last complete element.
-    while repaired.ends_with(',') || repaired.ends_with(':') {
-        repaired.pop();
-        while repaired.ends_with(char::is_whitespace) {
-            repaired.pop();
-        }
-    }
-    while let Some(close) = stack.pop() {
-        repaired.push(close);
-    }
-
-    serde_json::from_str::<serde_json::Value>(&repaired).map_err(|e| {
-        PacgateError::ValidationError(format!(
-            "structure was sent as a string and is not valid JSON: {e}"
-        ))
-    })
-}
-
 #[derive(Debug, Deserialize)]
 pub struct GenerateDocxArgs {
     pub matter_id: String,
@@ -307,23 +233,12 @@ impl ToolDispatcher {
     }
 
     async fn generate_docx(&self, call: &ToolCall) -> Result<serde_json::Value> {
-        let mut args: GenerateDocxArgs = serde_json::from_value(call.arguments.clone())
+        let args: GenerateDocxArgs = serde_json::from_value(call.arguments.clone())
             .map_err(PacgateError::SerializationError)?;
         let matter_id: MatterId = args
             .matter_id
             .parse()
             .map_err(|e| PacgateError::ValidationError(format!("invalid matter_id: {e}")))?;
-
-        // Models routinely send `structure` as a JSON *string* rather than an
-        // object, because the tool schema types it as `object` but the model
-        // serialises its argument blob itself. Measured 2026-10-22: the 27B
-        // called `generate_docx` correctly and the call still failed with
-        // "structure must have 'sections' array", because `structure` arrived as
-        // a string and `.get("sections")` on a string is always None. The
-        // document was never written and the step reported success.
-        if let serde_json::Value::String(raw) = &args.structure {
-            args.structure = parse_structure_string(raw)?;
-        }
 
         let doc = self
             .docs
@@ -715,64 +630,8 @@ impl AgentLoop {
         persona_prompt: Option<&str>,
         matter_id: Option<&MatterId>,
     ) -> Result<AgentTurnResult> {
-        self.run_with_router_and_tools(
-            router,
-            history,
-            user_message,
-            persona_prompt,
-            matter_id,
-            None,
-        )
-        .await
-    }
-
-    /// Run one agent turn with the tool surface narrowed to `required_tool`.
-    ///
-    /// A workflow step declares the single tool it exists to run, but the model
-    /// was still offered all eleven. Measured 2026-10-22 on the 项目概况表编制 step
-    /// with `gemma4-legal:12b-chat`: 0 of 5 runs called the declared
-    /// `generate_docx`; every run called `list_documents` instead, because the
-    /// base system prompt says "Always call read_document or list_documents at
-    /// the start of a task". Rewriting that line, reordering the prompt, and
-    /// lowering temperature all failed to change the choice.
-    ///
-    /// Offering only the declared tool removes the choice entirely: 5 of 5 runs
-    /// called `generate_docx`. The full surface is still used when a step names
-    /// no tool, so chat and exploratory steps are unaffected.
-    #[instrument(skip(self, router, history, persona_prompt))]
-    pub async fn run_with_router_and_tools(
-        &self,
-        router: &Arc<LlmRouter>,
-        history: Vec<AgentMessage>,
-        user_message: &str,
-        persona_prompt: Option<&str>,
-        matter_id: Option<&MatterId>,
-        required_tool: Option<&str>,
-    ) -> Result<AgentTurnResult> {
         let llm = router.get(self.tier)?;
-        let tools = match required_tool.map(str::trim).filter(|t| !t.is_empty()) {
-            Some(name) => {
-                let narrowed: Vec<_> = tool_definitions()
-                    .into_iter()
-                    .filter(|t| t.function.name == name)
-                    .collect();
-                if narrowed.is_empty() {
-                    // A step naming a tool the agent does not implement must not
-                    // silently fall back to the full surface - that is how the
-                    // model ends up calling something unrelated and the step
-                    // looks like it "chose" the wrong tool.
-                    tracing::warn!(
-                        tool = name,
-                        "workflow step names a tool the agent does not implement; \
-                         keeping the full tool surface"
-                    );
-                    tool_definitions()
-                } else {
-                    narrowed
-                }
-            }
-            None => tool_definitions(),
-        };
+        let tools = tool_definitions();
 
         let mut messages = self.convert_history(&history);
 
