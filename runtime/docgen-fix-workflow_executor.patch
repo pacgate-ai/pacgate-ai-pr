@@ -1,0 +1,37 @@
+diff --git "a/C:\\Users\\pacga\\AppData\\Local\\Temp\\base_wf.rs" "b/C:\\Users\\pacga\\AppData\\Local\\Temp\\fix_wf.rs"
+index e554ce8..1240573 100644
+--- "a/C:\\Users\\pacga\\AppData\\Local\\Temp\\base_wf.rs"
++++ "b/C:\\Users\\pacga\\AppData\\Local\\Temp\\fix_wf.rs"
+@@ -178,10 +178,30 @@ impl<'a> WorkflowExecutor<'a> {
+             // Build the user message for this step
+             let user_message = build_step_message(step, &prior_context, matter_id);
+ 
+-            // Run the agent loop for this step
++            // Run the agent loop for this step, offering ONLY the tool the step
++            // declares. The step's `tool` field was previously used just for
++            // logging and the result record, so the model still saw all eleven
++            // tools and picked a different one. Measured 2026-10-22 on the
++            // 项目概况表编制 step: 0 of 5 runs called the declared `generate_docx`,
++            // all 5 called `list_documents`.
++            //
++            // NOTE: narrowing the surface does not by itself make the Main-tier
++            // 12B follow the directive - it still emitted `list_documents`, and
++            // sometimes invented names that were never offered. Routing the step
++            // to the Mid-tier 27B did work (3 of 3), but that model is 17 GB and
++            // spills 30% to CPU on a 16 GB card, so it is not a viable default
++            // here. The remaining gap is a model-capability limit, not a wiring
++            // defect; see runtime/ for the measurements.
+             let turn_result = self
+                 .agent
+-                .run_with_router(router, vec![], &user_message, combined_prompt.as_deref(), matter_id)
++                .run_with_router_and_tools(
++                    router,
++                    vec![],
++                    &user_message,
++                    combined_prompt.as_deref(),
++                    matter_id,
++                    Some(step.tool.as_str()),
++                )
+                 .await?;
+ 
+             // Record the result
