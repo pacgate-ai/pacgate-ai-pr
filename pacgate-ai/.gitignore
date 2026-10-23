@@ -13,6 +13,31 @@ pacgate-ai/**/target/
 # Docker
 *.log
 
+# Large binaries must never be committed.
+#
+# WHY: on 2026-10-23 an AIPC reported that a cherry-pick had staged a 42 MB docker
+# CLI binary. Nothing in this repo prevented that class, and a binary that size in
+# git history is permanent - it cannot be removed by a later commit, only by a
+# history rewrite. The patterns below cover the specific shapes that incident
+# produced; the size itself is enforced by scripts/check-tracked-file-size.ps1,
+# because .gitignore cannot express "any file over N MB".
+docker.exe
+docker-linux
+docker-*
+!docker-compose*.yml
+!docker-compose*.yaml
+!Dockerfile*
+# EXCEPTION: the qm stack bind-mounts this exact file over /usr/local/bin/docker
+# (deploy/qm-pacgate/compose.qm.yaml). It is a REQUIRED deployment artifact, not a
+# stray binary - ignoring it would leave a fresh clone unable to start qm. It is
+# 42 MB and already committed, so it is reported as known debt by
+# check-tracked-file-size.ps1 rather than silently dropped from the index.
+#
+# The DIRECTORY must be re-included first: `docker-*` matches `docker-cli/`, and
+# git cannot re-include a file whose parent directory is excluded.
+!deploy/qm-pacgate/patch/docker-cli/
+!deploy/qm-pacgate/patch/docker-cli/docker
+
 # Temp files
 test-*.json
 warmup*.json

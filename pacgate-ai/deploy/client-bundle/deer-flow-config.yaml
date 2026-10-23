@@ -66,39 +66,11 @@ models:
   #   # timeout so the gateway does not drop the connection mid-thought.
   #   stream_chunk_timeout: 300
 
-  # ── AIPC1 CONTEXT-CAP (LOCAL-ONLY, 2026-10-16) ──────────────────────────────
-  # Every local role below points at the DERIVED tag `gemma4-legal:12b-chat`
-  # (= FROM gemma4:12b-it-q8_0 + PARAMETER num_ctx 131072), not at the upstream
-  # `gemma4:12b-it-qat`. Two reasons, both measured on THIS box:
-  #
-  # 1. The base tags declare a 262144-token context. deer-flow calls Ollama over
-  #    the OpenAI-compat route, where a per-request `options.num_ctx` is NOT
-  #    honoured and the server-wide OLLAMA_CONTEXT_LENGTH default is not applied
-  #    either (both verified 2026-10-16). gemma4 has 8 GLOBAL-attention layers
-  #    whose KV grows linearly; at 262144 those alone need ~2176 MiB, which does
-  #    not fit beside the weights, so Ollama splits the runner across CPU+GPU and
-  #    commits 18-27 GB of host RAM. That is the wall that stalled every session.
-  #    Capping in the TAG is route-independent and per-model, so it is the only
-  #    mechanism that works. Verified: 100% GPU, host free RAM 1.2 -> 9.7 GB,
-  #    cold load 165 s -> 20 s, vision still correct.
-  # 2. pacgate-api's workflow tiers (.env PACGATE_MODEL_MAIN/LOW) and openviking's
-  #    VLM already use this same tag. Converging deer-flow on it means ONE
-  #    resident model - a mixed roster would swap variants in and out of VRAM on
-  #    every background call.
-  #
-  # Recreate the tag with deploy/client-bundle/ensure-context-capped-model.ps1.
-  # Per-machine value: do NOT upstream this roster (user directive 2026-09-21).
   - name: gemma4-12b-local
     display_name: Gemma 4 12B (Local)
-    description: >-
-      Default on this machine (AIPC1). Context-capped derivative of
-      gemma4:12b-it-q8_0: num_ctx 131072 instead of the model's declared
-      262144, so the runner fits 100% in the 16GB VRAM (no CPU spill, no
-      evictions, ~8 GB of host RAM reclaimed). Same weights, so structured/
-      tool calls, json_schema grammar and the multimodal projector are all
-      unchanged. Shares one runner slot with the internal roles below.
+    description: Fast local model. Reliable structured/tool calls. Used for background memory updates.
     use: langchain_openai:ChatOpenAI
-    model: gemma4-legal:12b-chat
+    model: gemma4:12b-it-qat
     api_key: ollama
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 8192
@@ -135,9 +107,9 @@ models:
   # 2048 cap is generous and cannot loop meaningfully.
   - name: gemma4-12b-memory
     display_name: Gemma 4 12B (Memory, capped)
-    description: Internal model for background memory updates. Hard 2048-token cap. Same context-capped tag as the chat default - no VRAM swap. Safe to pick for short tasks.
+    description: Internal model for background memory updates. Hard 2048-token cap. Safe to pick for short tasks.
     use: langchain_openai:ChatOpenAI
-    model: gemma4-legal:12b-chat
+    model: gemma4:12b-it-qat
     api_key: ollama
     base_url: http://host.docker.internal:11434/v1
     max_tokens: 2048

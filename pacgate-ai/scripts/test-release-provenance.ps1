@@ -314,8 +314,42 @@ else {
     # Paths from that diff are relative to the upstream root, which is exactly the
     # namespace $contextPrefixes is written in - no rewriting needed.
 }
+# Files that a compose file bind-mounts OVER the image copy. A change to one of
+# these does NOT make the tag a wrong recipe for the published artifact: the
+# artifact is still exactly what the tag builds, and the running container reads
+# the host file instead. It is a different (and legitimate) deployment shape -
+# the repo's own patch pipeline - so it must be reported, not failed.
+#
+# This distinction matters because the two failure modes look identical in a
+# plain file diff. A change that reaches a layer means "a rebuild from the tag
+# would differ from what clients pull" (the 0.1.28 defect). A change that is
+# bind-mounted means "clients pull the tag's image and then override one file",
+# which is what deploy/client-bundle/compose.prod.yaml does for 20 patches plus
+# deploy/pacgate-mcp/server.py. Failing the second would make the gate
+# permanently red on any machine that carries a local patch, which is how a gate
+# stops being read.
+#
+# Absolute paths, NOT [System.IO.Path]::GetRelativePath: that method is .NET Core
+# only and throws MethodNotFound under Windows PowerShell 5.1, which this repo
+# still supports (see test-ps51-native-stderr.ps1). The comparison below
+# normalises the changed path to absolute instead.
+$bindMounted = @()
+foreach ($composeFile in @('deploy/client-bundle/compose.prod.yaml', 'deploy/client-bundle/compose.bundle.yaml')) {
+    if (-not (Test-Path $composeFile)) { continue }
+    foreach ($line in (Get-Content $composeFile)) {
+        # Shape: `- ./patches/x.py:/app/...:ro` or `- ../pacgate-mcp/server.py:/app/server.py:ro`
+        if ($line -match '^\s*-\s*(\.\.?/[^:]+):[^:]+') {
+            $src = $Matches[1].Trim()
+            $bindMounted += [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $composeFile) $src))
+        }
+    }
+}
+$bindMounted = @($bindMounted | Sort-Object -Unique)
+$repoRootFull = [System.IO.Path]::GetFullPath((Get-Location).Path)
+
 $affecting = @()
 $benign = @()
+$overridden = @()
 foreach ($f in $changed) {
     $isInput = $false
     foreach ($p in $contextPrefixes) { if ($f.StartsWith($p)) { $isInput = $true; break } }
@@ -323,7 +357,9 @@ foreach ($f in $changed) {
     if ($isInput) {
         foreach ($ip in $ignoredPrefixes) { if ($f.StartsWith($ip)) { $isInput = $false; break } }
     }
-    if ($isInput) { $affecting += $f } else { $benign += $f }
+    if ($isInput -and ($bindMounted -contains [System.IO.Path]::GetFullPath((Join-Path $repoRootFull $f)))) { $overridden += $f }
+    elseif ($isInput) { $affecting += $f }
+    else { $benign += $f }
 }
 
 Info "checked $($changed.Count) file(s) changed between $($builtRev) and HEAD"
@@ -337,6 +373,10 @@ if ($affecting.Count -gt 0) {
     Pass "no image-affecting file changed between $($builtRev) and HEAD, so the tag still describes the published artifacts"
     # Reported, not hidden: this is the evidence that the diff was read, and it
     # is what lets a reviewer see the judgement rather than trust a count.
+    if ($overridden.Count -gt 0) {
+        Info "$($overridden.Count) file(s) changed but are BIND-MOUNTED over the image by compose (the patch pipeline), so the published artifact is unaffected:"
+        $overridden | ForEach-Object { Info "  $_" }
+    }
     if ($benign.Count -gt 0) {
         Info "$($benign.Count) file(s) changed but cannot reach an image (docs, gates, CI, ignored context):"
         $benign | ForEach-Object { Info "  $_" }

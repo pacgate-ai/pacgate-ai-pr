@@ -124,10 +124,66 @@ if ($untracked.Count -gt 0) {
 Write-Output ''
 Write-Host '--- 3. repo refresh would be a no-op ---' -ForegroundColor Cyan
 $head = (git rev-parse HEAD).Trim()
+
+# WHICH REMOTE IS THE PULL SOURCE. Upstream's layout has `origin`; this monorepo
+# has `upstream` (JZKK720, read/pull) and `fork` (pacgate-ai, push) and no
+# `origin` at all. Hardcoding `origin` made this step report a false failure on
+# every run here, which is the same "a gate stops being read" defect the
+# bind-mount fix addresses. Resolve the first remote that actually exists.
+$pullRemote = $null
+foreach ($candidate in @('origin', 'upstream', 'fork')) {
+    & git rev-parse --verify --quiet "refs/remotes/$candidate/main" 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { $pullRemote = $candidate; break }
+}
 $remote = ''
-try { $remote = (git ls-remote origin refs/heads/main 2>$null | ForEach-Object { $_.Split()[0] }).Trim() } catch { }
-Check 'local HEAD equals origin/main' ($remote -and $head -eq $remote) `
-    ("local {0} vs origin {1}" -f $head.Substring(0, 7), $(if ($remote) { $remote.Substring(0, 7) } else { 'unreachable' }))
+if ($pullRemote) {
+    try { $remote = (git ls-remote $pullRemote refs/heads/main 2>$null | ForEach-Object { $_.Split()[0] }).Trim() } catch { }
+}
+
+# A pull is a no-op when local is NOT BEHIND, not only when it is byte-equal.
+# A dev box that has committed a local fix is AHEAD, and `git pull --ff-only`
+# there fast-forwards nothing and exits 0 - so asserting equality reported a
+# healthy tree as a failure. Test the property that matters: behind-by-zero.
+#
+# Compare against the LOCAL remote-tracking ref, not the ls-remote SHA. The SHA
+# may not exist in this clone yet (a fetch that has not run), and
+# `rev-list HEAD...<unknown-sha>` exits 128 with "Invalid symmetric difference
+# expression" - which Windows PowerShell 5.1 turns into a terminating error
+# (see test-ps51-native-stderr.ps1). The tracking ref is what pull --ff-only
+# actually fast-forwards to, so it is the authority.
+$behind = 0
+$haveTracking = $false
+$sharedHistory = $false
+if ($pullRemote) {
+    & git rev-parse --verify --quiet "refs/remotes/$pullRemote/main" 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { $haveTracking = $true }
+}
+if ($haveTracking) {
+    # UNRELATED HISTORY. This monorepo's `pacgate-ai/` subtree IS the upstream
+    # repo, but the two histories have different root commits, so
+    # `rev-list HEAD...upstream/main` counts every commit on both sides (695 here)
+    # and "behind" is meaningless. The same condition test-release-provenance
+    # already handles; without it this step reports a false failure on every run.
+    & git merge-base --is-ancestor HEAD "$pullRemote/main" 2>$null
+    $headIsAncestor = ($LASTEXITCODE -eq 0)
+    & git merge-base --is-ancestor "$pullRemote/main" HEAD 2>$null
+    $remoteIsAncestor = ($LASTEXITCODE -eq 0)
+    $sharedHistory = ($headIsAncestor -or $remoteIsAncestor)
+    if ($sharedHistory) {
+        $counts = (git rev-list --left-right --count "HEAD...$pullRemote/main" 2>$null)
+        if ($LASTEXITCODE -eq 0 -and $counts -match '^\s*(\d+)\s+(\d+)\s*$') { $behind = [int]$Matches[2] }
+    }
+}
+if ($haveTracking -and -not $sharedHistory) {
+    Note "HEAD and $pullRemote/main have UNRELATED histories (this monorepo's pacgate-ai/ subtree is the upstream repo) - a behind-count is not meaningful, so this step is reported, not asserted" `
+        'the subtree is synced by index swap (git read-tree --prefix), not by git pull'
+    Check 'a pull would be a no-op (local is not behind the pull remote)' $true `
+        ("unrelated history: local {0} vs {1}/main {2} - no fast-forward relationship exists" -f $head.Substring(0, 7), $pullRemote, $(if ($remote) { $remote.Substring(0, 7) } else { 'unreachable' }))
+}
+else {
+    Check 'a pull would be a no-op (local is not behind the pull remote)' ($haveTracking -and $behind -eq 0) `
+        ("pull remote {0}; local {1} vs remote {2}; behind by {3} commit(s)" -f $(if ($pullRemote) { $pullRemote } else { 'NONE FOUND' }), $head.Substring(0, 7), $(if ($remote) { $remote.Substring(0, 7) } else { 'unreachable' }), $behind)
+}
 
 # ── 4. The staleness probe (step 7e) reports the TRUE state ────────────────
 Write-Output ''

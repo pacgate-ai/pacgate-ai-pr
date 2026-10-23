@@ -123,3 +123,7 @@ pacgate-ai-assets/
 # Pre-upgrade config backups contain live credentials (OPENVIKING_ROOT_API_KEY,
 # PACGATE_API_PASSWORD). Never commit them.
 runtime/backup-pre-*/
+
+# Credential reports contain plaintext admin passwords and API keys.
+# Never commit them. See runtime/CREDENTIAL-REPORT-2026-10-23.md.
+runtime/CREDENTIAL-REPORT-*
