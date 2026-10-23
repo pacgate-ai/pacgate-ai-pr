@@ -3,23 +3,27 @@
 > Guidance for AI coding agents working in this repo. Keep this minimal — link to
 > the rich design docs in `assets/` rather than duplicating them.
 
-## ⚠️ Topology correction (2026-09-05) — read first
+## ⚠️ Topology correction (2026-10-23) — read first
 
-This folder (`pacgate-law/`) is a **LOCAL-ONLY docs/scope wrapper**. It is **not** a
-GitHub repo and should NOT be synced as one. It has no remote and no commits — leave it
-that way.
+**This folder IS the `pacgate-ai-pr` git root.** It is a real GitHub repo with
+remotes, commits and a pushed branch. The earlier note calling it a "LOCAL-ONLY
+docs wrapper" was wrong and has been corrected.
 
-The **real implementation & deployment repo** is `pacgate-ai-pr`:
-- **Path on this machine:** `C:\pacgate-ai-pr`
-- **GitHub origin:** `github.com/JZKK720/pacgate-ai-pr` (push via fork `pacgate-ai/pacgate-ai-pr`)
-- **Contents:** `deploy/` (compose, client-bundle, qm-pacgate, handbooks), `pacgate-ai/`,
-  `pacgate-adapters/`, `patches/`, `plans/`, `scope-assets/`, `scripts/`
+- **Path on this machine:** `C:\Users\pacga\github-pr\pacgate-law`
+- **`origin`:** `github.com/JZKK720/pacgate-ai-pr` (read/pull)
+- **`fork`:** `github.com/pacgate-ai/pacgate-ai-pr` (push target)
+- **Upstream root maps to the local `pacgate-ai/` subtree.** Upstream's
+  `deploy/`, `scripts/`, `plans/` are this repo's `pacgate-ai/deploy/`,
+  `pacgate-ai/scripts/`, `pacgate-ai/plans/`.
+
+> ⚠️ **The two histories are UNRELATED** (different root commits). `git diff
+> upstream/main..HEAD` compares two unrelated trees and reports every file as
+> changed. Never use it. Compare content instead — see "Sync workflow" below.
 
 The actual agent workspace (deer-flow + PacGate layer) lives at
 `C:\Users\pacga\github-pr\pacgate-law\deer-flow` (branch `pacgate-layer`).
 
-> **Do NOT** create a GitHub repo for `pacgate-law`. Treat `pacgate-ai-pr` as the single
-> source of truth for the platform. Do **not** write Rust source for the scaffolded
+> **Do NOT** write Rust source for the scaffolded
 > `pacgate-ai/pacgate-ai/Cargo.toml` workspace unless explicitly asked.
 
 ## What this project is
@@ -28,29 +32,30 @@ The actual agent workspace (deer-flow + PacGate layer) lives at
 (尽调报告). **Red line**: every AI output is a draft for lawyer review — never a final
 legal opinion, never silent fabrication.
 
-## Local folder layout (working copies only)
+## Local folder layout
 
 ```
-pacgate-law/                      ← LOCAL docs wrapper (no remote, no commits)
+pacgate-law/                      ← the pacgate-ai-pr git root
 ├── AGENTS.md                      ← this file
 ├── DEER-FLOW-INTEGRATION.md       ← bridge doc: what to port into deer-flow
-├── runtime/                       ← generated container/image inventory + generator
+├── runtime/                       ← container/image inventory, handoffs, patches
 ├── docs/superpowers/specs/        ← design docs
 ├── deer-flow/                     ← agent workspace clone (branch pacgate-layer)
 │   └── docker/Dockerfile.pacgate  ← builds ghcr.io/pacgate-ai/deer-flow-pacgate
-└── pacgate-ai/                    ← SUBMODULE of JZKK720/pacgate-ai (docs/assets)
-    └── pacgate-ai/Cargo.toml      ← declare-only Rust scaffold (NOT the real one)
+└── pacgate-ai/                    ← SUBTREE = upstream pacgate-ai-pr root
+    ├── deploy/client-bundle/      ← THE LIVE STACK (compose.bundle.yaml)
+    ├── deploy/qm-pacgate/         ← the qm co-working stack
+    ├── scripts/                   ← the gate suite
+    └── pacgate-ai/                ← the real Rust workspace (crates/)
 ```
 
 > ⚠️ **`pacgate-ai` is a name collision, not a duplicate.** The nested
-> `pacgate-ai/` here is a git submodule holding docs/assets (v0.1.0). The real
-> Rust workspace (v0.1.9, with `crates/` + `wasm-crates/`) lives at
-> `C:\pacgate-ai-pr\pacgate-ai`. These are **not** copies of each other — do not
-> try to merge or sync them.
+> `pacgate-ai/pacgate-ai/` is the real Rust workspace (with `crates/`). The
+> outer `pacgate-ai/` is the upstream repo root. `C:\pacgate-ai-pr` still exists
+> on this machine but **owns no container** — it is not the live stack.
 
-> ⚠️ **Submodule pointer is currently stale.** `.gitmodules` records gitlink
-> `f712ec2` while the working tree sits at `0f7db15`. Verify with
-> `git -C pacgate-ai log --oneline -1` before relying on either.
+> ⚠️ **`pacgate-ai/` is a plain subtree, NOT a git submodule.** There is no
+> gitlink and no `.gitmodules` entry for it. Do not try to `git submodule update`.
 
 ## Runtime stack — spread across SIX compose projects
 
@@ -185,25 +190,70 @@ Plan: `docs/superpowers/specs/2026-09-16-mono-stack-delivery-plan.md` (§3).
   state must be pushed from this machine so the developer can pull from `JZKK720/*`
   on their own machine. See "Sync workflow" below.
 
-## Sync workflow (push to the fork so the developer can pull)
+## Sync workflow (adopt an upstream release, then push to the fork)
 
 This client machine (VPN-required) is the **only** place that can reliably push to
-GitHub. The developer's own machine pulls from `JZKK720/*` without VPN. Two repos
-must be synced. **`pacgate-law` is NOT one of them** — it stays local-only.
+GitHub. The developer's own machine pulls from `JZKK720/*` without VPN.
 
-### 1. The real repo `pacgate-ai-pr` — push via the fork
+### 1. Adopt an upstream release into the `pacgate-ai/` subtree
 
-The implementation/deploy repo is `C:\pacgate-ai-pr`. Push to the **fork** remote
-(`pacgate-ai/pacgate-ai-pr`), not `origin` (`JZKK720` needs a 2FA grant):
+The two histories are unrelated, so **do not merge**. Swap the subtree by index:
 
+```powershell
+cd C:\Users\pacga\github-pr\pacgate-law
+git fetch upstream --tags --prune
+git rm -r --cached pacgate-ai --quiet
+git read-tree --prefix=pacgate-ai/ "v0.2.3^{tree}"   # QUOTE the rev
+git checkout -- pacgate-ai
 ```
-git -C C:\pacgate-ai-pr push fork main
+
+- **Quote `"v0.2.3^{tree}"`.** Unquoted, PowerShell parses `^` and fails with
+  "unknown switch `e`".
+- `read-tree` only updates the **index**; `git checkout -- pacgate-ai` syncs the
+  working tree.
+- **Verify byte-identity by tree SHA**, not per-file (per-file loops break on CJK
+  paths — see the PS 5.1 note above):
+
+```powershell
+$newRoot = (git write-tree).Trim()
+git rev-parse "${newRoot}:pacgate-ai"   # must equal: git rev-parse "v0.2.3^{tree}"
 ```
+
+- **Local-only files survive on disk as untracked.** Re-add them:
+  `git -c core.quotepath=false ls-tree -r --name-only HEAD -- pacgate-ai` before
+  the swap, diff against the tag, then `git add` each. Without
+  `core.quotepath=false`, CJK paths come back octal-escaped and `Test-Path` fails.
+- **Re-apply the AIPC1 deltas** (they are reverted by the swap): skills +
+  uploads-middleware mounts, the context-capped model roster, the
+  `ollama-models.txt` derived-tag block, the `deer-flow-prompt.py` read_file
+  directive, `audit-model-tags.ps1` `.env` tier reading, and the 7 gate-script
+  fixes. See `runtime/` for the current set.
+
+### 2. Pull the pinned images and recreate
+
+```powershell
+cd pacgate-ai\deploy\client-bundle
+docker compose -f compose.bundle.yaml pull
+docker compose -f compose.bundle.yaml up -d --force-recreate --no-deps `
+  pacgate-api deer-flow deer-flow-frontend pacgate-mcp ocr-service
+```
+
+`up -d` alone is **not** enough for an env-only or mount-only change — Compose
+does not recreate on those. `--force-recreate --no-deps` is safe for bind-mounted
+state and named volumes, and avoids touching `pacgate-db`.
+
+### 3. Push to the fork
+
+```powershell
+git push fork HEAD:aipc1/v0.2.3-sync
+```
+
 - `origin` = `github.com/JZKK720/pacgate-ai-pr` (read/pull)
 - `fork` = `github.com/pacgate-ai/pacgate-ai-pr` (push target)
-- After push, verify: `git -C C:\pacgate-ai-pr log --oneline origin/main..fork/main` should be empty.
+- **Never force-push `main`.** `fork/main` is a *different lineage* with commits
+  this HEAD does not have. Push to an `aipc1/*` branch instead.
 
-### 2. deer-flow integration repo — push the `pacgate-layer` branch
+### 4. deer-flow integration repo — push the `pacgate-layer` branch
 
 deer-flow is at `c:\Users\pacga\github-pr\pacgate-law\deer-flow`, checked out on
 branch `pacgate-layer`. Remotes: `fork` = `github.com/pacgate-ai/deer-flow.git`
@@ -217,14 +267,25 @@ git -C c:\Users\pacga\github-pr\pacgate-law\deer-flow push fork pacgate-layer
 `.deer-flow/` (contains Sylvie SOUL.md + agent config with secrets). These are
 gitignored by deer-flow's `.gitignore` — verify with `git check-ignore` before adding.
 
+### 5. Patches must stay LF
+
+`core.autocrlf=true` is set on this box. A `.patch` committed with LF is checked
+out with CRLF, and `git apply` then fails against upstream's LF sources with
+"patch does not apply". `.gitattributes` pins `*.patch`/`*.diff` to `-text` so
+this cannot recur. Verify a patch before handing it over:
+
+```powershell
+git apply --check -p2 runtime/<name>.patch   # against a vX.Y.Z checkout
+```
+
 ### Credentials safety (applies to any commit)
 
-> 🚨 **ACTIVE INCIDENT — read before any commit or merge.**
+> ⚠️ **HISTORICAL INCIDENT — rotation still outstanding.**
 > Full detail: `docs/superpowers/specs/2026-09-16-credential-exposure-incident.md`.
-> **4** credential files are currently **tracked in `pacgate-ai-pr` and publicly
-> readable** on GitHub. They are NOT gitignored in that repo. The ignore rules
-> exist only in the **submodule** here, which does not cover `pacgate-ai-pr`.
-> **The credentials must be rotated — deleting files cannot undo public history.**
+> **4** credential files were tracked and publicly readable on GitHub. They are
+> now **untracked and ignored** (`.gitignore:121` → `pacgate-ai-assets/`), so the
+> leak is closed going forward. **The credentials themselves must still be
+> rotated — deleting files cannot undo public history.**
 
 The four exposed files (all under one subtree,
 `pacgate-ai-pr/pacgate-ai/pacgate-ai-assets/pacgate-ai/assets/assets/`):
@@ -246,17 +307,17 @@ script instead, which is codepage-proof:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\runtime\AUTHORITATIVE-credential-check.ps1
 ```
 
-**The correct check is against `pacgate-ai-pr`, not this repo.** The commands
-previously documented here pointed at `pacgate-ai/assets/...`, which resolves
-inside the submodule — and the submodule's `.gitignore` *does* ignore them, so
-those commands returned "ignored" and gave false assurance about a repo that was
-actually leaking.
+**The correct check is against the tracked paths in THIS repo.** The commands
+previously documented here pointed at `pacgate-ai/assets/...`, which resolved
+inside what was then a submodule — and that submodule's `.gitignore` *did* ignore
+them, so those commands returned "ignored" and gave false assurance about a repo
+that was actually leaking.
 
-Before any push to `pacgate-ai-pr`, confirm the four files are untracked **and**
-that the ignore rule has been added to **`pacgate-ai-pr/.gitignore`**:
+Before any push, confirm the four files are untracked **and** that the ignore
+rule exists in this repo's `.gitignore`:
 
 ```powershell
-git -C C:\pacgate-ai-pr check-ignore -v "pacgate-ai/pacgate-ai-assets/pacgate-ai/assets/assets/pacgate-ai-remote-handbook/OPERATOR.md"
+git check-ignore -v "pacgate-ai/pacgate-ai-assets/pacgate-ai/assets/assets/pacgate-ai-remote-handbook/OPERATOR.md"
 ```
 
 If that prints nothing, **STOP** — the root cause is unfixed.
