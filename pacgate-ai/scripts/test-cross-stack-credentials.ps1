@@ -68,11 +68,11 @@
 param(
     [string]$PacgateEnv = 'deploy/client-bundle/.env',
     # The qm stack is its OWN compose project rooted at deploy/qm-pacgate (verified
-    # from the live container label com.docker.compose.project.working_dir), so its
-    # .env lives there. The older deploy/client-bundle/qm-pacgate/ path is the
-    # runtime copy setup-qm.ps1 stages, and it does not exist on a machine that
-    # runs qm from the tracked source dir - which made this gate report CANNOT
-    # CHECK on a stack that was in fact fully assembled.
+    # from the live container's compose working_dir label). Its .env lives there.
+    # The older deploy/client-bundle/qm-pacgate/ path is the runtime copy
+    # setup-qm.ps1 stages, and it does not exist on a machine that runs qm from
+    # the tracked source dir - which made this gate report CANNOT CHECK on a
+    # stack that was in fact fully assembled.
     [string]$QmEnv      = 'deploy/qm-pacgate/.env',
     # Skip the live-container half. Useful where docker is unavailable.
     [switch]$SkipLive

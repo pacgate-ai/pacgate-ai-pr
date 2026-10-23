@@ -198,7 +198,7 @@ if ($EnvFile -and (Test-Path $EnvFile)) {
         # Strip an inline comment and surrounding whitespace; tolerate `export `.
         $line = ($envLine -replace '\s+#.*$', '').Trim()
         if ($line -match '^(?:export\s+)?(PACGATE_MODEL_(?:MAIN|MID|LOW))\s*=\s*(.+)$') {
-            $t = Normalize-Tag $Matches[2].Trim().Trim('"', "'")
+            $t = $Matches[2].Trim().Trim('"').Trim("'")
             if ($t) {
                 $tierTags += $t
                 if (-not $tierSources.ContainsKey($t)) { $tierSources[$t] = @() }
