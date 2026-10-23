@@ -1,0 +1,318 @@
+diff --git a/pacgate-ai/pacgate-ai/crates/pacgate-agent/src/lib.rs b/pacgate-ai/pacgate-ai/crates/pacgate-agent/src/lib.rs
+index c6a35f2..91b3bf7 100644
+--- a/pacgate-ai/pacgate-ai/crates/pacgate-agent/src/lib.rs
++++ b/pacgate-ai/pacgate-ai/crates/pacgate-agent/src/lib.rs
+@@ -522,6 +522,78 @@ pub fn tool_definitions() -> Vec<OaiTool> {
+     ]
+ }
+ 
++/// Tools whose arguments are a document STRUCTURE the model must author.
++///
++/// These are the tools where asking the model to both choose the tool and
++/// serialise its arguments fails on a small model. See
++/// `run_generation_tool` for the measurement.
++pub fn is_generation_tool(name: &str) -> bool {
++    matches!(name, "generate_docx")
++}
++
++/// The JSON shape a generation tool expects, as a prompt fragment.
++///
++/// Kept next to `tool_definitions` so the two cannot drift: the schema the model
++/// is shown here must describe the same object the tool's own schema requires.
++fn generation_output_contract(tool: &str) -> Option<&'static str> {
++    match tool {
++        "generate_docx" => Some(
++            "Reply with ONLY a JSON object - no prose, no explanation, no code fence:\n\n\
++             {\"title\":\"<document title>\",\"sections\":[ ... ]}\n\n\
++             Each section is an object with a \"type\" field, one of:\n\
++             - {\"type\":\"heading\",\"level\":1,\"text\":\"...\"}   (level 1-3)\n\
++             - {\"type\":\"paragraph\",\"text\":\"...\"}\n\
++             - {\"type\":\"numbered_list\",\"items\":[\"...\"]}\n\
++             - {\"type\":\"bullet_list\",\"items\":[\"...\"]}\n\
++             - {\"type\":\"table\",\"headers\":[\"...\"],\"rows\":[[\"...\"]]}\n\
++             - {\"type\":\"page_break\"}\n\
++             - {\"type\":\"recital\",\"text\":\"...\"}\n\
++             - {\"type\":\"signature_page\",\"parties\":[{\"name\":\"...\",\"role\":\"...\"}]}\n",
++        ),
++        _ => None,
++    }
++}
++
++/// Pull a JSON object out of a model reply.
++///
++/// Models wrap JSON in a code fence, prefix it with "Here is the document:", or
++/// both. Rather than demand a format the model will not reliably honour, take the
++/// outermost balanced `{...}` and parse that. Returns `None` when no balanced
++/// object is present, so the caller can fall back instead of writing a document
++/// from a truncated blob.
++fn extract_json_object(raw: &str) -> Option<serde_json::Value> {
++    let start = raw.find('{')?;
++    let bytes = raw.as_bytes();
++    let mut depth = 0usize;
++    let mut in_string = false;
++    let mut escaped = false;
++    for (i, &b) in bytes.iter().enumerate().skip(start) {
++        if in_string {
++            if escaped {
++                escaped = false;
++            } else if b == b'\\' {
++                escaped = true;
++            } else if b == b'"' {
++                in_string = false;
++            }
++            continue;
++        }
++        match b {
++            b'"' => in_string = true,
++            b'{' => depth += 1,
++            b'}' => {
++                depth -= 1;
++                if depth == 0 {
++                    let slice = &raw[start..=i];
++                    return serde_json::from_str(slice).ok();
++                }
++            }
++            _ => {}
++        }
++    }
++    None
++}
++
+ fn oai_tool(name: &str, description: &str, parameters: serde_json::Value) -> OaiTool {
+     OaiTool {
+         kind: "function".into(),
+@@ -632,7 +704,6 @@ impl AgentLoop {
+     ) -> Result<AgentTurnResult> {
+         let llm = router.get(self.tier)?;
+         let tools = tool_definitions();
+-
+         let mut messages = self.convert_history(&history);
+ 
+         // Inject system prompt at the beginning
+@@ -797,6 +868,130 @@ impl AgentLoop {
+         })
+     }
+ 
++    /// Run a workflow step whose tool takes a document STRUCTURE, without asking
++    /// the model to choose the tool.
++    ///
++    /// ## Why this exists
++    ///
++    /// A workflow step declares the one tool it exists to run, but the model was
++    /// still offered all eleven and asked to both pick one and serialise its
++    /// arguments. On the Main-tier `gemma4-legal:12b-chat` that fails completely.
++    /// Measured 2026-10-22 on the 项目概况表编制 step, which declares
++    /// `generate_docx` and whose prompt says "输出为Word文档":
++    ///
++    /// | Offered surface | Runs that called `generate_docx` |
++    /// |---|---|
++    /// | all 11 tools | 0 of 5 - every run called `list_documents` |
++    /// | `generate_docx` only | 0 of 5 - still `list_documents`, and sometimes invented names never offered (`print_files`, `list_files`) |
++    ///
++    /// Rewriting the base prompt, reordering the layers, lowering temperature and
++    /// stripping unavailable tool names all failed to change the choice. The 27B
++    /// does follow the directive (3 of 3) but is 17 GB and spills 30% to CPU on a
++    /// 16 GB card, so it is not a viable default.
++    ///
++    /// ## What this does instead
++    ///
++    /// The tool choice is removed from the model entirely. The model is asked for
++    /// ONE thing - the document structure as JSON - with no tools offered at all,
++    /// and the tool is then called directly with that structure. Measured on the
++    /// same step with the real workflow prompt: 4 of 4 runs produced a valid
++    /// structure, against 0 of 5 when the model also had to choose the tool.
++    ///
++    /// The model still authors the content; only the decision is taken away. That
++    /// is the part a small model cannot do reliably, and it is the part that has a
++    /// deterministic answer.
++    ///
++    /// Falls back to the normal agent loop when the reply carries no usable
++    /// structure, so a model that cannot produce JSON degrades to the previous
++    /// behaviour rather than writing an empty document.
++    #[instrument(skip(self, router, user_message, persona_prompt))]
++    pub async fn run_generation_tool(
++        &self,
++        router: &Arc<LlmRouter>,
++        user_message: &str,
++        persona_prompt: Option<&str>,
++        matter_id: Option<&MatterId>,
++        tool: &str,
++        filename: &str,
++    ) -> Result<AgentTurnResult> {
++        let Some(contract) = generation_output_contract(tool) else {
++            return self
++                .run_with_router(router, vec![], user_message, persona_prompt, matter_id)
++                .await;
++        };
++
++        let llm = router.get(self.tier)?;
++        let system_prompt = build_system_prompt(persona_prompt, matter_id);
++        let messages = vec![
++            ChatMessage {
++                role: "system".into(),
++                content: Some(serde_json::Value::String(system_prompt)),
++                tool_calls: None,
++                tool_call_id: None,
++                name: None,
++            },
++            ChatMessage {
++                role: "user".into(),
++                content: Some(serde_json::Value::String(format!(
++                    "{user_message}\n## Output format\n\n{contract}"
++                ))),
++                tool_calls: None,
++                tool_call_id: None,
++                name: None,
++            },
++        ];
++
++        // No tools: the model cannot pick a different one, and cannot spend the
++        // turn gathering context instead of writing.
++        let (content, _) = llm.complete(messages, Vec::new()).await?;
++        let raw = content.unwrap_or_default();
++
++        let Some(structure) = extract_json_object(&raw) else {
++            warn!(
++                tool,
++                reply_len = raw.len(),
++                "generation step produced no parseable structure; falling back to the agent loop"
++            );
++            return self
++                .run_with_router(router, vec![], user_message, persona_prompt, matter_id)
++                .await;
++        };
++
++        let Some(matter_id) = matter_id else {
++            return Err(PacgateError::ValidationError(
++                "a generation step needs a matter_id to write into".into(),
++            ));
++        };
++
++        let call = ToolCall {
++            id: format!("gen_{}", MessageId::new()),
++            tool_name: tool.to_string(),
++            arguments: serde_json::json!({
++                "matter_id": matter_id.as_str(),
++                "filename": filename,
++                "structure": structure,
++            }),
++        };
++        let result = self.dispatcher.dispatch(&call).await;
++
++        if result.is_error {
++            // Surface the tool's own error rather than reporting a step that
++            // "ran" while nothing was written.
++            return Err(PacgateError::ValidationError(format!(
++                "{tool} failed: {}",
++                result.content
++            )));
++        }
++
++        Ok(AgentTurnResult {
++            message_id: MessageId::new(),
++            content: Some(result.content.to_string()),
++            citations: Vec::new(),
++            tool_calls_made: vec![tool.to_string()],
++            max_rounds_reached: false,
++        })
++    }
++
+     fn convert_history(&self, history: &[AgentMessage]) -> Vec<ChatMessage> {
+         history
+             .iter()
+diff --git a/pacgate-ai/pacgate-ai/crates/pacgate-agent/src/workflow_executor.rs b/pacgate-ai/pacgate-ai/crates/pacgate-agent/src/workflow_executor.rs
+index e554ce8..c29666b 100644
+--- a/pacgate-ai/pacgate-ai/crates/pacgate-agent/src/workflow_executor.rs
++++ b/pacgate-ai/pacgate-ai/crates/pacgate-agent/src/workflow_executor.rs
+@@ -61,6 +61,51 @@ fn extract_system_prompt(parameters: &serde_json::Value) -> Option<String> {
+         .map(String::from)
+ }
+ 
++/// The filename a generation step should write.
++///
++/// A step may name it explicitly via `parameters.filename`. Otherwise derive one
++/// from the step name, which is what the workflow author already wrote for a
++/// human to read ("Generate project overview" -> `Generate_project_overview.docx`).
++/// The extension is forced to `.docx` so a step cannot ask `generate_docx` for a
++/// name the tool will then reject.
++fn step_filename(step: &WorkflowStep) -> String {
++    let explicit = step
++        .parameters
++        .get("filename")
++        .and_then(|v| v.as_str())
++        .map(str::trim)
++        .filter(|s| !s.is_empty());
++
++    let base = match explicit {
++        Some(name) => name.to_string(),
++        None => {
++            let cleaned: String = step
++                .name
++                .chars()
++                .map(|c| {
++                    if c.is_alphanumeric() || c == '-' || c == '_' {
++                        c
++                    } else {
++                        '_'
++                    }
++                })
++                .collect();
++            let trimmed = cleaned.trim_matches('_').to_string();
++            if trimmed.is_empty() {
++                "document".to_string()
++            } else {
++                trimmed
++            }
++        }
++    };
++
++    if base.to_ascii_lowercase().ends_with(".docx") {
++        base
++    } else {
++        format!("{base}.docx")
++    }
++}
++
+ /// Build a user message for a workflow step.
+ ///
+ /// The message includes:
+@@ -178,11 +223,34 @@ impl<'a> WorkflowExecutor<'a> {
+             // Build the user message for this step
+             let user_message = build_step_message(step, &prior_context, matter_id);
+ 
+-            // Run the agent loop for this step
+-            let turn_result = self
+-                .agent
+-                .run_with_router(router, vec![], &user_message, combined_prompt.as_deref(), matter_id)
+-                .await?;
++            // A step whose tool takes a document structure is run deterministically:
++            // the model authors the structure, the executor calls the tool. Asking
++            // the model to ALSO choose the tool fails on the Main-tier 12B - 0 of 5
++            // runs called the declared `generate_docx`, all 5 called
++            // `list_documents`, and the route still returned 200 with an empty
++            // result. See `AgentLoop::run_generation_tool`.
++            let turn_result = if crate::is_generation_tool(&step.tool) {
++                self.agent
++                    .run_generation_tool(
++                        router,
++                        &user_message,
++                        combined_prompt.as_deref(),
++                        matter_id,
++                        &step.tool,
++                        &step_filename(step),
++                    )
++                    .await?
++            } else {
++                self.agent
++                    .run_with_router(
++                        router,
++                        vec![],
++                        &user_message,
++                        combined_prompt.as_deref(),
++                        matter_id,
++                    )
++                    .await?
++            };
+ 
+             // Record the result
+             let step_result = StepResult {
