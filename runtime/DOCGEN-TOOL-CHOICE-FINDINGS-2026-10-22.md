@@ -114,3 +114,40 @@ picks the wrong tool. They are a prerequisite, not a fix.
 
 Option 2 is the durable fix and belongs upstream, so the stack can stay pinned
 to GHCR and be updated by pulling.
+
+---
+
+## Update 2026-10-23 — state on the pinned 0.2.2 stack
+
+The stack now runs `ghcr.io/jzkk720/*:0.2.2`. The docgen gate still fails, and
+the reason is unchanged: the fix is not in any published image.
+
+What changed since the note above:
+
+- The Rust changes described under "Fix prepared" were **reverted** from the
+  tree. They compiled cleanly but did not close the gate, and keeping them made
+  `test-release-provenance.ps1` fail correctly — two files that can reach a
+  built image differed from the published `v0.2.2` revision, so a rebuild from
+  the tag would not have matched what clients pull. Carrying an unshipped fix in
+  the tree is worse than not carrying it: it makes the provenance gate lie.
+- `v0.2.2` does **not** contain the fix (`run_with_router_and_tools` and
+  `parse_structure_string` are absent from `v0.2.2:pacgate-agent/src/lib.rs`).
+- The gate's own two defects were fixed and are committed: `storage_path` is
+  resolved against the `/data` mount rather than `DATA_DIR`, and the document is
+  read through `curl.exe` so Windows PowerShell 5.1 does not decode CJK as
+  Latin-1. Those were masking the real failure with false ones.
+
+Current gate output on 0.2.2:
+
+```
+[FAIL] a step actually invoked the document-generated tool
+       tools_used across steps: 'list_documents'
+[FAIL] the run CREATED a document row in the matter
+RESULT: 8 passed, 2 failed
+```
+
+The recommendation is unchanged and now firmer: **construct the `generate_docx`
+arguments from the step's `parameters` in code** rather than asking the model to
+choose a tool and serialise its arguments. That removes the model from the
+decision entirely, works on any model that fits the card, and belongs upstream so
+this machine can keep pulling images instead of building them.
