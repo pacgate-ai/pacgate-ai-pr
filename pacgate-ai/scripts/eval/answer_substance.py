@@ -118,6 +118,11 @@ def main() -> int:
     ap.add_argument("--workflow-id", default="00000000-0000-0000-0000-000000000301")
     ap.add_argument("--fixture", default="equity-transfer-agreement")
     ap.add_argument("--fixtures-dir", default="")
+    ap.add_argument(
+        "--matter-id",
+        default="",
+        help="grade an existing matter's documents instead of provisioning a new one",
+    )
     ap.add_argument("--from-json", default="", help="grade a saved execute response")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
@@ -141,6 +146,12 @@ def main() -> int:
         print("CANNOT CHECK: the fixture declares no planted facts, so substance cannot be graded")
         return 2
 
+    # Set on BOTH branches so the document lookup below always has a matter to
+    # query. `token` is only bound on the live branch, which is why the document
+    # read is guarded on it.
+    matter_for_docs = args.matter_id or ""
+    token = None
+
     if args.from_json:
         payload = json.loads(Path(args.from_json).read_text(encoding="utf-8"))
         if isinstance(payload, dict) and "steps" not in payload and "data" in payload:
@@ -162,6 +173,7 @@ def main() -> int:
         if not prov:
             print(f"CANNOT CHECK: could not provision {args.fixture}.docx from {fx_dir}")
             return 2
+        matter_for_docs = prov.matter_id
         print(f"provisioned matter {prov.matter_id} with document {prov.document_id}")
 
         code, payload = ci.http_json(
@@ -174,11 +186,25 @@ def main() -> int:
         if isinstance(payload.get("data"), dict):
             payload = payload["data"]
 
-    # Everything the model produced: step narration plus the final content. The
-    # document it generated is not re-read here - that would make this a different
-    # eval (docx round-trip), and test-document-generation-e2e.ps1 already owns
-    # the on-disk checks.
+    # ── What to grade: the DOCUMENT, not the narration ───────────────────────
+    #
+    # MEASURED 2026-10-24: grading the step narration made this eval FLAKY - 2 of
+    # 3 runs reported `RMB 48,000,000.00` missing while the generated memo
+    # contained it. The cause is not the model: the deliverable is the .docx, and
+    # the narration is a short summary of it. A summary legitimately omits detail
+    # that the document carries.
+    #
+    # A gate that fails on correct behaviour is worse than no gate, because the
+    # reflex is to re-run it until it passes - the same lesson
+    # test-document-generation-e2e.ps1 records about scraping ids out of prose.
+    #
+    # So the primary source is the generated document's text, read from disk. The
+    # narration is kept as a FALLBACK only, for the case where no document was
+    # produced (which generation_reliability.py reports separately).
     parts: list[str] = []
+    doc_texts: list[str] = []
+    doc_ids: list[str] = []
+
     for step in payload.get("steps") or []:
         if not isinstance(step, dict):
             continue
@@ -186,16 +212,52 @@ def main() -> int:
             parts.append(str(step["content"]))
     if payload.get("final_content"):
         parts.append(str(payload["final_content"]))
-    produced = "\n".join(parts)
 
-    if not produced.strip():
+    # Find the documents this run created, via the DB (authoritative), then read
+    # each one's text through the same extract endpoint the product uses.
+    #
+    # `matter_for_docs` is set explicitly on both branches rather than probed with
+    # locals(): the first version used `locals().get("prov")`, which silently
+    # returned None on the --from-json path and made the eval grade narration
+    # instead of the document without saying so.
+    if matter_for_docs and token:
+        try:
+            import subprocess
+
+            r = subprocess.run(
+                ["docker", "exec", "pacgate-db", "psql", "-U", "pacgate", "-d", "pacgate",
+                 "-t", "-A", "-c",
+                 f"SELECT id FROM documents WHERE matter_id='{matter_for_docs}' "
+                 "AND format='docx' ORDER BY created_at DESC LIMIT 3"],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+            )
+            for line in (r.stdout or "").splitlines():
+                did = line.strip()
+                if not did:
+                    continue
+                code, ex = ci.http_json(
+                    f"{args.base_url}/api/documents/{did}/extract", token, "POST", {}, timeout=180
+                )
+                if code == 200 and isinstance(ex, dict) and (ex.get("text") or "").strip():
+                    doc_texts.append(ex["text"])
+                    doc_ids.append(did)
+        except Exception:
+            pass
+
+    produced = "\n".join(parts)
+    document = "\n".join(doc_texts)
+
+    if not produced.strip() and not document.strip():
         print(
-            "CANNOT CHECK: the run produced no text at all, so there is nothing to grade. "
-            "This is a generation failure, not a substance failure - see generation_reliability.py."
+            "CANNOT CHECK: the run produced no text and no document, so there is nothing "
+            "to grade. This is a generation failure, not a substance failure - see "
+            "generation_reliability.py."
         )
         return 2
 
-    hay = ci.norm(produced)
+    # Grade the document when there is one; fall back to narration otherwise.
+    graded_source = "generated document" if document.strip() else "step narration"
+    hay = ci.norm(document if document.strip() else produced)
 
     missing: list[tuple[str, str]] = []
     present: list[tuple[str, str]] = []
@@ -207,7 +269,8 @@ def main() -> int:
 
     if args.json:
         print(json.dumps(
-            {"fixture": args.fixture, "planted": len(planted),
+            {"fixture": args.fixture, "planted": len(planted), "graded_source": graded_source,
+             "documents_read": len(doc_ids),
              "present": [{"fact": k, "value": v} for k, v in present],
              "missing": [{"fact": k, "value": v} for k, v in missing]},
             indent=2, ensure_ascii=False,
@@ -217,6 +280,7 @@ def main() -> int:
         print("=====================")
         print(f"fixture : {args.fixture}")
         print(f"planted : {len(planted)} fact(s)")
+        print(f"graded  : {graded_source}" + (f" ({len(doc_ids)} docx read)" if doc_ids else ""))
         print("")
         for k, v in present:
             print(f"  [OK  ] {k:<32} {v}")

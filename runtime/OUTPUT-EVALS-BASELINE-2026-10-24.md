@@ -258,3 +258,125 @@ Stated so a green result is not read as more than it earned.
    `citation_integrity.py` — the file is already opened and parsed there.
 5. **Only then** consider the local-judge lane for analysis quality, calibrated
    against this code-graded baseline.
+
+## 12. Follow-up, same day: the prompt half is fixed and verified
+
+Items 1 and 3 above were root-caused and acted on. This section records what
+changed, including a regression I introduced and then fixed.
+
+### 12.1 Root cause of the silent generation failure
+
+`pacgate-agent/src/lib.rs:634` binds **all 44 tools every round**:
+
+```rust
+let tools = tool_definitions();
+```
+
+The step's declared tool is sent only as **prose** ("Call `generate_docx`…").
+Nothing constrains the model to it. Measured on workflow `...0301`, step
+`Generate review memo`:
+
+```
+tools_used: read_document, list_documents, kb_search, legal_search x17
+max_rounds_reached: true      documents created: 0      HTTP: 200
+```
+
+`max_rounds: 10` is **rounds, not tool calls** — 20 calls across 10 rounds is
+consistent, so the cap is correct. It is being *reached* because nothing stops
+the model wandering.
+
+Two further defects found while tracing:
+
+| Defect | Location | Consequence |
+|---|---|---|
+| `citations: Vec::new()` on the break-out path | `lib.rs:794` | a run that cited 9 documents returns **zero** citations if it later hits the cap |
+| `answered = closing.is_some()` | `lib.rs:788` | `Some("")` reports `answered=true` — **the log lied**, which is why this survived a release |
+
+### 12.2 The prompt fix, and the regression it caused
+
+`scripts/eval/inject_red_line_clauses.py` injects the three clauses into every
+document-producing prompt. Idempotent, and it **replaces** a previously injected
+block rather than stacking, so a wording change is safe to re-run.
+
+Result: **219/219 prompts now carry all three clauses** (was 4 / 103 / 13), all
+15 YAML files still parse (PyYAML), 220 workflows intact, library still served
+(222 workflows / 46 categories).
+
+**But the first wording caused a regression.** It said:
+
+> 须标注来源（法律法规名称与条文号、案号或文件出处）
+
+which reads as "produce a statute citation". The model went hunting for statutes
+— `legal_search` **17 times** — hit the round cap, and never generated:
+
+```
+before injection : produced 3/3
+after  injection : produced 0/3   (all CAPPED, tools=18-20)
+```
+
+Corrected wording names the **reviewed document** as the source, makes statute
+citation conditional ("如需引用"), and adds an explicit anti-wander instruction
+("完成必要的阅读后即调用 generate_docx 输出"). After the fix:
+
+```
+produced 3/3, capped 0/3, tool calls 3-5 (was 20)
+```
+
+**This is the strongest argument for the Rust fix:** a single ambiguous sentence
+in a prompt cost the entire deliverable. Prompt wording is not a reliable
+control surface.
+
+### 12.3 The draft label now appears in real output
+
+Three generated documents, read from disk:
+
+```
+股权转让协议-条款审查备忘录.docx              draft_label=True
+股权转让协议-条款审查备忘录（受让方立场）.docx  draft_label=True
+股权转让协议_条款审查备忘录_受让方立场.docx     draft_label=True
+    -> 文件性质 草稿，供律师复核后使用，不构成最终法律意见
+```
+
+One also self-reports: "所引用的协议内容均标注协议条款号；所引用的法律法规均标注名称与条文号".
+
+**This is still model-dependent.** The deterministic guarantee is a paragraph in
+`pacgate-docx/src/builder.rs`, which needs a rebuild — see
+`runtime/RUST-FIXES-SILENT-GENERATION-2026-10-24.md`.
+
+### 12.4 A flaky eval, fixed
+
+`answer_substance.py` failed once in a full-suite run and passed on re-run.
+Diagnosed rather than re-run until green: it graded **step narration**, but the
+deliverable is the **.docx**, and a summary legitimately omits detail the
+document carries. Measured 2 of 3 runs reporting `RMB 48,000,000.00` missing
+while the memo contained it.
+
+Now grades the generated document (read via the same extract endpoint the
+product uses), with narration only as a fallback. Stable across 3 consecutive
+runs, and it prints which source it graded so the distinction is never silent.
+
+### 12.5 The ratchet is now strict
+
+`baseline-prompt-contract.json` went from **219 accepted failures to 0**. The
+gate now fails on *any* prompt missing a clause. Mutation-tested after the
+shrink: appending a clause-free workflow still produced `REGRESSIONS: 1`, exit 1.
+
+### 12.6 Verified state
+
+```
+run-all-checks.ps1  ->  ALL 49 GATES PASSED (14 live-stack checked separately)
+run-evals.ps1       ->  EVALS: 7 passed, 0 failed, 0 cannot check
+```
+
+### 12.7 Still open
+
+| Item | Why it is not done |
+|---|---|
+| Tool restriction per step (root cause) | Rust; `docker.io` unreachable here, no `cargo`, API not bind-mounted. Spec: `runtime/RUST-FIXES-SILENT-GENERATION-2026-10-24.md` |
+| Citations preserved on break-out | same |
+| Honest `answered` flag | same |
+| Deterministic draft label in the builder | same — and the wording needs 百宸 sign-off |
+| Non-200 when a document step produces nothing | changes the API contract; needs a decision |
+| Empty-matter silent success | reproduced 3/3, not fixed |
+| H1→H2→H3 / signature page checks | not added |
+
