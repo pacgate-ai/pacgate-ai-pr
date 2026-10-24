@@ -329,6 +329,29 @@ $gates = @(    'scripts/test-install-render.ps1'
     # have passed the very binary that motivated it. Mutation-tested by staging a
     # 12 MB file.
     'scripts/check-tracked-file-size.ps1'
+    # PROMPT CONTRACT, registered 2026-10-24. The suite had 113 scripts and every
+    # one asserted PLUMBING. Grepping all of them for citation/引用/草稿/fabricat/
+    # hallucin returned only two unrelated identity warnings in
+    # test-sync-capability.ps1 - nothing asserted that a PROMPT says what the
+    # product promises.
+    #
+    # That is where the红线 actually lives: SOUL_Sylvie_v1.0.md forbids issuing a
+    # "final legal opinion" and forbids silently filling a legal conclusion from
+    # model knowledge when the source cannot be found. Measured 2026-10-24 across
+    # the 219 document-producing workflow prompts:
+    #
+    #   draft-for-review clause      4/219   1.8%
+    #   citation/source clause     103/219  47.0%
+    #   uncertainty clause          13/219   5.9%
+    #
+    # A prompt without them asks the model for exactly what the charter forbids.
+    #
+    # STATIC: reads YAML, needs no containers, no credentials, no model - so it is
+    # a gate. It RATCHETS against scripts/eval/baseline-prompt-contract.json so the
+    # existing 219 failures do not make the suite permanently red (the documented
+    # way a gate stops being read), while a NEW prompt shipping without a clause
+    # still fails. Mutation-tested by appending a clause-free workflow.
+    'scripts/test-prompt-contract.ps1'
 )
 
 # A LIVE-STACK GATE: real assertions against the running system, but its exit 2
