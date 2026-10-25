@@ -1,0 +1,105 @@
+diff --git a/deploy/client-bundle/compose.bundle.yaml b/deploy/client-bundle/compose.bundle.yaml
+index 5e87a93..ce51b99 100644
+--- a/deploy/client-bundle/compose.bundle.yaml
++++ b/deploy/client-bundle/compose.bundle.yaml
+@@ -178,6 +178,13 @@ services:
+     volumes:
+       - ./data:/data
+       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
++      # Pacgate 2026-10-08: serve the skills tree (60 dirs: 37 PacGate legal + 23
++      # upstream) from the merged pacgate-layer working copy. The published image
++      # has NO /app/skills - re-verified against 0.2.3 on 2026-10-23, so this is
++      # still required and is not a leftover. Without it the gateway resolves its
++      # skills root to a missing dir and /api/skills returns [].
++      # Read-only mount at the resolved skills root; no image rebuild needed.
++      - ../../../deer-flow/skills/public:/app/skills/public:ro
+       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
+       # Pacgate: add a unified generated-outputs listing endpoint
+       # (GET /api/threads/{id}/outputs). Mounted so it survives container
+@@ -191,6 +198,10 @@ services:
+       # response and enrich the upload listing with markdown metadata + original
+       # filename, so clients can read/analyze converted docs reliably.
+       - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro
++      # Pacgate (2026-10-10): strengthen the <uploaded_files> block so nemotron
++      # actually calls read_file (30B MoE tool-choice variance buried the softer
++      # instruction under 64k of tool/system context).
++      - ./patches/deer-flow-uploads-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/uploads_middleware.py:ro
+       # Pacgate: gate self-registration (mirrors upstream 2.1.0 auth.local.allow_registration)
+       - ./patches/deer-flow-auth.py:/app/backend/app/gateway/routers/auth.py:ro
+       - ./patches/deer-flow-auth-errors.py:/app/backend/app/gateway/auth/errors.py:ro
+diff --git a/deploy/client-bundle/compose.prod.yaml b/deploy/client-bundle/compose.prod.yaml
+index 83f2e3e..19b580a 100644
+--- a/deploy/client-bundle/compose.prod.yaml
++++ b/deploy/client-bundle/compose.prod.yaml
+@@ -243,6 +243,13 @@ services:
+       # officecli outputs survive recreation and land in ./data/office.
+       - ./data/office:/mnt/user-data/workspace
+       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
++      # Pacgate 2026-10-08: serve the skills tree (60 dirs: 37 PacGate legal + 23
++      # upstream) from the merged pacgate-layer working copy. The published image
++      # has NO /app/skills - re-verified against 0.2.3 on 2026-10-23, so this is
++      # still required and is not a leftover. Without it the gateway resolves its
++      # skills root to a missing dir and /api/skills returns [].
++      # Read-only mount at the resolved skills root; no image rebuild needed.
++      - ../../../deer-flow/skills/public:/app/skills/public:ro
+       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
+       # Pacgate: add a unified generated-outputs listing endpoint
+       # (GET /api/threads/{id}/outputs). Mounted so it survives container
+@@ -256,6 +263,10 @@ services:
+       # response and enrich the upload listing with markdown metadata + original
+       # filename, so clients can read/analyze converted docs reliably.
+       - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro
++      # Pacgate (2026-10-10): strengthen the <uploaded_files> block so nemotron
++      # actually calls read_file (30B MoE tool-choice variance buried the softer
++      # instruction under 64k of tool/system context).
++      - ./patches/deer-flow-uploads-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/uploads_middleware.py:ro
+       # Pacgate: gate self-registration. At v2.0.0 /register is unconditional and
+       # auto-logs-in whoever calls it. These two files add the
+       # auth.local.allow_registration check upstream shipped in 2.1.0 (#4311).
+diff --git a/deploy/client-bundle/patches/deer-flow-prompt.py b/deploy/client-bundle/patches/deer-flow-prompt.py
+index a2e5ad3..bebb08f 100644
+--- a/deploy/client-bundle/patches/deer-flow-prompt.py
++++ b/deploy/client-bundle/patches/deer-flow-prompt.py
+@@ -459,7 +459,7 @@ You: "Deploying to staging..." [proceed]
+ 
+ **File Management:**
+ - Uploaded files are automatically listed in the <uploaded_files> section before each request
+-- Use `read_file` tool to read uploaded files using their paths from the list
++- When the <uploaded_files> section lists a file, you MUST use the `read_file` tool on its Path as your FIRST action — never claim you cannot access files, never ask the user to paste content that is already listed there. The files are real and readable.
+ - For PDF, PPT, Excel, and Word files, converted Markdown versions (*.md) are available alongside originals
+ - All temporary work happens in `/mnt/user-data/workspace`
+ - Treat `/mnt/user-data/workspace` as your default current working directory for coding and file-editing tasks
+diff --git a/scripts/run-all-checks.ps1 b/scripts/run-all-checks.ps1
+index b6dcf50..73eaa81 100644
+--- a/scripts/run-all-checks.ps1
++++ b/scripts/run-all-checks.ps1
+@@ -329,6 +329,29 @@ $gates = @(    'scripts/test-install-render.ps1'
+     # have passed the very binary that motivated it. Mutation-tested by staging a
+     # 12 MB file.
+     'scripts/check-tracked-file-size.ps1'
++    # PROMPT CONTRACT, registered 2026-10-24. The suite had 113 scripts and every
++    # one asserted PLUMBING. Grepping all of them for citation/引用/草稿/fabricat/
++    # hallucin returned only two unrelated identity warnings in
++    # test-sync-capability.ps1 - nothing asserted that a PROMPT says what the
++    # product promises.
++    #
++    # That is where the红线 actually lives: SOUL_Sylvie_v1.0.md forbids issuing a
++    # "final legal opinion" and forbids silently filling a legal conclusion from
++    # model knowledge when the source cannot be found. Measured 2026-10-24 across
++    # the 219 document-producing workflow prompts:
++    #
++    #   draft-for-review clause      4/219   1.8%
++    #   citation/source clause     103/219  47.0%
++    #   uncertainty clause          13/219   5.9%
++    #
++    # A prompt without them asks the model for exactly what the charter forbids.
++    #
++    # STATIC: reads YAML, needs no containers, no credentials, no model - so it is
++    # a gate. It RATCHETS against scripts/eval/baseline-prompt-contract.json so the
++    # existing 219 failures do not make the suite permanently red (the documented
++    # way a gate stops being read), while a NEW prompt shipping without a clause
++    # still fails. Mutation-tested by appending a clause-free workflow.
++    'scripts/test-prompt-contract.ps1'
+ )
+ 
+ # A LIVE-STACK GATE: real assertions against the running system, but its exit 2
