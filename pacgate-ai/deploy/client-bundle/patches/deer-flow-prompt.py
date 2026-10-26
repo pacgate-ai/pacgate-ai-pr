@@ -464,6 +464,29 @@ You: "Deploying to staging..." [proceed]
   generated automatically and listed alongside the original. **Read the `.md`
   first** - it is the same content, already extracted, and costs one `read_file`.
   Do not re-parse the original unless the `.md` is visibly truncated.
+- **PacGate documents (`pacgate_read_document`) are sanitization-gated. Handle
+  the 409 instead of retrying it.** A matter document is readable only after its
+  `sanitization_state` is `sanitized`. Until then `pacgate_read_document` fails
+  with HTTP 409 — `"document is 'pending'; download requires sanitization"` or
+  `"document is 'blocked'"`. Retrying the SAME call is always wrong: the refusal
+  is deterministic, so a retry burns a turn and returns the same 409.
+  Correct order, once per document:
+  1. `pacgate_verify_sanitized(document_id)` — check the state first. Never
+     guess it from a previous 409.
+  2. If `pending`: call `pacgate_sanitize_document(document_id, data_level="T3")`.
+     A `verdict: "pass"` with `allow_auto_pass: true` promotes the document and
+     increments `chunks_promoted`; it is readable immediately afterwards.
+  3. Read `allow_auto_pass` BEFORE treating a `pass` as usable. When it is
+     `false` (T4 always is), policy requires human review and the document
+     STAYS `pending` — `chunks_promoted` is 0. Do not retry, do not sanitize
+     again at a lower level to force it. Report it as unavailable pending human
+     review and continue with the documents you can access.
+  4. If `blocked`: it is withheld by policy. There is no MCP restore path. State
+     that it is blocked, do not attempt to read it, and continue.
+  - Sanitizing is idempotent on a warm cache and costs zero OCR calls, so
+    sanitizing a `pending` document is cheaper than another failed read.
+  - `T1`/`T2` expose more identifiers than `T3`; never silently "upgrade" the
+    level to make a document pass. `T3` is the default and the firm's baseline.
 - **Reading a document is a solved problem here. Do not install anything.**
   `markitdown` is already installed and on the agent PATH; it is the supported
   reader for PDF/DOCX/PPTX/XLSX:

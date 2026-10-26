@@ -277,6 +277,23 @@ services:
       # exception, which would move matter memory off the pacgate-api
       # sanitization gate while every health check still reports green.
       - ./patches/deer-flow-memory-storage.py:/app/backend/packages/harness/deerflow/agents/memory/storage.py:ro
+      # Pacgate 2026-10-26: redact direct identifiers (USCC / 身份证 / 手机号 /
+      # 银行卡 / email) from the memory lane's input AND its outgoing payload.
+      #
+      # Root cause this fixes: the update prompt embeds TOOL RESULTS, and legal
+      # due-diligence results are full of 统一社会信用代码. pacgate-api correctly
+      # refuses a memory payload containing one (HTTP 422), so the save failed on
+      # essentially every turn of a research run — 6 attempts produced 12 x 422
+      # across threads 111a45b2 / 2973e30d / 4ae84b4c. Each attempt had already
+      # paid for a full LLM call on the shared Ollama runner slot, so the lane
+      # burned time and never persisted anything.
+      #
+      # Redaction is lossless for the lane's actual job: a process summary
+      # survives losing the 18-character credit code, and person / organisation
+      # NAMES are deliberately still permitted (the adapter documents that
+      # asymmetry). The 422 is also downgraded to a single warning instead of a
+      # traceback, since a lane refusal is not a crash.
+      - ./patches/deer-flow-memory-updater.py:/app/backend/packages/harness/deerflow/agents/memory/updater.py:ro
       # Pacgate: normalize hyphens to underscores in the MCP server-name tool
       # prefix. MCP server keys like "yuandian-law" produce tool names
       # "yuandian-law_yuandian_rh_ft_search" that models hallucinate as

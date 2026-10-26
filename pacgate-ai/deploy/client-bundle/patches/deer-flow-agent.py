@@ -61,6 +61,40 @@ def _get_runtime_config(config: RunnableConfig) -> dict:
     return cfg
 
 
+def _resolve_subagent_enabled(cfg: dict, app_config: AppConfig | None) -> bool:
+    """Decide whether this run may delegate to subagents.
+
+    Pacgate 2026-10-26. ``subagent_enabled`` is a per-REQUEST context key
+    (gateway/services.py:_CONTEXT_CONFIGURABLE_KEYS) whose only default is the
+    hardcoded ``False`` in the channels manager. The web client never sent it,
+    so subagents were never available — which is why the 10 configured A-series
+    agents had no way to run and every session collapsed onto a single model.
+
+    An explicit request value always wins, so a client can still opt out with
+    ``subagent_enabled: false`` and a per-run override is honoured.
+
+    When the request is silent, the deciding signal is whether the deployment
+    actually DECLARED subagents. A config that lists ``custom_agents`` is a
+    deliberate operator decision to have them available; a config with none is
+    upstream-shaped and keeps upstream's ``False``. Verified live 2026-10-26:
+    ``subagents.enabled_by_default`` cannot be used for this because
+    ``SubagentsAppConfig`` is a plain pydantic model WITHOUT ``extra="allow"``,
+    so any unknown key in the YAML section is silently dropped before this code
+    ever sees it — reading it back returned UNSET. Presence of ``custom_agents``
+    survives the schema and is therefore the only reliable signal.
+    """
+    requested = cfg.get("subagent_enabled")
+    if requested is not None:
+        return bool(requested)
+    subagents_cfg = getattr(app_config, "subagents", None) if app_config is not None else None
+    if subagents_cfg is None:
+        return False
+    # The section may arrive as a plain dict (YAML) or as SubagentsAppConfig.
+    if isinstance(subagents_cfg, dict):
+        return bool(subagents_cfg.get("custom_agents"))
+    return bool(getattr(subagents_cfg, "custom_agents", None))
+
+
 def _resolve_model_name(
     requested_model_name: str | None = None,
     *,
@@ -102,6 +136,14 @@ def _resolve_model_name(
         return requested_model_name
 
     # Pacgate auto-routing: only when the caller did NOT pin a model.
+    #
+    # WHAT THIS SWITCH IS NOT (2026-10-26): it selects ONE model for the whole
+    # lead-agent run. It does not run local and cloud at the same time, and it
+    # cannot: every call in a run re-sends the whole conversation, so a mid-run
+    # swap would discard the local model's KV cache and pay a full prefill again
+    # on every turn. Mixing is done per LANE, not per turn — see the note below
+    # `_is_cloud` — and cloud calls are cheap regardless of local load (measured:
+    # a cloud call returned in 0.6s while a local model was mid-generation).
     if not requested_model_name:
         routing = getattr(app_config, "model_routing", None)
         # model_routing is an extra="allow" field, so it may be a dict (as
@@ -148,6 +190,28 @@ def _resolve_model_name(
                     # colon ("deepseek-v4-pro:cloud"). Testing only for the hyphen
                     # reports a colon-tagged cloud model as LOCAL - the exact
                     # misreport this line exists to prevent.
+                    #
+                    # HOW TO ACTUALLY MIX LOCAL + CLOUD (verified 2026-10-26).
+                    # The supported axis is LANE, not turn:
+                    #   lead agent      -> config.yaml `models:` order / picker
+                    #   memory          -> `memory.model_name`
+                    #   title           -> `title.model_name`
+                    #   summarization   -> `summarization.model_name`
+                    #   each subagent   -> `subagents.custom_agents.<name>.model`
+                    # `subagents/executor.py` builds an INDEPENDENT model per
+                    # subagent, so one run can drive a cloud lead with local
+                    # subagents (or the reverse). Requirements, both verified:
+                    #   - `subagents.custom_agents` must exist in the config the
+                    #     gateway actually mounts. The repo's config.yaml has the
+                    #     7 A-series agents, but the MOUNTED
+                    #     deploy/client-bundle/deer-flow-config.yaml has no
+                    #     `subagents:` block at all, so they never load and every
+                    #     run silently falls back to one model.
+                    #   - any local tier used by a subagent must not require more
+                    #     VRAM than is free, or Ollama loads it and evicts the
+                    #     other lane. The `mid` tier points at
+                    #     qwen3.8-legal:27b-mid (17.7 GB) which does not fit
+                    #     alongside a resident model on a 16 GB card.
                     _lower = (cloud_model or "").lower()
                     _is_cloud = _lower.endswith("-cloud") or _lower.endswith(":cloud")
                     target_kind = "CLOUD (egress)" if _is_cloud else "LOCAL (on-device)"
@@ -437,7 +501,7 @@ def build_middlewares(
         middlewares.append(DeferredToolFilterMiddleware(deferred_setup.deferred_names, deferred_setup.catalog_hash))
 
     # Add SubagentLimitMiddleware to truncate excess parallel task calls
-    subagent_enabled = cfg.get("subagent_enabled", False)
+    subagent_enabled = _resolve_subagent_enabled(cfg, resolved_app_config)
     if subagent_enabled:
         max_concurrent_subagents = cfg.get("max_concurrent_subagents", 3)
         middlewares.append(SubagentLimitMiddleware(max_concurrent=max_concurrent_subagents))
@@ -507,7 +571,7 @@ def _make_lead_agent(config: RunnableConfig, *, app_config: AppConfig):
     reasoning_effort = cfg.get("reasoning_effort", None)
     requested_model_name: str | None = cfg.get("model_name") or cfg.get("model")
     is_plan_mode = cfg.get("is_plan_mode", False)
-    subagent_enabled = cfg.get("subagent_enabled", False)
+    subagent_enabled = _resolve_subagent_enabled(cfg, resolved_app_config)
     max_concurrent_subagents = cfg.get("max_concurrent_subagents", 3)
     is_bootstrap = cfg.get("is_bootstrap", False)
     agent_name = validate_agent_name(cfg.get("agent_name"))

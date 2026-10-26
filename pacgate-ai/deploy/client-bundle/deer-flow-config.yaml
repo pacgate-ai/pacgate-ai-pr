@@ -311,6 +311,144 @@ model_routing:
   # deployment with a genuinely large surface can still use it.
   tool_count_threshold: 200
 
+# ── Subagents: the ONLY axis on which local and cloud run at the same time ──
+#
+# Pacgate 2026-10-26. Answering "why can't I use cloud and local together?":
+# nothing forbids it, and Ollama serves both at once (measured: a cloud call
+# returned in 0.6 s while a local model was mid-generation; gemma4 and
+# nomic-embed-text were resident together). What was missing was a lane that
+# pins a DIFFERENT model from the lead agent.
+#
+#   lead agent  -> `models:` order / user picker         (one model per RUN)
+#   subagent    -> `subagents.custom_agents.*.model`     (one model per SUBAGENT)
+#
+# `subagents/executor.py` builds an independent chat model per subagent, so a
+# run can drive a cloud lead with local subagents. THESE ENTRIES ARE PINNED
+# LOCAL ON PURPOSE: the firm's red line is that client identity stays on the
+# machine, and a subagent copied from a local session must not become an egress
+# path just because the lead was cloud.
+#
+# WHY THIS BLOCK WAS MISSING: it existed only in the repo's deer-flow/config.yaml,
+# which the gateway never mounts. Without it the 10 A-series agents never load and
+# every run silently uses one model. Worse, they were pinned to `model: main` /
+# `mid` / `low`, which are NOT model names — `create_chat_model` raises
+# `ValueError: Model main not found in config`, so enabling subagents would have
+# failed every delegated task. The names below are the real config keys:
+#   main -> deepseek-v4.1-flash-cloud   mid -> gemma4-12b-local
+#   low  -> ornith-1.5-9b-local
+# `mid` is NOT qwen3.8-legal:27b-mid (the pacgate-api MID tier): that tag is
+# 17.7 GB and cannot share this card with a resident model, so using it here
+# would evict the other lane — the exact "looks like a hang" failure this
+# deployment keeps hitting.
+subagents:
+  # Pacgate 2026-10-26: `subagent_enabled` is a per-REQUEST context key
+  # (gateway/services.py:_CONTEXT_CONFIGURABLE_KEYS) whose only default was a
+  # hardcoded False, so the web client had to ask for subagents on every run and
+  # never did — the 10 agents below had no way to execute.
+  #
+  # `patches/deer-flow-agent.py` now treats the PRESENCE of this
+  # `custom_agents` block as "this deployment has subagents, make them
+  # available", while an explicit request `subagent_enabled: false` still wins.
+  # Do NOT try to express this with an extra key such as `enabled_by_default:`:
+  # SubagentsAppConfig is a plain pydantic model WITHOUT extra="allow", so any
+  # unknown key here is silently DROPPED before the code can read it (verified
+  # live 2026-10-26 — it read back as UNSET). Delete this block to fall back to
+  # upstream behaviour (subagents off).
+  custom_agents:
+    matter-manager:
+      description: "A1 事项管理 — 分派条线任务、进度台账、执行摘要"
+      system_prompt: |
+        你是 A1 事项管理 Agent（Matter Manager），对应 Big Law 的 project manager。
+        职责：接收合伙人指令 → 分派条线任务 → 跟踪进度 → 汇总执行摘要。
+        红线：每个结论都必须可回溯到已核验材料；不确定处标注【资料不足】。
+      model: gemma4-12b-local
+      max_turns: 80
+      timeout_seconds: 1800
+
+    intake-conflicts:
+      description: "A2 立案利冲 — 结构化访谈 → 企查查 + 内部档案利冲 → 关联图谱"
+      system_prompt: |
+        你是 A2 立案利冲 Agent，对应 Big Law 的 intake & conflicts department。
+        职责：结构化访谈、外部工商与涉诉数据、内部在办档案利冲比对。
+      model: gemma4-12b-local
+      max_turns: 60
+      timeout_seconds: 1200
+
+    research:
+      description: "A3 法规检索 — 元典/北大法宝/SEC EDGAR 法规案例检索"
+      system_prompt: |
+        你是 A3 法规检索 Agent，负责法规与案例检索。
+        红线：只引用检索到的原文，不得凭记忆生成法条或案号。
+      model: ornith-1.5-9b-local
+      max_turns: 40
+      timeout_seconds: 600
+
+    cite-checker:
+      description: "A5 引文核验 — 法规引用核验 + 来源标注 + 批量退回"
+      system_prompt: |
+        你是 A5 引文核验 Agent，对应 Big Law 的校对席。
+        职责：逐条核验法条与案号是否存在、是否现行有效、是否被引述正确。
+      model: ornith-1.5-9b-local
+      max_turns: 30
+      timeout_seconds: 300
+
+    devils-advocate:
+      description: "A6 反方复核 — 完备性挑战 + 逻辑漏洞 + 盲区补缺"
+      system_prompt: |
+        你是 A6 反方复核 Agent，对应 Big Law 的 devil's advocate。
+        职责：挑战结论完备性、指出逻辑漏洞、补齐盲区。不得推翻已核验事实。
+      model: gemma4-12b-local
+      max_turns: 20
+      timeout_seconds: 300
+
+    doc-pipeline:
+      description: "A7 文档管线 — OCR + 分类 + 结构化抽取 + 表格审查 + 脱敏"
+      system_prompt: |
+        你是 A7 文档管线 Agent，负责 OCR、分类、结构化抽取、表格审查和脱敏。
+        pacgate_read_document 返回 409 时：先 pacgate_verify_sanitized，再按需
+        pacgate_sanitize_document(data_level="T3")，然后读取；不要重复读同一个失
+        败的调用。
+      model: ornith-1.5-9b-local
+      max_turns: 60
+      timeout_seconds: 1200
+
+    report-assembly:
+      description: "A8 报告装配 — 11章尽调报告装配 + docx生成"
+      system_prompt: |
+        你是 A8 报告装配 Agent，负责将已核验成果装配为 11 章尽调报告。
+        红线：只装配已核验内容；缺口必须在对应章节显式标注，不得用推测填充。
+      model: gemma4-12b-local
+      max_turns: 40
+      timeout_seconds: 600
+
+    translation:
+      description: "T1 法律翻译 — 中英法律文档互译 (跨境并购/离岸尽调/VIE重构)"
+      system_prompt: |
+        你是 T1 法律翻译 Agent，负责中英法律文档互译。
+        职责：合同条款、法律意见书、尽调报告、法规条文的中英双向翻译。
+        红线：法律术语必须准确，不得臆造，不确定处标注【待确认】。
+      model: gemma4-12b-local
+      max_turns: 40
+      timeout_seconds: 600
+
+    version-diff:
+      description: "T2 版本对比 — 文档版本红线对比 (合同谈判轮次/NDA迭代)"
+      system_prompt: |
+        你是 T2 版本对比 Agent，负责文档版本间的红线对比（redline diff）。
+        职责：比较两版文档，标记新增/删除/修改条款，生成结构化差异报告。
+      model: ornith-1.5-9b-local
+      max_turns: 30
+      timeout_seconds: 300
+
+    compliance-monitor:
+      description: "T3 合规监控 — 定期合规状态检查 (法规变更/数据合规/出口管制)"
+      system_prompt: |
+        你是 T3 合规监控 Agent，负责定期合规状态检查。
+        职责：检查法规变更、数据合规要求、出口管制更新对在办事项的影响。
+      model: ornith-1.5-9b-local
+      max_turns: 30
+      timeout_seconds: 300
+
 # Pacgate 2026-10-07: pin background memory updates to a dedicated capped model.
 # The memory updater runs OUTSIDE user-visible runs; without a pin it used the
 # first config model with no generation cap, and a confused run looped 43k+
