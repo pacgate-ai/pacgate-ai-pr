@@ -217,6 +217,52 @@ deliberate choice with §6's backup taken first, not an incidental side effect.
 
 ---
 
+## 8. Outcome (executed 2026-10-26)
+
+`86a9feb` is **adopted and live on this stack**.
+
+| Step | Result |
+|---|---|
+| Fetch (git blocked) | 8/8 files via HTTPS; one transfer arrived **truncated** (6 890 of 25 262 bytes) and was caught by an API-size check |
+| Tree identity | All 8 blob SHAs matched GitHub; built tree `526da22b…` == commit tree; parent verified `337fb9d` |
+| Local deltas | **63** (not the 4 first assumed) — 59 restored verbatim, 3 merged, 1 superseded |
+| Merge collisions | 4 files: `compose.bundle.yaml`, `compose.prod.yaml`, `run-all-checks.ps1` (additive — merged), `test-memory-lane.ps1` (upstream supersedes ours) |
+| Swap identity | subtree SHA `526da22b…` — byte-identical to upstream |
+| Gates | **ALL 53 PASSED** (52 + `test-memory-prompt-stability.ps1`), zero regressions |
+| Gate red-check | reversed block order → exit 1; restore byte-identical (SHA-256 match) → exit 0. Not blind. |
+| Rollout | `compose.bundle.yaml up -d --force-recreate --no-deps deer-flow` — the frontend was **never touched** |
+| Live state | `cap: 16000 \| conversation first: True` — upstream's claim independently reproduced here |
+| Red line | `PACGATE_MATTER_ID` set, storage refusal present, identifier redaction live |
+| Push to fork | ❌ **blocked** — `github.com:443` TLS reset from this host; commits are local only |
+
+**Measured effect (the point of the commit):** with a 16 000-char conversation
+held constant, the shared prompt prefix across a memory change went from
+**218 chars (1.0 %)** under the old ordering to **16 278 chars (71.9 %)** —
++16 060 reusable chars. Wall-clock prefill (upstream's 68.7 s → 1.3 s) was **not**
+re-measured here; see `runtime/BENCHMARK-2026-10-26-memory-prompt-86a9feb.md` §1
+for why.
+
+### Mistakes made and caught during execution
+
+Recorded because each one was productively caught by a check, not by luck:
+
+1. **Truncated download** — `compose.bundle.yaml` arrived as 6 890 bytes. Only
+   the API size comparison found it; the build step would have failed opaquely.
+2. **CJK paths reported MISSING** — PS 5.1 decoded git's UTF-8 output as GBK,
+   so `Test-Path` failed on **56** files. Fixed with `ls-tree -z` + reading the
+   stream as UTF-8 bytes.
+3. **Then `delta_count=0`** — because `>` redirection writes UTF-16, destroying
+   the NUL-separated stream. Fixed with `Start-Process -RedirectStandardOutput`.
+4. **Dropped a prod mount** — I assumed the two compose files had the same local
+   delta shape; `compose.prod.yaml` actually carried a `skills/public` mount that
+   `compose.bundle.yaml`-only rules did not restore. Caught by diffing the merged
+   file against the preserved original (22 → 23 mounts, `only_orig=0`).
+5. **Flaky gate on the first post-rollout suite run** — `test-workflow-mutations.ps1`
+   mutates and restores tracked files, so a concurrent reader can observe it
+   mid-mutation. Passes standalone (exit 0) and on the immediate re-run.
+
+---
+
 ## 6. Secondary hazards confirmed on this machine
 
 | Hazard | Status | Evidence |
