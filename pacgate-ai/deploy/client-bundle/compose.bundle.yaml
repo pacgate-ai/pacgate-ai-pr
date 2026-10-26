@@ -183,7 +183,6 @@ services:
       # has NO /app/skills - re-verified against 0.2.6 on 2026-10-25, so this is
       # still required and is not a leftover. Without it the gateway resolves its
       # skills root to a missing dir and /api/skills returns [].
-      # Read-only mount at the resolved skills root; no image rebuild needed.
       - ../../../deer-flow/skills/public:/app/skills/public:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
       # Pacgate: add a unified generated-outputs listing endpoint
@@ -277,23 +276,21 @@ services:
       # exception, which would move matter memory off the pacgate-api
       # sanitization gate while every health check still reports green.
       - ./patches/deer-flow-memory-storage.py:/app/backend/packages/harness/deerflow/agents/memory/storage.py:ro
-      # Pacgate 2026-10-26: redact direct identifiers (USCC / 身份证 / 手机号 /
-      # 银行卡 / email) from the memory lane's input AND its outgoing payload.
-      #
-      # Root cause this fixes: the update prompt embeds TOOL RESULTS, and legal
-      # due-diligence results are full of 统一社会信用代码. pacgate-api correctly
-      # refuses a memory payload containing one (HTTP 422), so the save failed on
-      # essentially every turn of a research run — 6 attempts produced 12 x 422
-      # across threads 111a45b2 / 2973e30d / 4ae84b4c. Each attempt had already
-      # paid for a full LLM call on the shared Ollama runner slot, so the lane
-      # burned time and never persisted anything.
-      #
-      # Redaction is lossless for the lane's actual job: a process summary
-      # survives losing the 18-character credit code, and person / organisation
-      # NAMES are deliberately still permitted (the adapter documents that
-      # asymmetry). The 422 is also downgraded to a single warning instead of a
-      # traceback, since a lane refusal is not a crash.
+      # Pacgate 2026-10-26: redact direct identifiers (USCC / 韬唤璇?/ 鎵嬫満鍙?/
+      # 閾惰鍗?/ email) from the memory lane input AND its outgoing payload.
+      # pacgate-api refuses a payload containing one (HTTP 422), so the save
+      # failed on essentially every turn of a research run. Person and
+      # organisation NAMES stay permitted by design. See deer-flow-memory-updater.py.
       - ./patches/deer-flow-memory-updater.py:/app/backend/packages/harness/deerflow/agents/memory/updater.py:ro
+      # Pacgate 2026-10-26: bound the memory lane's input and stabilize its
+      # prompt prefix. The template put the volatile `{current_memory}` block
+      # ahead of the conversation, so the prefix changed on every update and
+      # llama.cpp could never reuse it - measured 68.7 s cold on three
+      # consecutive updates vs 0.5 s when the prefix was held constant. The
+      # conversation block is now first (append-only, therefore stable) and the
+      # memory block last, and the conversation is capped at 16k chars / 40
+      # messages so it stops evicting the chat lane's cache entry.
+      - ./patches/deer-flow-memory-prompt.py:/app/backend/packages/harness/deerflow/agents/memory/prompt.py:ro
       # Pacgate: normalize hyphens to underscores in the MCP server-name tool
       # prefix. MCP server keys like "yuandian-law" produce tool names
       # "yuandian-law_yuandian_rh_ft_search" that models hallucinate as

@@ -243,12 +243,10 @@ services:
       # officecli outputs survive recreation and land in ./data/office.
       - ./data/office:/mnt/user-data/workspace
       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
-      # Pacgate 2026-10-08: serve the skills tree (60 dirs: 37 PacGate legal + 23
-      # upstream) from the merged pacgate-layer working copy. The published image
-      # has NO /app/skills - re-verified against 0.2.6 on 2026-10-25, so this is
-      # still required and is not a leftover. Without it the gateway resolves its
-      # skills root to a missing dir and /api/skills returns [].
-      # Read-only mount at the resolved skills root; no image rebuild needed.
+      # Pacgate 2026-10-08: serve the skills tree from the merged pacgate-layer
+      # working copy. The published image has NO /app/skills - re-verified against
+      # 0.2.6 on 2026-10-25. Without it the gateway resolves its skills root to a
+      # missing dir and /api/skills returns []. See compose.bundle.yaml.
       - ../../../deer-flow/skills/public:/app/skills/public:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
       # Pacgate: add a unified generated-outputs listing endpoint
@@ -263,9 +261,8 @@ services:
       # response and enrich the upload listing with markdown metadata + original
       # filename, so clients can read/analyze converted docs reliably.
       - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro
-      # Pacgate (2026-10-10): strengthen the <uploaded_files> block so nemotron
-      # actually calls read_file (30B MoE tool-choice variance buried the softer
-      # instruction under 64k of tool/system context).
+      # Pacgate (2026-10-10): strengthen the <uploaded_files> block (see
+      # compose.bundle.yaml for the rationale).
       - ./patches/deer-flow-uploads-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/uploads_middleware.py:ro
       # Pacgate: gate self-registration. At v2.0.0 /register is unconditional and
       # auto-logs-in whoever calls it. These two files add the
@@ -347,16 +344,12 @@ services:
       # exception, which would move matter memory off the pacgate-api
       # sanitization gate while every health check still reports green.
       - ./patches/deer-flow-memory-storage.py:/app/backend/packages/harness/deerflow/agents/memory/storage.py:ro
-      # Pacgate 2026-10-26: redact direct identifiers (USCC / 身份证 / 手机号 /
-      # 银行卡 / email) from the memory lane's input AND its outgoing payload,
-      # and downgrade the permanent 422 lane refusal from an ERROR traceback to
-      # a single warning. Full rationale in compose.bundle.yaml.
-      #
-      # MUST be mounted in BOTH files: test-workflow-compose-wiring.ps1 A5 asserts
-      # patch-mount parity, and this host runs install.ps1 (which uses
-      # compose.prod.yaml). A mount present in only one file means the fix is
-      # silently absent on whichever path the operator used.
+      # Pacgate 2026-10-26: redact direct identifiers from the memory lane
+      # (see compose.bundle.yaml for the rationale).
       - ./patches/deer-flow-memory-updater.py:/app/backend/packages/harness/deerflow/agents/memory/updater.py:ro
+      # Pacgate 2026-10-26: bound the memory lane's input and stabilize its
+      # prompt prefix (see compose.bundle.yaml for the measurement).
+      - ./patches/deer-flow-memory-prompt.py:/app/backend/packages/harness/deerflow/agents/memory/prompt.py:ro
       # Pacgate: normalize hyphens to underscores in the MCP server-name tool
       # prefix (see compose.bundle.yaml for the rationale).
       - ./patches/langchain-mcp-tools.py:/app/backend/.venv/lib/python3.12/site-packages/langchain_mcp_adapters/tools.py:ro

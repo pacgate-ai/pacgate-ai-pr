@@ -306,8 +306,21 @@ try {
     $docSource = 'none'
     $dbErr = ''
     try {
-        $rows = docker exec pacgate-db psql -U pacgate -d pacgate -t -A -F'|' -c `
-            "SELECT id, name, format, version, storage_path FROM documents WHERE matter_id = '$matterId' ORDER BY created_at DESC;" 2>&1
+        # Read psql's output as BYTES, not through the pipeline.
+        #
+        # `docker exec ... psql` writes UTF-8, but a PowerShell pipeline decodes a
+        # native command's stdout with [Console]::OutputEncoding - gb2312 on a
+        # Chinese Windows box. A CJK document name therefore arrived as
+        # `00_椤圭洰璇存槑...docx`, and the on-disk check below then looked for a
+        # path that could never exist. Redirect to a file and decode as UTF-8.
+        $tmpRows = Join-Path ([System.IO.Path]::GetTempPath()) ("pgrows-" + [guid]::NewGuid().ToString('N').Substring(0, 8) + ".txt")
+        $sql = "SELECT id, name, format, version, storage_path FROM documents WHERE matter_id = '$matterId' ORDER BY created_at DESC;"
+        cmd /c "docker exec pacgate-db psql -U pacgate -d pacgate -t -A -F`"|`" -c `"$sql`" > `"$tmpRows`" 2>&1" | Out-Null
+        $rows = @()
+        if (Test-Path $tmpRows) {
+            $rows = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($tmpRows)) -split "`r?`n"
+            Remove-Item $tmpRows -Force -ErrorAction SilentlyContinue
+        }
         $dbErr = ($rows | Out-String).Trim()
         $parsed = @($rows | Where-Object { $_ -match '^\s*[0-9a-fA-F-]{36}\|' } | ForEach-Object {
             $p = $_ -split '\|', 5
@@ -343,16 +356,34 @@ try {
     if ($doc) {
         Write-Host "         document: $($doc.name) (chose $docSource)" -ForegroundColor DarkGray
 
-        # Decode the body as UTF-8 explicitly. Windows PowerShell 5.1's
-        # Invoke-RestMethod decodes a JSON response as Latin-1 when the server
-        # omits a charset, so a Chinese `storage_path` came back as
-        # `é¡¹ç®æ¦åè¡¨_v1.docx` and the on-disk check below failed on a file
-        # that existed. curl.exe + ConvertFrom-Json keeps the bytes intact.
+        # Decode the body as UTF-8 explicitly, from BYTES.
+        #
+        # Windows PowerShell 5.1's Invoke-RestMethod decodes a JSON response as
+        # Latin-1 when the server omits a charset, so a Chinese `storage_path` came
+        # back as `é¡¹ç®æ¦åè¡¨_v1.docx` and the on-disk check below failed on a
+        # file that existed.
+        #
+        # `curl.exe ... | ConvertFrom-Json` was the previous fix and it is NOT
+        # sufficient: the pipe decodes curl's UTF-8 stdout using
+        # [Console]::OutputEncoding, which is gb2312 on a Chinese Windows box. So a
+        # CJK path was mangled a SECOND way (`00_椤圭洰璇存槑...docx`) and the check
+        # still failed on a file that existed. Measured on this box 2026-10-26: the
+        # pipe form threw "unexpected character ... Path 'name'" outright, while
+        # reading the same response from a file as UTF-8 returned the correct path.
+        #
+        # The soak proved the generation path itself was healthy (0 failures in 8
+        # consecutive runs, all HTTP 200), so that red was the PROBE, not the
+        # product. Write to a temp file and decode the bytes - never pipe.
         $apiDoc = $null
+        $tmpDoc = Join-Path ([System.IO.Path]::GetTempPath()) ("pgdoc-" + [guid]::NewGuid().ToString('N').Substring(0, 8) + ".json")
         try {
-            $rawDoc = curl.exe -s -H "Authorization: $($H['Authorization'])" "$BaseUrl/api/documents/$($doc.id)"
-            if ($rawDoc) { $apiDoc = $rawDoc | ConvertFrom-Json }
+            curl.exe -s -H "Authorization: $($H['Authorization'])" "$BaseUrl/api/documents/$($doc.id)" -o $tmpDoc 2>$null | Out-Null
+            if (Test-Path $tmpDoc) {
+                $rawDoc = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($tmpDoc))
+                if ($rawDoc) { $apiDoc = $rawDoc | ConvertFrom-Json }
+            }
         } catch { }
+        finally { if (Test-Path $tmpDoc) { Remove-Item $tmpDoc -Force -ErrorAction SilentlyContinue } }
         Check 'the created document id resolves through GET /api/documents/:id' ([bool]$apiDoc) `
             "GET /api/documents/$($doc.id) did not return a document"
         if ($apiDoc) {

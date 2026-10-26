@@ -207,6 +207,27 @@ $gates = @(    'scripts/test-install-render.ps1'
     # prose in a schema the adapter never emits. The trip-wire is a missing
     # PACGATE_MATTER_ID, and .env.example shipped it blank. Self-contained.
     'scripts/test-memory-lane.ps1'
+    # Asserts the memory lane's prompt is PREFIX-STABLE and BOUNDED. The
+    # template put the volatile {current_memory} block ahead of the
+    # conversation, so the prefix changed on every update and llama.cpp could
+    # never reuse it - measured 68.7 s cold on three consecutive updates vs
+    # 1.3 s once the conversation block was moved first. The conversation is
+    # also capped so the memory prompt stops reaching chat size and evicting
+    # the chat lane's cache entry. Self-contained (reads files; no docker).
+    'scripts/test-memory-prompt-stability.ps1'
+
+    # PROMPT CONTRACT, registered 2026-10-24. The suite asserted PLUMBING;
+    # nothing asserted that a PROMPT says what the product promises. That is
+    # where the 绾㈢嚎 lives: SOUL_Sylvie_v1.0.md forbids issuing a "final legal
+    # opinion" and forbids filling a legal conclusion from model knowledge when
+    # the source cannot be found. Measured 2026-10-24 across 219
+    # document-producing prompts: draft-for-review 1.8%, citation 47.0%,
+    # uncertainty 5.9%.
+    #
+    # STATIC: reads YAML, no containers, no credentials, no model. It RATCHETS
+    # against scripts/eval/baseline-prompt-contract.json so existing failures do
+    # not make the suite permanently red, while a NEW clause-free prompt fails.
+    'scripts/test-prompt-contract.ps1'
     # Proves the gate above can REJECT. It went in as a blind gate twice in this
     # subsystem already, so the mutation harness is registered alongside it
     # rather than trusted to a manual run. Breaks each assertion in turn,
@@ -408,30 +429,6 @@ $gates = @(    'scripts/test-install-render.ps1'
     # plain `return json.dumps(results, ...)`; 4 of 5 checks fail on the pre-fix
     # file.
     'scripts/test-kb-search-empty-signal.ps1'
-
-    # PROMPT CONTRACT, registered 2026-10-24. The suite had 113 scripts and every
-    # one asserted PLUMBING. Grepping all of them for citation/引用/草稿/fabricat/
-    # hallucin returned only two unrelated identity warnings in
-    # test-sync-capability.ps1 - nothing asserted that a PROMPT says what the
-    # product promises.
-    #
-    # That is where the红线 actually lives: SOUL_Sylvie_v1.0.md forbids issuing a
-    # "final legal opinion" and forbids silently filling a legal conclusion from
-    # model knowledge when the source cannot be found. Measured 2026-10-24 across
-    # the 219 document-producing workflow prompts:
-    #
-    #   draft-for-review clause      4/219   1.8%
-    #   citation/source clause     103/219  47.0%
-    #   uncertainty clause          13/219   5.9%
-    #
-    # A prompt without them asks the model for exactly what the charter forbids.
-    #
-    # STATIC: reads YAML, needs no containers, no credentials, no model - so it is
-    # a gate. It RATCHETS against scripts/eval/baseline-prompt-contract.json so the
-    # existing 219 failures do not make the suite permanently red (the documented
-    # way a gate stops being read), while a NEW prompt shipping without a clause
-    # still fails. Mutation-tested by appending a clause-free workflow.
-    'scripts/test-prompt-contract.ps1'
 )
 
 # A LIVE-STACK GATE: real assertions against the running system, but its exit 2
