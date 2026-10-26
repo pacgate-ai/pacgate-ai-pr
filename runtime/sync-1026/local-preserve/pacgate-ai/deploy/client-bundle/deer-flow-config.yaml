@@ -1,0 +1,773 @@
+# Pacgate-ai DeerFlow configuration — on-board local models are the DEFAULT.
+#
+# EGRESS STATUS (corrected 2026-09-25): this file previously said "ollama.com
+# blocked". That was FALSE as written. Nothing in this repo blocks ollama.com —
+# not a hosts entry, not a firewall rule, not a proxy. Some client networks block
+# it themselves (the handoff notes say "may be blocked"), which is a property of
+# their network, not a control we ship. So treat `:cloud` tags as REACHABLE unless
+# a given site proves otherwise: `:cloud` models DO send prompt text to ollama.com
+# wherever the network allows it.
+#
+# What we control is the DEFAULT. Local models are default, auto-escalation is
+# local (see `model_routing` below), and cloud models are reachable only when a
+# user PICKES one. The firm accepts that deliberate choice; it does not accept
+# egress as a side effect of prompt size, upload, or not touching the picker.
+# `scripts/test-chat-no-auto-egress.ps1` enforces that distinction.
+#
+# Default (first) model = gemma4:12b-it-qat (schema-valid structured/tool calls,
+# benchmarked end-to-end). ornith-1.5:9b is listed after it as a fast fallback.
+#
+# IMPORTANT: the deep-research "Generate follow-up questions" step uses structured
+# output (json_schema -> Ollama grammar). Some local models (e.g. ornith-1.5:9b)
+# fail with "Failed to initialize samplers: failed to parse grammar" on that
+# step. gemma4:12b-it-qat handles the grammar reliably, so it must be the default.
+#
+# MODEL TAG CONSISTENCY: every LOCAL tag named below must also be listed in
+# ollama-models.txt (the pre-pull list install.ps1 reads), or a fresh machine will
+# install cleanly and then 404 on the first run with
+# `model '<tag>' not found`. `:cloud` tags are exempt - they need no local weights.
+# scripts/audit-model-tags.ps1 enforces this.
+
+# Pacgate 2026-10-07: nemotron-3.5-lightning is now the DEFAULT. It is the most
+# capable local MOE (1M context, tools + thinking) and benchmarked clean end to
+# end. CRITICAL: its max_tokens MUST stay at 8192 or below. Nemotron's thinking
+# channel can run unbounded on this Ollama build - with the previous 16384 cap it
+# burned the entire budget on thinking tokens, produced no visible content, and
+# tripped deer-flow's 420s stall detector ("no astream output ... aborting").
+# Verified 2026-10-07: num_predict 300/1024 -> clean stop, correct content;
+# unset/16384 -> 14k+ token thinking loops with empty content.
+# Why 8192 and not lower: nemotron generates at ~24 t/s on the 8060S iGPU, so
+# 8192 tokens is ~5.7 min of worst-case generation - inside the 420s stall
+# detector's window only because thinking tokens stream continuously and reset
+# it. 4096 was tested first but is too tight for heavy research runs (thinking +
+# long answers share one budget). Do NOT raise back to 16384.
+models:
+  # Pacgate 2026-10-19: WITHDRAWN from the shipped picker - 25.0 GB against a
+  # 16 GB AIPC card. On the dev box (96 GiB) it is excellent; on a client AIPC it
+  # cannot fit, so Ollama spills to CPU and the run presents as a hang with no
+  # error. Measured residency 25.0 GB (scripts/test-aipc-capacity-fit.ps1). Kept
+  # here, commented, so a larger machine can restore it deliberately.
+  #
+  # WITHDRAWING IT ALSO MOVED models[0]. The first ACTIVE entry is what an
+  # unpinned lane falls back to; that was this 30B, which is the 2026-10-17
+  # defect (every new thread loaded 25 GB). It is now gemma4-12b-local (7.2 GB).
+  # Do not re-order the list without checking what sits first.
+  # - name: nemotron-3.5-lightning-30b-local
+  #   display_name: Nemotron 3.5 Lightning 30B (Local)
+  #   description: 1M-token MOE. Requires 25 GB VRAM - NOT available on a 16 GB AIPC.
+  #   use: langchain_openai:ChatOpenAI
+  #   model: nemotron-3.5-lightning:30b-a3b
+  #   api_key: ollama
+  #   base_url: http://host.docker.internal:11434/v1
+  #   max_tokens: 8192
+  #   temperature: 0.1
+  #   supports_thinking: true
+  #   # Long thinking pauses on a 30B reasoning model - raise the stream chunk
+  #   # timeout so the gateway does not drop the connection mid-thought.
+  #   stream_chunk_timeout: 300
+
+  - name: gemma4-12b-local
+    display_name: Gemma 4 12B (Local)
+    description: Fast local model. Reliable structured/tool calls. Used for background memory updates.
+    use: langchain_openai:ChatOpenAI
+    model: gemma4:12b-it-qat
+    api_key: ollama
+    base_url: http://host.docker.internal:11434/v1
+    max_tokens: 8192
+    temperature: 0.1
+    # Pacgate 2026-10-20: SUPPRESS THE REASONING CHANNEL on local models too.
+    #
+    # The two cloud entries below have carried this fix since 2026-10-09; the
+    # local ones never did, and the omission was expensive. gemma4 is a
+    # thinking-capable model, so when the caller builds it with
+    # thinking_enabled=False and the config sets NO when_thinking_disabled,
+    # `deer-flow-model-factory.py` matches none of its disable branches and
+    # sends nothing - the model then spends the whole max_tokens budget on
+    # invisible `reasoning` and returns EMPTY content.
+    #
+    # Measured live 2026-10-20 against the local Ollama /v1 endpoint with a
+    # title-shaped prompt (max_tokens 200):
+    #   without reasoning_effort=none -> 7.7 s, 200/200 tokens, 809 chars of
+    #                                    reasoning, content = "" (finish=length)
+    #   with    reasoning_effort=none -> 0.48 s, 9 tokens, clean title
+    # That is 16x the latency for zero output on EVERY title, memory and
+    # summarization call, and it also holds the Ollama server slot open that
+    # much longer - which is exactly what makes concurrent utility lanes look
+    # like a hang. `supports_reasoning_effort` must be true as well or the
+    # factory strips the key again (see the pop at the end of the merge).
+    supports_thinking: true
+    supports_reasoning_effort: true
+    when_thinking_disabled:
+      reasoning_effort: none
+
+  # Dedicated memory-update model. Referenced by memory.model_name below.
+  # Background memory updates run OUTSIDE any user-visible run, so a runaway
+  # generation here hogs the single Ollama runner slot and stalls every chat
+  # (observed 2026-10-07: 43k+ token loop). Memory facts are short JSON - a hard
+  # 2048 cap is generous and cannot loop meaningfully.
+  - name: gemma4-12b-memory
+    display_name: Gemma 4 12B (Memory, capped)
+    description: Internal model for background memory updates. Hard 2048-token cap. Safe to pick for short tasks.
+    use: langchain_openai:ChatOpenAI
+    model: gemma4:12b-it-qat
+    api_key: ollama
+    base_url: http://host.docker.internal:11434/v1
+    max_tokens: 2048
+    temperature: 0.1
+    # Same reasoning-channel fix as gemma4-12b-local above (2026-10-20). This
+    # entry matters MOST: memory updates are unattended and fire on every turn,
+    # so an unbudgeted reasoning burn here is invisible but constant.
+    supports_thinking: true
+    supports_reasoning_effort: true
+    when_thinking_disabled:
+      reasoning_effort: none
+
+  # Pacgate 2026-10-07 (rev 2): qwen3.8:27b DEMOTED from the picker. Benchmark
+  # on the 8060S iGPU (warm, ~3k ctx): dense 27B = 26 t/s gen / 225 t/s
+  # ingestion, vs nemotron MOE 81/1080 and ornith MOE 64/1263. The dense model
+  # is 3-5x slower on BOTH axes and strictly dominated by the two MOEs. It
+  # remains pre-pulled (pacgate-api Mid workflow tier uses it - do NOT remove
+  # from ollama-models.txt) but is no longer a deer-flow chat option.
+  # - name: qwen3.8-27b-local
+  #   display_name: Qwen 3.8 27B (Local)
+  #   description: Dense local model. Slower than the MOEs (26 t/s vs 64-81).
+  #   use: langchain_openai:ChatOpenAI
+  #   model: qwen3.8:27b-mtp-q4_K_M
+  #   api_key: ollama
+  #   base_url: http://host.docker.internal:11434/v1
+  #   max_tokens: 8192
+  #   temperature: 0.1
+
+  - name: ornith-1.5-9b-local
+    display_name: Ornith 1.5 9B (Local)
+    description: Fast non-reasoning local model. Fallback for research.
+    use: langchain_openai:ChatOpenAI
+    model: ornith-1.5:9b
+    api_key: ollama
+    base_url: http://host.docker.internal:11434/v1
+    max_tokens: 8192
+    temperature: 0.1
+    # Pacgate 2026-10-20: same reasoning-channel suppression as the gemma4
+    # entries. This model is used as the pacgate-api MID tier and as a research
+    # fallback, and a MID call that silently returns empty content is
+    # indistinguishable from a hang at the UI.
+    supports_thinking: true
+    supports_reasoning_effort: true
+    when_thinking_disabled:
+      reasoning_effort: none
+
+  # Pacgate 2026-10-19: WITHDRAWN from the shipped picker - 22.0 GB against a
+  # 16 GB AIPC card. Same failure mode as the 30B above: it loads, spills to CPU
+  # and presents as a stall rather than an error. Measured residency 22.0 GB
+  # (scripts/test-aipc-capacity-fit.ps1). Commented rather than deleted so a
+  # machine with more VRAM can restore it deliberately.
+  # - name: ornith-1.5-35b-local
+  #   display_name: Ornith 1.5 35B (Local)
+  #   description: Heavier local model for complex research. Requires 22 GB VRAM.
+  #   use: langchain_openai:ChatOpenAI
+  #   model: ornith-1.5:35b
+  #   api_key: ollama
+  #   base_url: http://host.docker.internal:11434/v1
+  #   max_tokens: 8192
+  #   temperature: 0.1
+
+  # Pacgate 2026-09-21: DISABLED. The tag below is not pre-pulled by
+  # ollama-models.txt and is not installed on either AIPC. Selecting it in the
+  # picker produces `model '<tag>' not found` (ollama returns HTTP 404) and the
+  # agent run fails outright - there is no fallback. Re-enable only after the
+  # tag is added to ollama-models.txt or confirmed installed.
+  # - name: qwen3.5-9b-local
+  #   display_name: Qwen 3.5 9B (Local)
+  #   description: Local Qwen model.
+  #   use: langchain_openai:ChatOpenAI
+  #   model: qwen3.5:9b-q8_0
+  #   api_key: ollama
+  #   base_url: http://host.docker.internal:11434/v1
+  #   max_tokens: 8192
+  #   temperature: 0.1
+
+  # Gemma 4 26B — heavier local model (28GB on host) for complex reasoning
+  # WITHOUT cloud egress. Not the default (slower on the 16GB dGPU); pick it
+  # for long-context legal analysis that must stay fully on-device.
+  # Pacgate 2026-09-21: DISABLED. ollama-models.txt deliberately does NOT
+  # pre-pull the 26b weights ("heavier than AIPC NPU budget for Main"), and they
+  # are not installed on either AIPC. Leaving this active put a picker entry in
+  # the UI that fails with HTTP 404 when selected.
+  # - name: gemma4-26b-local
+  #   display_name: Gemma 4 26B (Local)
+  #   description: Heavier local Gemma model (28GB). Strong reasoning, stays fully on-device. Not default (slower).
+  #   use: langchain_openai:ChatOpenAI
+  #   model: gemma4:26b-a4b-it-qat
+  #   api_key: ollama
+  #   base_url: http://host.docker.internal:11434/v1
+  #   max_tokens: 8192
+  #   temperature: 0.1
+  #   supports_thinking: true
+    stream_chunk_timeout: 300
+
+  # ── Cloud-routed models (via ollama.com / `ollama signin`) ────────────────
+  # Pacgate 2026-10-07 (rev 2, per user choice): the cloud roster is the TWO
+  # FLASH models - deepseek-v4.1-flash and glm-5.3-flash - chosen for speed and
+  # lower cost. The heavier tags (deepseek-v4-pro:cloud, glm-5.3:cloud) were
+  # dropped from the picker; re-add a models: entry if a workload ever needs
+  # them. Context for the earlier removal: the ollama.com account hit its
+  # WEEKLY usage limit (account-wide, all cloud models fail identically; resets
+  # weekly or needs credits at ollama.com/settings). Local stays default;
+  # escalation stays local; picking cloud is always a deliberate act.
+  - name: deepseek-v4.1-flash-cloud
+    display_name: DeepSeek V4.1 Flash (Cloud)
+    description: Fast cloud model for quick research iterations and high-throughput drafting. Requires ollama signin; subject to ollama.com weekly limits.
+    use: langchain_openai:ChatOpenAI
+    model: deepseek-v4.1-flash:cloud
+    api_key: ollama
+    base_url: http://host.docker.internal:11434/v1
+    max_tokens: 8192
+    temperature: 0.1
+    supports_thinking: true
+    # Pacgate 2026-10-09: both cloud models burn the ENTIRE max_tokens budget
+    # on invisible reasoning tokens when thinking is not suppressed (verified:
+    # 8192 completion tokens -> 36K chars of reasoning, ZERO content,
+    # finish_reason=length). deer-flow's lead agent runs with
+    # thinking_enabled=False, but without when_thinking_disabled nothing is
+    # sent to suppress the reasoning channel. Verified fix: Ollama 0.40.1's
+    # OpenAI endpoint honors reasoning_effort=none (content-only, 0 reasoning
+    # tokens); think:false and thinking.type=disabled are IGNORED on that
+    # endpoint. Raising the cap does NOT help (16384 -> still all reasoning).
+    supports_reasoning_effort: true
+    when_thinking_disabled:
+      reasoning_effort: none
+    stream_chunk_timeout: 120
+
+  - name: glm-5.3-flash-cloud
+    display_name: GLM 5.3 Flash (Cloud)
+    description: Fast cloud model for research and drafting. VLM-capable (vision) so view_image is registered. Requires ollama signin; subject to ollama.com weekly limits.
+    use: langchain_openai:ChatOpenAI
+    model: glm-5.3-flash:cloud
+    api_key: ollama
+    base_url: http://host.docker.internal:11434/v1
+    max_tokens: 8192
+    temperature: 0.1
+    supports_thinking: true
+    supports_vision: true
+    # Same reasoning-burn fix as deepseek above (verified 2026-10-09).
+    supports_reasoning_effort: true
+    when_thinking_disabled:
+      reasoning_effort: none
+    stream_chunk_timeout: 120
+
+# ── Automatic model routing: escalation stays LOCAL ─────────────────────────
+# When enabled and NO explicit model is requested, deer-flow auto-picks the
+# model per request. It escalates when EITHER:
+#   - the conversation-history token estimate (from the run's messages)
+#     >= message_token_threshold, OR
+#   - the bound tool surface count >= tool_count_threshold.
+#
+# PACGATE 2026-09-25: `cloud_model` is now the LOCAL long-context model, NOT a
+# cloud tag. This was a client-pipeline defect, not a preference.
+#
+# What was wrong: the escalation target was `glm-5.3-flash-cloud` at a 20,000-token
+# threshold. The token signal grows with CONVERSATION HISTORY, which grows with
+# uploaded-document text and tool results -- so an attorney who uploaded an
+# ordinary ~30-page contract and did not touch the model picker had that contract
+# sent to ollama.com, with no sanitizer, no consent and no banner. The firm's whole
+# promise is that client identity does not leave the machine, so the DEFAULT had to
+# stop being egress.
+#
+# Why the threshold is what it is: gemma4-12b (the local default) is capped at a
+# 64K context, while the local long-context model has 1M. Escalating at 40,000 is
+# ~62% of the small model's window, so the escalation exists for the reason it
+# should -- the small model is about to overflow -- and it lands on a model that
+# can actually hold the context. It is no longer a cloud trigger.
+#
+# Cloud models remain in `models:` and remain SELECTABLE in the picker, so
+# deliberate cloud use is unaffected. The 2026-08-30 decision that the firm accepts
+# prompt egress in exchange for research timelines still stands for a user who
+# chooses it explicitly. Only the AUTOMATIC path changed.
+model_routing:
+  enabled: true
+  # Pacgate 2026-10-19: the escalation target is gemma4-12b-local (7.2 GB). It was
+  # nemotron-3.5-lightning-30b-local until that entry was withdrawn for not fitting
+  # a 16 GB AIPC card - and leaving it here would have been worse than the picker
+  # bug it came from: escalation fires AUTOMATICALLY, so a 25 GB target would load
+  # on a 16 GB machine without anyone choosing it. That is the silent stall this
+  # whole change exists to remove.
+  #
+  # The 2026-10-07 rationale (nemotron's 1M context made gemma4-overflow redundant)
+  # no longer holds, because that model is no longer shippable. With a 12B target,
+  # `message_token_threshold` below is doing the real work: escalation now happens
+  # when the conversation is genuinely large, and it stays on the same resident
+  # model rather than swapping in a bigger one. deer-flow's schema keeps the key
+  # name `cloud_model`; read it as "the escalation target".
+  local_model: gemma4-12b-local
+  cloud_model: gemma4-12b-local
+  message_token_threshold: 40000
+  # Pacgate 2026-10-17: DEAD SIGNAL, left at the schema default on purpose.
+  # Measured live on 0.1.31: the bound surface is 44 tools (7 sandbox + 2
+  # builtins + 35 MCP), so `tool_count >= 200` is unreachable and escalation is
+  # decided by message_token_threshold ALONE. Raising MCP servers would not make
+  # it fire either - that count is the raw tool list, taken BEFORE tool_search
+  # deferral, and it never exceeds ~44 with the three servers we ship. Kept (not
+  # removed) because the key is part of deer-flow's config schema and a future
+  # deployment with a genuinely large surface can still use it.
+  tool_count_threshold: 200
+
+# ── Subagents: the ONLY axis on which local and cloud run at the same time ──
+#
+# Pacgate 2026-10-26. Answering "why can't I use cloud and local together?":
+# nothing forbids it, and Ollama serves both at once (measured: a cloud call
+# returned in 0.6 s while a local model was mid-generation; gemma4 and
+# nomic-embed-text were resident together). What was missing was a lane that
+# pins a DIFFERENT model from the lead agent.
+#
+#   lead agent  -> `models:` order / user picker         (one model per RUN)
+#   subagent    -> `subagents.custom_agents.*.model`     (one model per SUBAGENT)
+#
+# `subagents/executor.py` builds an independent chat model per subagent, so a
+# run can drive a cloud lead with local subagents. THESE ENTRIES ARE PINNED
+# LOCAL ON PURPOSE: the firm's red line is that client identity stays on the
+# machine, and a subagent copied from a local session must not become an egress
+# path just because the lead was cloud.
+#
+# WHY THIS BLOCK WAS MISSING: it existed only in the repo's deer-flow/config.yaml,
+# which the gateway never mounts. Without it the 10 A-series agents never load and
+# every run silently uses one model. Worse, they were pinned to `model: main` /
+# `mid` / `low`, which are NOT model names — `create_chat_model` raises
+# `ValueError: Model main not found in config`, so enabling subagents would have
+# failed every delegated task. The names below are the real config keys:
+#   main -> deepseek-v4.1-flash-cloud   mid -> gemma4-12b-local
+#   low  -> ornith-1.5-9b-local
+# `mid` is NOT qwen3.8-legal:27b-mid (the pacgate-api MID tier): that tag is
+# 17.7 GB and cannot share this card with a resident model, so using it here
+# would evict the other lane — the exact "looks like a hang" failure this
+# deployment keeps hitting.
+subagents:
+  # Pacgate 2026-10-26: `subagent_enabled` is a per-REQUEST context key
+  # (gateway/services.py:_CONTEXT_CONFIGURABLE_KEYS) whose only default was a
+  # hardcoded False, so the web client had to ask for subagents on every run and
+  # never did — the 10 agents below had no way to execute.
+  #
+  # `patches/deer-flow-agent.py` now treats the PRESENCE of this
+  # `custom_agents` block as "this deployment has subagents, make them
+  # available", while an explicit request `subagent_enabled: false` still wins.
+  # Do NOT try to express this with an extra key such as `enabled_by_default:`:
+  # SubagentsAppConfig is a plain pydantic model WITHOUT extra="allow", so any
+  # unknown key here is silently DROPPED before the code can read it (verified
+  # live 2026-10-26 — it read back as UNSET). Delete this block to fall back to
+  # upstream behaviour (subagents off).
+  custom_agents:
+    matter-manager:
+      description: "A1 事项管理 — 分派条线任务、进度台账、执行摘要"
+      system_prompt: |
+        你是 A1 事项管理 Agent（Matter Manager），对应 Big Law 的 project manager。
+        职责：接收合伙人指令 → 分派条线任务 → 跟踪进度 → 汇总执行摘要。
+        红线：每个结论都必须可回溯到已核验材料；不确定处标注【资料不足】。
+      model: gemma4-12b-local
+      max_turns: 80
+      timeout_seconds: 1800
+
+    intake-conflicts:
+      description: "A2 立案利冲 — 结构化访谈 → 企查查 + 内部档案利冲 → 关联图谱"
+      system_prompt: |
+        你是 A2 立案利冲 Agent，对应 Big Law 的 intake & conflicts department。
+        职责：结构化访谈、外部工商与涉诉数据、内部在办档案利冲比对。
+      model: gemma4-12b-local
+      max_turns: 60
+      timeout_seconds: 1200
+
+    research:
+      description: "A3 法规检索 — 元典/北大法宝/SEC EDGAR 法规案例检索"
+      system_prompt: |
+        你是 A3 法规检索 Agent，负责法规与案例检索。
+        红线：只引用检索到的原文，不得凭记忆生成法条或案号。
+      model: ornith-1.5-9b-local
+      max_turns: 40
+      timeout_seconds: 600
+
+    cite-checker:
+      description: "A5 引文核验 — 法规引用核验 + 来源标注 + 批量退回"
+      system_prompt: |
+        你是 A5 引文核验 Agent，对应 Big Law 的校对席。
+        职责：逐条核验法条与案号是否存在、是否现行有效、是否被引述正确。
+      model: ornith-1.5-9b-local
+      max_turns: 30
+      timeout_seconds: 300
+
+    devils-advocate:
+      description: "A6 反方复核 — 完备性挑战 + 逻辑漏洞 + 盲区补缺"
+      system_prompt: |
+        你是 A6 反方复核 Agent，对应 Big Law 的 devil's advocate。
+        职责：挑战结论完备性、指出逻辑漏洞、补齐盲区。不得推翻已核验事实。
+      model: gemma4-12b-local
+      max_turns: 20
+      timeout_seconds: 300
+
+    doc-pipeline:
+      description: "A7 文档管线 — OCR + 分类 + 结构化抽取 + 表格审查 + 脱敏"
+      system_prompt: |
+        你是 A7 文档管线 Agent，负责 OCR、分类、结构化抽取、表格审查和脱敏。
+        pacgate_read_document 返回 409 时：先 pacgate_verify_sanitized，再按需
+        pacgate_sanitize_document(data_level="T3")，然后读取；不要重复读同一个失
+        败的调用。
+      model: ornith-1.5-9b-local
+      max_turns: 60
+      timeout_seconds: 1200
+
+    report-assembly:
+      description: "A8 报告装配 — 11章尽调报告装配 + docx生成"
+      system_prompt: |
+        你是 A8 报告装配 Agent，负责将已核验成果装配为 11 章尽调报告。
+        红线：只装配已核验内容；缺口必须在对应章节显式标注，不得用推测填充。
+      model: gemma4-12b-local
+      max_turns: 40
+      timeout_seconds: 600
+
+    translation:
+      description: "T1 法律翻译 — 中英法律文档互译 (跨境并购/离岸尽调/VIE重构)"
+      system_prompt: |
+        你是 T1 法律翻译 Agent，负责中英法律文档互译。
+        职责：合同条款、法律意见书、尽调报告、法规条文的中英双向翻译。
+        红线：法律术语必须准确，不得臆造，不确定处标注【待确认】。
+      model: gemma4-12b-local
+      max_turns: 40
+      timeout_seconds: 600
+
+    version-diff:
+      description: "T2 版本对比 — 文档版本红线对比 (合同谈判轮次/NDA迭代)"
+      system_prompt: |
+        你是 T2 版本对比 Agent，负责文档版本间的红线对比（redline diff）。
+        职责：比较两版文档，标记新增/删除/修改条款，生成结构化差异报告。
+      model: ornith-1.5-9b-local
+      max_turns: 30
+      timeout_seconds: 300
+
+    compliance-monitor:
+      description: "T3 合规监控 — 定期合规状态检查 (法规变更/数据合规/出口管制)"
+      system_prompt: |
+        你是 T3 合规监控 Agent，负责定期合规状态检查。
+        职责：检查法规变更、数据合规要求、出口管制更新对在办事项的影响。
+      model: ornith-1.5-9b-local
+      max_turns: 30
+      timeout_seconds: 300
+
+# Pacgate 2026-10-07: pin background memory updates to a dedicated capped model.
+# The memory updater runs OUTSIDE user-visible runs; without a pin it used the
+# first config model with no generation cap, and a confused run looped 43k+
+# tokens on the single Ollama runner slot, stalling every chat in the session.
+# gemma4-12b-memory carries a hard 2048 max_tokens so this class of loop cannot
+# recur. (MemoryConfig.model_name, deerflow/agents/memory/updater.py.)
+memory:
+  storage_class: pacgate_deerflow_adapter.storage.PacgateMemoryStorage
+  model_name: gemma4-12b-memory
+
+# Pacgate 2026-10-17: PIN the title-generation model.
+#
+# Root cause (measured live, 2026-10-17): `title.model_name` was unset, so
+# `title_middleware.py` fell through to `create_chat_model()` with no name,
+# which resolves to `models[0]`. That is nemotron-3.5-lightning:30b-a3b, a
+# 25 GB resident model. TitleMiddleware runs on EVERY new thread, so the first
+# message of a fresh thread loaded a 25 GB model onto the single Ollama runner
+# slot. On a 16 GB dGPU that either OOMs or evicts the model the user's chat is
+# already running on, and the next real call then pays a full model reload -
+# which is what the 420 s "no astream output" stall watchdog eventually kills.
+#
+# The title prompt asks for <=6 words / <=60 chars and is already bounded by
+# DEERFLOW_TITLE_INVOKE_TIMEOUT_S=8 in compose, so it needs no 30B model.
+# gemma4-12b-local shares its Ollama tag with the memory pin above, so title and
+# memory work converge on ONE resident model instead of adding a third.
+title:
+  model_name: gemma4-12b-local
+
+# Pacgate 2026-10-09: ENABLE conversation summarization. Root cause this
+# fixes: summarization was UNCONFIGURED (null -> disabled by default), so
+# long threads grew unbounded. The trigger counts MESSAGE tokens only
+# (~16k for 50 msgs) while real per-call input is ~83k (12k tools+system +
+# 16k messages + cloud overhead), so the old 48k threshold was structurally
+# unreachable - summarization never fired and every call re-sent the full
+# 83k context (1.3-1.7M tokens burned per document run, 60-120s per call).
+# All three 2026-10-08 stalls ("no astream output for 420s") happened at
+# input=64-65k. This note USED to claim that was "exactly the 65536-token ctx
+# slot Ollama allocates". That is wrong, and was corrected 2026-10-17 after
+# measuring it: deer-flow never sends `num_ctx` (this config passes only
+# max_tokens and temperature), and Ollama 0.40.5 then loads the model at its
+# OWN maximum - 262144 for gemma4, not 65536. Verified: with no num_ctx,
+# `ollama ps` reports CONTEXT 262144.
+#
+# So 64-65k was the input SIZE at which the run stalled, not a hard context
+# ceiling - which is exactly why the fix was summarization (bounding input)
+# rather than a ctx change. Do not "fix" a future stall by lowering num_ctx:
+# the whole 8k -> 262k range costs only 7.7 -> 7.9 GB on gemma4, so context
+# width is not what constrains a 16 GB card. The weights are.
+# The trigger/keep values below were re-derived on 2026-10-23 after the
+# "42 steps and no report" hang; see the block at `trigger:` for the measured
+# arithmetic. (The old note here claimed no model_name pin was needed because
+# "the summarizer runs on the default chat model (same runner slot, no VRAM
+# swap)" - that was wrong and is corrected at the pin below.)
+# Verified live
+# 2026-10-09: hook fired, summary executed, next model call input bounded
+# 32,770 (was 83k).
+summarization:
+  enabled: true
+  # Pacgate 2026-10-17: PIN the summarizer model, like memory and title above.
+  #
+  # Measured live on 0.1.31: `summarization.model_name` was unset, so
+  # `_create_summarization_middleware` took its `else` branch ->
+  # `create_chat_model(thinking_enabled=False)` -> `models[0]` ->
+  # nemotron-3.5-lightning:30b-a3b, 25 GB resident. The pre-2026-10-17 comment
+  # here claimed "the summarizer runs on the default chat model (same runner
+  # slot, no VRAM swap)". That was FALSE on both counts: the middleware never
+  # receives the chat model, so it does not follow the user's picker choice, and
+  # "the default" is a 25 GB model that does not fit a 16 GB dGPU.
+  #
+  # Effect before the pin: a long thread crossing the 12000-token trigger made a
+  # SECOND invisible model call - on the same single Ollama runner slot as the
+  # user's chat, and on a different, oversized model. That is the "hang while
+  # another lane works" signature.
+  #
+  # gemma4-12b-local shares the Ollama tag `gemma4:12b-it-qat` with the memory pin,
+  # so chat, title, memory and summarization now all converge on ONE resident
+  # model. The 8192 cap is kept (not the 2048 memory cap) because summary length
+  # is less predictable than a short fact block.
+  model_name: gemma4-12b-local
+  # Pacgate 2026-10-23: trigger 12000 -> 36000. This is the fix for the
+  # "42 steps and no report" hang. The old 12000 was BELOW the unremovable
+  # per-call floor, which turned this lane into a treadmill.
+  #
+  # WHY 12000 COULD NEVER WORK
+  #
+  # `_should_summarize` fires on EITHER of two conditions:
+  #   (a) the message-token counter >= trigger, or
+  #   (b) `_should_summarize_based_on_reported_tokens`: the LAST AIMessage's
+  #       `usage_metadata.total_tokens` >= trigger.
+  #
+  # (b) is the one that matters, and it is not the same number as (a). The
+  # provider reports the WHOLE request: system prompt + tool schemas + messages.
+  # Measured on this box:
+  #   system prompt (lead_agent SYSTEM_PROMPT_TEMPLATE)   3,220 tok
+  #   45 tool schemas (get_available_tools, subagent on) 11,508 tok
+  #   -> unremovable floor                               14,728 tok
+  # and the floor observed live across thread d46320fd was 10,018..13,889 tok.
+  # 14,728 is the authoritative figure - it is what the request actually
+  # carries, measured from the live tool set rather than inferred from a delta.
+  #
+  # Summarization can only remove MESSAGES. It cannot remove the system prompt
+  # or the tool schemas. So with trigger=12000 the reported total was over the
+  # trigger on EVERY call, including immediately after a summarization pass.
+  # The lane fired, replaced the history with a summary, and the very next call
+  # was still over 12000 - so it fired again. Forever.
+  #
+  # Measured on thread d46320fd ("42 steps and no report", 2026-10-23):
+  #   step 402 total=15097 cutoff=2  -> summarize
+  #   step 410 total=15196 cutoff=3  -> summarize
+  #   step 419 total=15315 cutoff=4  -> summarize
+  #   step 428 total=17007 cutoff=16 -> summarize
+  #   step 437 total=15353 cutoff=5  -> summarize
+  #   step 446 total=15425 cutoff=4  -> summarize   (still going)
+  # Six passes, each a full extra LLM call on the SAME single Ollama runner slot
+  # as the user's chat, and the message count never dropped below ~15k. The run
+  # burned 1,000,467 lead-agent input tokens over 66 calls and produced no
+  # closing message. The user saw "42 steps and no report".
+  #
+  # `keep` IS NOT THE LEVER. Replaying the real middleware against the live
+  # checkpoint at step 446, with the reported-token path active:
+  #   keep=12000 -> post-summarization 16,289 tok -> fires again
+  #   keep= 8000 -> post-summarization 11,392 tok -> fires again
+  #   keep= 6000 -> post-summarization 10,699 tok -> fires again
+  #   keep= 4000 -> post-summarization  5,093 tok -> fires again
+  # Every one of those is under the 12000 trigger on the COUNTER path, yet all
+  # four still fire, because reported = counter + floor and the floor alone
+  # exceeds 12000. Lowering `keep` only shrinks the preserved suffix; it cannot
+  # shrink the floor. The trigger has to clear the floor.
+  #
+  # Simulated 40 agent steps with the real middleware, reported = counter +
+  # floor, counting how many summarization passes fire (40 = treadmill):
+  #
+  #   trigger  keep | floor 10k  14.7k  18k  22k
+  #   -------  ---- | ---------  -----  ---  ---
+  #    12000   6000 |   40 TREAD  40 T   40T  40T
+  #    24000   6000 |    7        40T   40T  40T
+  #    28000   6000 |    5         6    40T  40T
+  #    32000   6000 |    4         5     6   40T
+  #    36000   6000 |    3         4     4    5
+  #
+  # 36000 is the first value that converges across the whole plausible floor
+  # range, including the 22k worst case. It is also the value the 2026-10-09
+  # note above already measured as the real per-call input after summarization
+  # ("next model call input bounded 32,770"), so it is not a new regime - it is
+  # the size the lane was always meant to bound.
+  #
+  # PROVEN END-TO-END, not just simulated. Thread bb71ff66 (the 9.5 MB
+  # Day_1_v3.pdf run) was still mid-flight when this config hot-reloaded at
+  # 10:37:30 UTC; it summarised once at step 62 and then ran to completion at
+  # 10:43:54 with a real report. Replaying its 147 real post-summarization
+  # states (steps 62..208) through the middleware:
+  #   trigger=12000 keep=12000 (shipped) -> would fire on 147 of 147
+  #   trigger=12000 keep= 6000 (keep-only) -> would fire on 147 of 147
+  #   trigger=36000 keep= 6000 (applied)   -> would fire on   0 of 147
+  # That is also the direct refutation of "just lower keep": it changes nothing.
+  #
+  # Context headroom: deer-flow sends no `num_ctx`, so Ollama loads gemma4 at
+  # 262144. A 36k trigger plus an 8k completion is ~44k, well inside that.
+  #
+  # Gated by scripts/test-summarization-treadmill.ps1 (S1/S2/S5).
+  trigger:
+    - type: tokens
+      value: 36000
+  # Pacgate 2026-10-23: `keep` stays 6000. It is NOT the fix - see the trigger
+  # block above - but it still has to be small enough that a summarization pass
+  # actually buys headroom under the trigger.
+  #
+  # `keep` is the retention budget applied AFTER summarization. LangChain's
+  # `_find_token_based_cutoff` binary-searches for the earliest index whose
+  # SUFFIX fits in `keep` tokens, preserves that suffix verbatim, and replaces
+  # everything before it with one summary message. At 6000 the preserved suffix
+  # plus the summary message (largest measured: 1146 tokens) lands around
+  # 7-11k, leaving ~25k of headroom under the 36000 trigger - so a pass buys
+  # roughly 8 agent steps before the next one is due, instead of firing on
+  # every single call.
+  #
+  # Do not raise this back toward the trigger. keep >= trigger makes the
+  # preserved suffix alone fill the budget, so the pass removes nothing and the
+  # lane fires again immediately. Measured: keep=16000 or 20000 against a 36000
+  # trigger treadmills (38 passes in 40 steps) because the preserved suffix
+  # alone lands at the trigger.
+  keep:
+    type: tokens
+    value: 6000
+  # Pacgate 2026-10-23: 8000 -> 36000. This is a consequence of raising the
+  # trigger, not an independent tweak.
+  #
+  # `trim_tokens_to_summarize` caps what `_trim_messages_for_summary` hands to
+  # the summary model (`trim_messages(..., strategy="last", allow_partial=True)`).
+  # It is a CAP, not a target: when the span is already under it, the call is a
+  # no-op and nothing is truncated. Verified on a real 8,968-token span - trim
+  # of 8000, 16000 and 36000 all passed all 14 messages through unchanged.
+  #
+  # The span being replaced is `messages[:cutoff]`, which grows with the trigger:
+  # measured spans at trigger=36000 were 9,853 / 14,048 / 16,522 / 20,524 /
+  # 32,614 tokens. At trim=8000 the summarizer saw only the LAST 8000 tokens of
+  # a 32,614-token span - i.e. it dropped the oldest ~24k, which on a document
+  # task is the part the agent read first. The summary would then be built from
+  # the tail of the conversation and the agent would lose the document.
+  #
+  # 36000 == the trigger, so the summarizer always sees the whole span it is
+  # replacing. The summarizer is gemma4-12b-local (pinned above) and Ollama
+  # loads it at 262144 ctx, so a 36k prompt is well inside its window.
+  trim_tokens_to_summarize: 36000
+
+sandbox:
+  use: deerflow.sandbox.local:LocalSandboxProvider
+  # Pacgate: opt in to host bash for the LocalSandboxProvider. This is the
+  # documented escape hatch for fully trusted single-tenant local deployments
+  # (deerflow/sandbox/security.py: is_host_bash_allowed). Without it the bash
+  # tool is hard-gated off and skills that carry scripts/ cannot execute.
+  allow_host_bash: true
+
+# Pacgate: expose the sandbox file/shell tools to the agent. Without a tools:
+# section get_available_tools() returns only the 2 builtins + MCP tools, so the
+# agent cannot read/write files or run commands even though the sandbox exists.
+# Tool names must match the @tool() names in deerflow/sandbox/tools.py.
+tools:
+  - name: bash
+    group: sandbox
+    use: deerflow.sandbox.tools:bash_tool
+  - name: ls
+    group: sandbox
+    use: deerflow.sandbox.tools:ls_tool
+  - name: read_file
+    group: sandbox
+    use: deerflow.sandbox.tools:read_file_tool
+  - name: write_file
+    group: sandbox
+    use: deerflow.sandbox.tools:write_file_tool
+  - name: str_replace
+    group: sandbox
+    use: deerflow.sandbox.tools:str_replace_tool
+  - name: glob
+    group: sandbox
+    use: deerflow.sandbox.tools:glob_tool
+  - name: grep
+    group: sandbox
+    use: deerflow.sandbox.tools:grep_tool
+
+# Pacgate: auto-convert uploaded PDF/DOCX/PPTX/XLSX to Markdown on upload.
+# markitdown + mammoth/openpyxl/python-pptx/pdfplumber are already installed in
+# the image's venv; this flag is the only thing that was missing. AppConfig is
+# extra="allow", so this section is accepted even though it has no dedicated
+# schema class (uploads.py reads it via getattr with a False default).
+uploads:
+  auto_convert_documents: true
+
+# Pacgate: DEFER MCP tool loading to cut system-prompt size dramatically.
+# When tool_search is enabled, MCP tool schemas are NOT bound directly into the
+# model's context. Instead they are listed by NAME in <available-deferred-tools>
+# and the agent fetches full schemas on demand via the tool_search tool. This
+# removes ~36K tokens of MCP tool-schema text from every prompt (measured: 142
+# MCP tools = 144,845 chars). CRITICAL for local models (gemma4-12b) whose
+# context is capped at 64K — it is the single biggest lever for prompt size.
+# The sandbox tools (bash/ls/read_file/etc.) are NOT MCP tools, so they remain
+# always-bound; only the MCP servers (pacgate/firecrawl/officecli/legal) defer.
+tool_search:
+  # Pacgate 2026-10-21: ENABLED, with the failure mode fixed rather than avoided.
+  #
+  # It was disabled on 2026-09-12 with this evidence: "deferral makes ALL models
+  # call MCP tools without promoting first -> 'deferred, not promoted' loop, never
+  # reaching write_file." That was accurate, but the cause was the middleware, not
+  # the models: on a blocked call it returned an error telling the model to call
+  # tool_search first and retry. Small local models (gemma4:12b, ornith-1.5:9b)
+  # routinely fail to complete that two-step dance, so the run burned turns and
+  # never reached the tool it wanted.
+  #
+  # patches/deer-flow-deferred-tool-filter.py now promotes the tool on first call
+  # and executes it in the SAME turn, so deferral is invisible to the model. The
+  # schema is bound from the next turn on, which is exactly when it is worth paying
+  # for.
+  #
+  # WHY IT IS WORTH IT (measured on the HX370 box, 0.1.34):
+  #   MCP tool schemas      32,023 chars (~8,005 tokens)
+  #   sandbox + builtins    10,559 chars (~2,639 tokens)
+  #   total bound           42,582 chars (~10,645 tokens)
+  # Deferring the MCP half removes 75% of the bound surface from every call. At the
+  # measured 528 tok/s prefill that is ~15 s of fixed cost per turn, on every turn.
+  #
+  # The sandbox tools (bash/ls/read_file/write_file/str_replace/glob/grep) are NOT
+  # MCP tools, so they stay always-bound - which is what the agent actually uses:
+  # across 828 checkpoints and 2,664 tool calls on this box, bash/read_file/
+  # write_file/str_replace/present_files carried 2,284 of them.
+  enabled: true
+
+# Persist LangGraph thread state + thread list to SQLite. Without a
+# 'checkpointer' section deer-flow falls back to InMemoryStore, so the thread
+# list + admin session reset on every restart. 'connection_string' is resolved
+# relative to the app base dir (.deer-flow), which is bind-mounted via
+# compose.bundle.yaml: ./data/deer-flow:/app/backend/.deer-flow
+checkpointer:
+  type: sqlite
+  connection_string: checkpoints.db
+
+# Unified persistence for deer-flow application data (runs/thread metadata).
+# Mounted via compose.bundle.yaml: ./data/deer-flow:/app/backend/.deer-flow
+database:
+  backend: sqlite
+  sqlite_dir: .deer-flow/data
+
+# memory: moved above (line ~200) - merged with the model_name pin, 2026-10-07.
+# Expose the custom-agent management API over HTTP (plan 021): the
+# sanitizer-agent provision.ps1 needs POST/PUT /api/agents to register
+# the 'sanitizer' agent. Auth still required (Better-Auth session).
+agents_api:
+  enabled: true
+
+# Pacgate: close self-registration on the deer-flow frontend.
+#
+# At v2.0.0 /api/v1/auth/register has NO gate - it creates a 'user' account for
+# anyone who can reach the URL and then sets the session cookie, auto-logging them
+# in. This key mirrors upstream 2.1.0's auth.local.allow_registration (#4311) and
+# is enforced by patches/deer-flow-auth.py (a bind-mount over routers/auth.py).
+# Remove the patch + these two lines at the 2.1.0 upgrade; the gate becomes native.
+#
+# Note AppConfig declares extra="allow", so this unknown key is accepted at
+# v2.0.0 - the value is read by the patch, not by upstream's schema.
+auth:
+  local:
+    allow_registration: false
+
