@@ -228,6 +228,28 @@ git rev-parse "${newRoot}:pacgate-ai"   # must equal: git rev-parse "v0.2.3^{tre
   `ollama-models.txt` derived-tag block, the `deer-flow-prompt.py` read_file
   directive, `audit-model-tags.ps1` `.env` tier reading, and the 7 gate-script
   fixes. See `runtime/` for the current set.
+- **Also re-apply the 2026-10-26 local+cloud-mixing deltas** (commit `d1ed509`).
+  These six files differ from `upstream/main` and a swap WILL revert them:
+
+  | File | What must survive |
+  |---|---|
+  | `deploy/client-bundle/deer-flow-config.yaml` | the whole `subagents:` block (10 A-series agents pinned to LOCAL model keys) |
+  | `deploy/client-bundle/patches/deer-flow-agent.py` | `_resolve_subagent_enabled()` + both call sites |
+  | `deploy/client-bundle/patches/deer-flow-memory-updater.py` | **new file** — not in upstream at all |
+  | `deploy/client-bundle/patches/deer-flow-prompt.py` | the sanitization/409 block |
+  | `deploy/client-bundle/compose.bundle.yaml` | the `deer-flow-memory-updater.py` mount |
+  | `deploy/client-bundle/compose.prod.yaml` | the same mount (A5 parity — see below) |
+
+  `scripts/test-memory-lane.ps1` also carries two local PS 5.1 fixes.
+
+  **Verify with blob SHAs, not `git diff upstream/main..HEAD`** — the histories are
+  unrelated, so that diff reports every file. Per file:
+  `git rev-parse upstream/main:<path>` vs `git rev-parse HEAD:<path>`;
+  SAME means the swap will lose the delta.
+
+  **A mount must go in BOTH compose files.** `test-workflow-compose-wiring.ps1` A5
+  asserts patch-mount parity, and `install.ps1` uses `compose.prod.yaml` — a
+  bundle-only mount leaves the fix absent on the deployment path.
 
 ### 2. Pull the pinned images and recreate
 
