@@ -1,0 +1,5 @@
+deploy/BENCHMARK-2026-10-25-0.2.6.md
+deploy/client-bundle/compose.bundle.yaml
+deploy/client-bundle/compose.prod.yaml
+deploy/client-bundle/patches/deer-flow-memory-storage.py
+scripts/test-memory-lane.ps1

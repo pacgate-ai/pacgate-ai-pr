@@ -200,3 +200,123 @@ docker compose -f compose.bundle.yaml up -d --force-recreate --no-deps `
 
 The 0.2.3 images are still local, so this is a fast rollback. The DB is
 untouched by the upgrade (no migration ran), so no data step is needed.
+
+---
+
+# Addendum — second sync, same day: upstream `337fb9d` (memory lane)
+
+**Date:** 2026-10-25 (later)
+**From:** `06c1e4c` (the sync above)
+**To:** `upstream/main` `337fb9d` — 2 commits, **no new tag**
+
+## A1. No image to pull
+
+Unlike the 0.2.6 sync, this delta carries **no release**. It is a bind-mounted
+patch plus a benchmark report, so the stack needed only a `deer-flow` recreate —
+no pull, no pin change, no rebuild.
+
+| File | Kind |
+|---|---|
+| `deploy/client-bundle/patches/deer-flow-memory-storage.py` | new patch (+266) |
+| `deploy/client-bundle/compose.bundle.yaml` | +5 (the mount) |
+| `deploy/client-bundle/compose.prod.yaml` | +5 (the mount) |
+| `scripts/test-memory-lane.ps1` | +67 (runtime assertions) |
+| `deploy/BENCHMARK-2026-10-25-0.2.6.md` | docs (+270) |
+
+## A2. The defect: a compliance failure wearing a healthy face
+
+`get_memory_storage()` wrapped instantiation in a bare `except Exception` and
+substituted `FileMemoryStorage`, logging at error level only.
+
+On this stack that is not a cosmetic fallback:
+
+- `PacgateMemoryStorage` writes matter memory **through pacgate-api**, so it
+  inherits the sanitization gate.
+- `FileMemoryStorage` writes **plaintext JSON to the local filesystem** —
+  outside the gate, outside the audit log, invisible to every health check.
+
+The stack would report healthy while the memory lane had quietly left the
+sanitized path.
+
+The fallback is reachable by a plain **initialization-order mistake**: calling
+`get_memory_storage()` before `get_app_config()` reads the module-level
+default `MemoryConfig()`, whose `storage_class` *is* `FileMemoryStorage` —
+so the configured class is never even attempted.
+
+The patch falls back **only when nothing was configured**. A configured class
+that cannot be built now raises.
+
+## A3. Sync
+
+Index swap, byte-identity verified by tree SHA:
+
+```
+subtree after swap : 085b5a9481bb8df706c4363367d2b8c8907acff0
+upstream 337fb9d   : 085b5a9481bb8df706c4363367d2b8c8907acff0   ✅
+```
+
+59 local deltas, **2 overlaps** (both compose files). 57 restored verbatim; the
+two compose files had the skills-tree and uploads-middleware mounts re-applied on
+top of upstream's new memory-storage mount. Post-merge delta is the same 59
+files.
+
+## A4. Verified in both directions
+
+Before recreating, confirmed the configured adapter imports and instantiates
+cleanly — otherwise the stricter patch would turn a silent degradation into a
+startup failure.
+
+After recreating (`runtime/sync-1025b/test-memory-storage-patch.ps1`):
+
+| Assertion | Result |
+|---|---|
+| A. after `get_app_config()`, `storage_class` is not the default | **PASS** — `pacgate_deerflow_adapter.storage.PacgateMemoryStorage` |
+| B. a broken configured class **raises** | **PASS** — `REFUSING to fall back to FileMemoryStorage - that would move matter memory outside the pacgate-api sanitization gate without any visible failure` |
+| C. the real configured class still builds | **PASS** — `PacgateMemoryStorage` |
+
+### A probe mistake worth recording
+
+My first probe called `get_memory_storage()` **without** `get_app_config()`
+first and got `FileMemoryStorage`. That looked like a live degradation but was
+the probe **reproducing the initialization-order bug** the commit describes. The
+patch deliberately still falls back when `storage_class` *is* the default, so a
+fresh install with no config keeps working. The probe was wrong, not the patch.
+
+## A5. Gates
+
+```
+run-all-checks.ps1  →  ALL 52 GATES PASSED
+```
+
+`test-memory-lane.ps1` now includes upstream's two runtime assertions and both
+pass:
+
+```
+RUNTIME: the silent fallback is closed
+  PASS  the mounted memory storage carries the refusal patch
+  PASS  a broken configured storage RAISES instead of degrading to FileMemoryStorage
+```
+
+## A6. One restart, and it was not a crash
+
+`pacgate-api` showed `RestartCount=1`. Investigated rather than assumed:
+
+- `ExitCode=0`, `OOMKilled=False`
+- `FinishedAt` 03:07:49.66, `StartedAt` 03:07:50.11
+- **every** container on the host started at 03:07:44
+
+So this was a **host/Docker restart**, not a crash. `pacgate-api` exited 0
+because the DB was not yet accepting connections, and Docker restarted it. The
+log line is explicit: `Failed to connect to database` at 03:07:49, then
+`Connected to database` on the next start.
+
+The 500s in the log were transient negative-path tests during the gate run — the
+last one is at 03:54:48, inside the run that passed 52/52. Confirmed healthy
+afterwards: login 200, `/api/matters` 200, `/api/workflows` 200.
+(`/api/agents` 404 is expected — that gallery belongs to deer-flow, not
+pacgate-api.)
+
+## A7. Pushed
+
+`fork/aipc1/v0.2.6-sync` → `2b1f64e`. Credential gate: 0 carrier blobs across
+1,893 tracked files.
