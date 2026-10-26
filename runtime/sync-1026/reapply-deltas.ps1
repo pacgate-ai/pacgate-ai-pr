@@ -81,6 +81,18 @@ $mountAnchors = @(
     @{
         Path = 'pacgate-ai/deploy/client-bundle/compose.prod.yaml'
         Rules = @(
+            # MISSED ON THE FIRST RUN: original prod DID carry this mount (line 252).
+            # Restoring only what compose.bundle.yaml needed silently dropped it from
+            # prod. Caught by diffing the merged file against the preserved original,
+            # not by assuming the two files' local deltas were the same shape.
+            @{ After = '      - ./deer-flow-config.yaml:/app/backend/config.yaml:ro'
+               Lines = @(
+'      # Pacgate 2026-10-08: serve the skills tree from the merged pacgate-layer',
+'      # working copy. The published image has NO /app/skills - re-verified against',
+'      # 0.2.6 on 2026-10-25. Without it the gateway resolves its skills root to a',
+'      # missing dir and /api/skills returns []. See compose.bundle.yaml.',
+'      - ../../../deer-flow/skills/public:/app/skills/public:ro')
+            }
             @{ After = '      - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro'
                Lines = @(
 '      # Pacgate (2026-10-10): strengthen the <uploaded_files> block (see',
