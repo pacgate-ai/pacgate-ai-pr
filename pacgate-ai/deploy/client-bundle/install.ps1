@@ -670,7 +670,12 @@ if ($Update -and -not $SkipRepoPull) {
                     }
                 }
                 catch { }
-                $cur = ((git rev-parse HEAD 2>$null | Out-String).Trim())
+                # Pacgate 2026-10-27: wrap in the helper. A bare `2>$null` on a
+                # native call is the same PS 5.1 hazard as `2>&1` - under
+                # $ErrorActionPreference='Stop' the redirection itself can surface
+                # as a terminating error, and test-ps51-native-stderr.ps1 requires
+                # every redirection site to be inside Invoke-WithNativeStderr.
+                $cur = Invoke-WithNativeStderr { ((git rev-parse HEAD 2>$null | Out-String).Trim()) }
                 if ($cur) { $cur = $cur.Substring(0, 7) }
                 Write-Host ""
                 Write-Host "  CONSEQUENCE - this machine is running the OLD repo code, not the new release:" -ForegroundColor Yellow
@@ -1822,7 +1827,16 @@ except Exception as e:
     print("LOOPGUARD=UNREADABLE %s" % e); raise SystemExit(0)
 print("LOOPGUARD=WINDOWED" if "_tool_name_counter" in src else "LOOPGUARD=MONOTONIC")
 '@
-        $lg = ($probe | docker exec -i deer-flow /app/backend/.venv/bin/python 2>&1 | Out-String)
+        # Pacgate 2026-10-27: `2>$null` inside Invoke-WithNativeStderr, NOT `2>&1`.
+        # A bare `2>&1` is banned repo-wide in this file (see the note near the top
+        # and test-ps51-native-stderr.ps1, which caught this): PS 5.1 injects
+        # NativeCommandError decoration on `2>&1` even inside the helper, and under
+        # $ErrorActionPreference='Stop' it becomes a TERMINATING error - so the probe
+        # would abort the install instead of reporting. The probe's verdict goes to
+        # STDOUT, so discarding stderr loses nothing.
+        $lg = Invoke-WithNativeStderr {
+            ($probe | docker exec -i deer-flow /app/backend/.venv/bin/python 2>$null | Out-String)
+        }
         if ($lg -match 'LOOPGUARD=WINDOWED') {
             Write-Host "[OK] deer-flow loaded the windowed loop guard from the repo patch" -ForegroundColor Green
         }
