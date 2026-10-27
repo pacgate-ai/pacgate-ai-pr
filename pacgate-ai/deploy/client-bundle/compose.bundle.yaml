@@ -180,9 +180,8 @@ services:
       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
       # Pacgate 2026-10-08: serve the skills tree (60 dirs: 37 PacGate legal + 23
       # upstream) from the merged pacgate-layer working copy. The published image
-      # has NO /app/skills - re-verified against 0.2.6 on 2026-10-25, so this is
-      # still required and is not a leftover. Without it the gateway resolves its
-      # skills root to a missing dir and /api/skills returns [].
+      # has NO /app/skills - re-verified against 0.2.6 on 2026-10-25. Without it the
+      # gateway resolves its skills root to a missing dir and /api/skills returns [].
       - ../../../deer-flow/skills/public:/app/skills/public:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
       # Pacgate: add a unified generated-outputs listing endpoint
@@ -197,7 +196,7 @@ services:
       # response and enrich the upload listing with markdown metadata + original
       # filename, so clients can read/analyze converted docs reliably.
       - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro
-      # Pacgate (2026-10-10): strengthen the <uploaded_files> block so nemotron
+      # Pacgate (2026-10-10): strengthen the <uploaded_files> block so the model
       # actually calls read_file (30B MoE tool-choice variance buried the softer
       # instruction under 64k of tool/system context).
       - ./patches/deer-flow-uploads-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/uploads_middleware.py:ro
@@ -214,6 +213,16 @@ services:
       # so a 40K-token prompt does not choke the local GPU; small surfaces stay
       # on the local default.
       - ./patches/deer-flow-agent.py:/app/backend/packages/harness/deerflow/agents/lead_agent/agent.py:ro
+      # Pacgate 2026-10-27: window the per-tool frequency loop guard. The v2.0.0
+      # Layer 2 kept a MONOTONIC same-tool counter (keyed by thread_id, cleared
+      # only by reset(), which the gateway never calls), so every bash call for a
+      # thread's whole life counted against one ceiling of 50 and a productive
+      # document run was force-stopped mid-work ("[FORCED STOP] Tool bash called
+      # 50 times"). Backports upstream e492bb1c (#4072 windowed deque + Counter)
+      # plus 4746a257 (#4295 evict/reset cleanup). See compose.prod.yaml for the
+      # measured evidence and the removal condition - which is NOT "v2.1.0 has
+      # these commits" (it does not; it scopes per run instead).
+      - ./patches/deer-flow-loop-detection.py:/app/backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware.py:ro
       # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets
       # (langchain-openai renames it to max_completion_tokens, which Ollama's
       # /v1 endpoint ignores - background calls then generate to EOS and hog
@@ -278,9 +287,9 @@ services:
       - ./patches/deer-flow-memory-storage.py:/app/backend/packages/harness/deerflow/agents/memory/storage.py:ro
       # Pacgate 2026-10-26: redact direct identifiers (USCC / 韬唤璇?/ 鎵嬫満鍙?/
       # 閾惰鍗?/ email) from the memory lane input AND its outgoing payload.
-      # pacgate-api refuses a payload containing one (HTTP 422), so the save
-      # failed on essentially every turn of a research run. Person and
-      # organisation NAMES stay permitted by design. See deer-flow-memory-updater.py.
+      # pacgate-api refuses a payload containing one (HTTP 422), so the save failed
+      # on essentially every turn of a research run. Person and organisation NAMES
+      # stay permitted by design. See deer-flow-memory-updater.py.
       - ./patches/deer-flow-memory-updater.py:/app/backend/packages/harness/deerflow/agents/memory/updater.py:ro
       # Pacgate 2026-10-26: bound the memory lane's input and stabilize its
       # prompt prefix. The template put the volatile `{current_memory}` block

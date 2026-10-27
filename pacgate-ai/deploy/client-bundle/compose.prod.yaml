@@ -245,8 +245,7 @@ services:
       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
       # Pacgate 2026-10-08: serve the skills tree from the merged pacgate-layer
       # working copy. The published image has NO /app/skills - re-verified against
-      # 0.2.6 on 2026-10-25. Without it the gateway resolves its skills root to a
-      # missing dir and /api/skills returns []. See compose.bundle.yaml.
+      # 0.2.6 on 2026-10-25. See compose.bundle.yaml.
       - ../../../deer-flow/skills/public:/app/skills/public:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
       # Pacgate: add a unified generated-outputs listing endpoint
@@ -277,6 +276,22 @@ services:
       # Pacgate: auto-route local vs cloud model by bound tool count (see
       # compose.bundle.yaml for the rationale).
       - ./patches/deer-flow-agent.py:/app/backend/packages/harness/deerflow/agents/lead_agent/agent.py:ro
+      # Pacgate 2026-10-27: window the per-tool frequency loop guard. At v2.0.0
+      # Layer 2 kept a MONOTONIC same-tool counter that nothing reset, keyed by
+      # thread_id, so every bash call for a thread's whole life counted against
+      # one ceiling of 50. A productive document run (92 calls / 71 bash / 55
+      # distinct commands on thread 6cc8dfae) was force-stopped mid-work with
+      # "[FORCED STOP] Tool bash called 50 times". This mount is upstream
+      # e492bb1c (#4072, windowed deque + Counter) plus 4746a257 (#4295, counter
+      # cleanup on evict/reset) backported onto the pinned v2.0.0 file.
+      # Layer 1 (identical-call hash, 3/5) is unchanged - real loops still stop.
+      # REMOVE THIS MOUNT at the 2.1.0 rebase (plans/023-deer-flow-2.1-upgrade.md).
+      # NOT because v2.1.0 carries these two commits - it does not (measured
+      # 2026-10-27) - but because it keys its counters on (thread_id, run_id), so a
+      # per-RUN scope replaces the window. The loop_detection CONFIG block stays:
+      # its keys are unchanged at v2.1.0 and a per-run counter is what the bash
+      # override was sized for.
+      - ./patches/deer-flow-loop-detection.py:/app/backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware.py:ro
       # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets.
       # langchain-openai renames max_tokens -> max_completion_tokens, which
       # Ollama's /v1 endpoint ignores - background calls (memory updater) then
