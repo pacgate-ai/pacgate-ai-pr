@@ -1,0 +1,452 @@
+# Pacgate-ai bundle — single compose project for the full client runtime.
+#
+# Combines pacgate-api (metadata), deer-flow (research) + frontend, pacgate-mcp,
+# OpenViking, Postgres, and nginx into ONE named compose project so they can be
+# started/stopped together as `pacgate-ai-bundle`. QM (co-working workspace) runs
+# SEPARATELY via `qm up` from deploy/qm-pacgate/ (its own lifecycle) — see
+# setup-qm.ps1.
+#
+# Usage (from deploy/client-bundle/):
+#   docker compose -f compose.bundle.yaml up -d
+#   docker compose -f compose.bundle.yaml ps
+#   docker compose -f compose.bundle.yaml down
+#
+# This file uses the SHARED environment variables from .env (same as compose.prod.yaml).
+
+# Pin the Compose project name (same hazard as compose.prod.yaml: without it the
+# project derives from the directory name and a second checkout shares this
+# stack's named volumes). Found by the v0.1.25 clean-clone proof. Do NOT remove.
+name: pacgate-ai-bundle
+
+services:
+  pacgate-db:
+    image: pgvector/pgvector:pg16
+    healthcheck:
+      # pg_isready is Postgres's own readiness probe. `restart: unless-stopped`
+      # cannot restart a container that is RUNNING but not accepting connections;
+      # this is what makes that state visible and actionable.
+      test: ["CMD-SHELL", "pg_isready -U pacgate -d pacgate"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # Generous: applies migrations on first boot before it serves.
+      start_period: 60s
+    container_name: pacgate-db
+    environment:
+      POSTGRES_DB: pacgate
+      POSTGRES_USER: pacgate
+      POSTGRES_PASSWORD: ${PACGATE_DB_PASSWORD}
+    volumes:
+      - pacgate-db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  pacgate-api:
+    image: ghcr.io/jzkk720/pacgate-api:0.2.6
+    healthcheck:
+      # No curl and no wget in this image (measured 2026-10-14), so the probe
+      # uses bash's /dev/tcp. /health is the one route that needs no auth
+      # (verified: 200, while /api/health, /ready and /version all return 401).
+      # grep -q "200" rather than testing the port alone: a wedged API still
+      # accepts connections, and only a response proves it is serving.
+      test:
+        - CMD-SHELL
+        - bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /health HTTP/1.0\r\n\r\n" >&3 && head -1 <&3 | grep -q "200 OK"'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    container_name: pacgate-api
+    depends_on: [pacgate-db]
+    # Memory ceiling as defence in depth behind the in-process admission bound
+    # (SANITIZE_MAX_CONCURRENT in state.rs). A sanitize job holds a 393 MiB NER
+    # detector set (measured 2026-09-27) and 2 run concurrently; 4 GiB covers
+    # that plus the ~1.3 GiB baseline and OCR/DB headroom. Mirrors
+    # compose.prod.yaml - both files define this service, so both need it.
+    mem_limit: 4g
+    environment:
+      DATABASE_URL: postgres://pacgate:${PACGATE_DB_PASSWORD}@pacgate-db:5432/pacgate
+      DATA_DIR: /data/tenants
+      # Self-registration gate. CLOSED on the client stack. Mirrors
+      # compose.prod.yaml - both files define this service, so both need it, or
+      # the file that is not running will silently diverge.
+      # See deploy/DEFECT-pacgate-api-open-registration.md.
+      PACGATE_ALLOW_REGISTRATION: "false"
+      PACGATE_JWT_SECRET: ${PACGATE_JWT_SECRET}
+      PACGATE_DEFAULT_TENANT: ${PACGATE_TENANT_ID:-default-firm}
+      # NER weights are baked into the image at /app/models/ner (SHA-256 verified
+      # at build time). This is what turns person/organisation-name detection ON:
+      # unset means Tier-1 rules only, 5 of 15 classes instead of 8, with the
+      # install still looking healthy. Gate: scripts/test-ner-enabled.ps1.
+      # Must match the Dockerfile COPY target exactly - set-but-missing is fatal.
+      PACGATE_NER_MODEL_DIR: /app/models/ner
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      # Plan 019/021: the extraction lane (cached per document version, fail-closed).
+      OCR_SERVICE_URL: http://ocr-service:8100
+      # The firm's legal workflow library. WITHOUT THIS the API silently serves
+      # only its 10 built-in Rust definitions: workflows.rs takes the
+      # `unwrap_or_else(list_workflows)` branch when workflows_dir is None.
+      # Measured 10 -> 222 with it set. Mirrors compose.prod.yaml.
+      # See deploy/DEFECT-workflow-mount-wrong-service.md.
+      WORKFLOWS_DIR: /app/workflows
+      # Workflow tier model tags. These live here, not in the Rust source, because
+      # the roster is a property of the machine and the repo cannot observe it.
+      # While they were compiled in, `origin/main` and each AIPC disagreed as soon
+      # as either changed -- and a tag no local Ollama serves returns HTTP 404 with
+      # no fallback, so one stale pin failed every workflow at once.
+      #
+      # Keep these three in sync with deploy/client-bundle/ollama-models.txt (the
+      # pre-pull list) and with `ModelConfig::DEFAULT_*_TAG` in pacgate-core.
+      # scripts/test-model-roster-consistency.ps1 enforces that.
+      PACGATE_MODEL_MAIN: ${PACGATE_MODEL_MAIN:-deepseek-v4.1-flash:cloud}
+      # Was qwen3.8:27b-mtp-q4_K_M (17.0 GB), which cannot load on a 16 GB AIPC
+      # card: the tier would spill to CPU and present as a stall. 9B at 6.6 GB
+      # keeps the Mid tier usable on the hardware we ship to. Override in .env on
+      # a machine that has the VRAM.
+      #
+      # The repo default stays the RAW tag: install.ps1 step 2b also creates a
+      # `pacgate-mid` tag with `num_ctx` baked in (the OpenAI endpoint this API
+      # uses IGNORES a per-request num_ctx - verified 2026-10-20), but that tag
+      # is a machine artifact that cannot be pre-pulled from a registry, so the
+      # installer writes it into .env instead of this default.
+      PACGATE_MODEL_MID: ${PACGATE_MODEL_MID:-ornith-1.5:9b}
+      PACGATE_MODEL_LOW: ${PACGATE_MODEL_LOW:-gemma4:12b-it-qat}
+      RUST_LOG: info
+    # Load ALL secrets from .env so pacgate-search's default_router() can read
+    # the connector API keys (YUANDIAN_API_KEY, PKULAW_API_KEY, QCC_API_KEY,
+    # FYOPEN_API_KEY, COURT_LISTENER_API_KEY, VAQUILL_API_KEY, ANSVAR_API_KEY,
+    # OPENCORPORATES_API_KEY). Without these, every external legal connector
+    # reports available=false and search returns only free sources.
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+      # The firm's 222-workflow library (46 categories, bilingual). Mounted read
+      # -only so the operator can add workflows without rebuilding the image.
+      - ./workflows:/app/workflows:ro
+    restart: unless-stopped
+
+  deer-flow:
+    image: ghcr.io/jzkk720/deer-flow-pacgate:0.2.6
+    healthcheck:
+      # :8001 is the gateway nginx proxies to; /health verified 200.
+      test:
+        - CMD-SHELL
+        - python3 -c "import urllib.request;raise SystemExit(0 if urllib.request.urlopen('http://127.0.0.1:8001/health',timeout=6).status==200 else 1)"
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+    container_name: deer-flow
+    depends_on: [pacgate-api, openviking, pacgate-mcp]
+    environment:
+      PACGATE_API_URL: http://pacgate-api:8080
+      PACGATE_TENANT_ID: ${PACGATE_TENANT_ID:-default-firm}
+      PACGATE_JWT_TOKEN: ${PACGATE_JWT_TOKEN}
+      PACGATE_API_EMAIL: ${PACGATE_API_EMAIL}
+      PACGATE_API_PASSWORD: ${PACGATE_API_PASSWORD}
+      PACGATE_MATTER_ID: ${PACGATE_MATTER_ID}
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      DEER_FLOW_EXTENSIONS_CONFIG_PATH: /app/deer-flow-extensions-config.json
+      # Allow the browser (via the frontend proxy) to call auth routes. The
+      # gateway rejects cross-site auth POSTs unless the Origin is same-origin or
+      # explicitly allowlisted; the frontend proxies /api/* internally so the
+      # browser Origin (:8089/:8090) must be allowlisted here.
+      # IMPORTANT: clients access the AIPC via IP/hostname (not localhost), which
+      # is NOT in the default list. Set GATEWAY_CORS_ORIGINS in .env to the
+      # client's actual access origin (e.g. http://192.168.1.10:8089) or login
+      # fails with "Cross-site auth request denied" (403). Comma-separated.
+      #
+      # SINGLE SOURCE (fixed 2026-10-19). This value also feeds
+      # DEER_FLOW_TRUSTED_ORIGINS on deer-flow-frontend below. Two separate
+      # processes enforce browser-origin checks for sign-in; a browser Origin
+      # must be admitted by BOTH or the request 403s before authentication. Keep
+      # both ports in the default: install.ps1 derives hostname/LAN variants for
+      # the ingress port only, so removing :8090 would strand that port.
+      GATEWAY_CORS_ORIGINS: ${GATEWAY_CORS_ORIGINS:-http://localhost:8089,http://localhost:8090}
+      # Pacgate (silent-no-reply fix 2026-10-06): bound the first-exchange title
+      # generation so a stalled Ollama cloud read cannot leave the pregel loop
+      # frozen mid-run with zero user-visible output (run c2a0ced4 evidence in
+      # .env comments). Value comes from .env: DEERFLOW_TITLE_INVOKE_TIMEOUT_S.
+      DEERFLOW_TITLE_INVOKE_TIMEOUT_S: ${DEERFLOW_TITLE_INVOKE_TIMEOUT_S:-8}
+      # Pacgate (security fix 2026-10-14): arm the one-time setup-token gate on
+      # POST /api/v1/auth/initialize. See compose.prod.yaml for the full reasoning
+      # and the 2026-10-14 measurement; the two files must stay in step.
+      #
+      # Default 1, so OMISSION arms the gate rather than disabling it.
+      PACGATE_SETUP_TOKEN: ${PACGATE_SETUP_TOKEN:-}
+      PACGATE_GENERATE_SETUP_TOKEN: ${PACGATE_GENERATE_SETUP_TOKEN:-1}
+    volumes:
+      - ./data:/data
+      - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
+      # Pacgate 2026-10-08: serve the skills tree (60 dirs: 37 PacGate legal + 23
+      # upstream) from the merged pacgate-layer working copy. The published image
+      # has NO /app/skills - re-verified against 0.2.6 on 2026-10-25, so this is
+      # still required and is not a leftover. Without it the gateway resolves its
+      # skills root to a missing dir and /api/skills returns [].
+      - ../../../deer-flow/skills/public:/app/skills/public:ro
+      - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
+      # Pacgate: add a unified generated-outputs listing endpoint
+      # (GET /api/threads/{id}/outputs). Mounted so it survives container
+      # recreation without rebuilding the image.
+      - ./patches/deer-flow-artifacts.py:/app/backend/app/gateway/routers/artifacts.py:ro
+      # Pacgate: default multitask_strategy to "interrupt" so a new message
+      # during a long agent run cancels the stale run instead of returning
+      # 409 Conflict to the user.
+      - ./patches/deer-flow-thread-runs.py:/app/backend/app/gateway/routers/thread_runs.py:ro
+      # Pacgate: populate extension/modified/original_filename in the upload
+      # response and enrich the upload listing with markdown metadata + original
+      # filename, so clients can read/analyze converted docs reliably.
+      - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro
+      # Pacgate (2026-10-10): strengthen the <uploaded_files> block so nemotron
+      # actually calls read_file (30B MoE tool-choice variance buried the softer
+      # instruction under 64k of tool/system context).
+      - ./patches/deer-flow-uploads-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/uploads_middleware.py:ro
+      # Pacgate: gate self-registration (mirrors upstream 2.1.0 auth.local.allow_registration)
+      - ./patches/deer-flow-auth.py:/app/backend/app/gateway/routers/auth.py:ro
+      - ./patches/deer-flow-auth-errors.py:/app/backend/app/gateway/auth/errors.py:ro
+      # Pacgate: require `description` on write_file/str_replace in the agent
+      # system prompt, so the model never drops a required arg and loops on
+      # "description: Field required".
+      - ./patches/deer-flow-prompt.py:/app/backend/packages/harness/deerflow/agents/lead_agent/prompt.py:ro
+      # Pacgate: auto-route local vs cloud model by bound tool count. When
+      # model_routing.enabled is true and no model is explicitly requested,
+      # large tool surfaces (>= tool_count_threshold) route to the cloud model
+      # so a 40K-token prompt does not choke the local GPU; small surfaces stay
+      # on the local default.
+      - ./patches/deer-flow-agent.py:/app/backend/packages/harness/deerflow/agents/lead_agent/agent.py:ro
+      # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets
+      # (langchain-openai renames it to max_completion_tokens, which Ollama's
+      # /v1 endpoint ignores - background calls then generate to EOS and hog
+      # the single runner slot while chat runs queue behind them).
+      - ./patches/deer-flow-model-factory.py:/app/backend/packages/harness/deerflow/models/factory.py:ro
+      # Pacgate: inject the conversation-history token estimate into the run
+      # config so auto-routing can distinguish simple chats (local) from large
+      # multi-step research runs (cloud), instead of relying only on the constant
+      # tool-schema count.
+      - ./patches/deer-flow-worker.py:/app/backend/packages/harness/deerflow/runtime/runs/worker.py:ro
+      # Pacgate (hang fix 2026-10-06): bound the non-streaming title ainvoke()
+      # and make CancelledError fall back instead of freezing the pregel loop
+      # (run df600939: no output for 11 minutes; only STOP recovered it).
+      - ./patches/deer-flow-title-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/title_middleware.py:ro
+      # Pacgate: run sync tool invocations on a single shared background event
+      # loop. The stock wrapper calls asyncio.run() per call (new loop each
+      # time), so parallel tool calls to the same stdio MCP server (e.g. two
+      # Firecrawl tools) race across loops and cancel the subprocess spawn,
+      # hanging the run. Sharing one loop eliminates the cross-loop race.
+      - ./patches/deer-flow-sync.py:/app/backend/packages/harness/deerflow/tools/sync.py:ro
+      # Pacgate: route present_files through the artifact store so lawyer-visible
+      # deliverables land in tenants/<t>/matters/<m>/docs/ instead of the
+      # container-internal per-thread outputs dir (lost on image rebuild).
+      - ./patches/deer-flow-present-file.py:/app/backend/packages/harness/deerflow/tools/builtins/present_file_tool.py:ro
+      # Pacgate 2026-10-08: prefix-aware skill allowed-tools matching. Skills
+      # declare bare MCP server names (pkulaw, yuandian-law, pacgate) but tool
+      # names are prefixed (pkulaw_*, pacgate_pacgate_*); exact-match filtering
+      # dropped ALL 137 MCP tools once any skill declared allowed-tools (agent
+      # left with bash/read_file only). The patch matches exact or
+      # "<normalized-declaration>_" prefixes.
+      - ./patches/deer-flow-tool-policy.py:/app/backend/packages/harness/deerflow/skills/tool_policy.py:ro
+      # Pacgate 2026-10-21: make tool_search deferral TRANSPARENT.
+      #
+      # tool_search was shipped disabled because deferral produced a "deferred,
+      # not promoted" loop: the model called an MCP tool, got an error telling it
+      # to call tool_search first, and small local models never completed that
+      # two-step dance. The cost of leaving it off is measured: MCP schemas are
+      # 32,023 of 42,582 bound characters, so deferral removes ~8,005 of ~10,645
+      # tokens from EVERY call (75%), which at 528 tok/s prefill is ~15 s of fixed
+      # cost per turn.
+      #
+      # This patch promotes the tool on first call and executes it in the same
+      # turn, so the model never has to know deferral exists. See the patch header
+      # for the full rationale and the safety notes.
+      - ./patches/deer-flow-deferred-tool-filter.py:/app/backend/packages/harness/deerflow/agents/middlewares/deferred_tool_filter_middleware.py:ro
+      # Pacgate 2026-10-21: the middleware above promotes a DIRECT call
+      # transparently, but <available-deferred-tools> rendered a bare list of
+      # names and nothing told the model a direct call works. Measured on the
+      # running 0.1.34 image: the rendered section contained no instruction verb
+      # at all, and tool_search's own description says a name is not callable
+      # "until fetched" - so the model fetched first and the auto-promote path
+      # never ran in the live run. This patch states both paths, direct first.
+      - ./patches/deer-flow-tool-search-prompt.py:/app/backend/packages/harness/deerflow/tools/builtins/tool_search.py:ro
+      # Pacgate 2026-10-08: exclude skill-reviewer eval fixtures
+      # (*/evals/fixtures/) from skill discovery - they are test data, not
+      # user-facing skills (5 phantom skills, one with an empty allowed-tools).
+      - ./patches/deer-flow-skill-storage.py:/app/backend/packages/harness/deerflow/skills/storage/skill_storage.py:ro
+      # Pacgate 2026-10-25: refuse to fall back to FileMemoryStorage when a
+      # storage class WAS configured. Upstream degrades silently on any
+      # exception, which would move matter memory off the pacgate-api
+      # sanitization gate while every health check still reports green.
+      - ./patches/deer-flow-memory-storage.py:/app/backend/packages/harness/deerflow/agents/memory/storage.py:ro
+      # Pacgate 2026-10-26: redact direct identifiers (USCC / 韬唤璇?/ 鎵嬫満鍙?/
+      # 閾惰鍗?/ email) from the memory lane input AND its outgoing payload.
+      # pacgate-api refuses a payload containing one (HTTP 422), so the save
+      # failed on essentially every turn of a research run. Person and
+      # organisation NAMES stay permitted by design. See deer-flow-memory-updater.py.
+      - ./patches/deer-flow-memory-updater.py:/app/backend/packages/harness/deerflow/agents/memory/updater.py:ro
+      # Pacgate 2026-10-26: bound the memory lane's input and stabilize its
+      # prompt prefix. The template put the volatile `{current_memory}` block
+      # ahead of the conversation, so the prefix changed on every update and
+      # llama.cpp could never reuse it - measured 68.7 s cold on three
+      # consecutive updates vs 0.5 s when the prefix was held constant. The
+      # conversation block is now first (append-only, therefore stable) and the
+      # memory block last, and the conversation is capped at 16k chars / 40
+      # messages so it stops evicting the chat lane's cache entry.
+      - ./patches/deer-flow-memory-prompt.py:/app/backend/packages/harness/deerflow/agents/memory/prompt.py:ro
+      # Pacgate: normalize hyphens to underscores in the MCP server-name tool
+      # prefix. MCP server keys like "yuandian-law" produce tool names
+      # "yuandian-law_yuandian_rh_ft_search" that models hallucinate as
+      # "yuandian_law_yuandian_rh_ft_search", causing "not a valid tool" loops.
+      # Function names must be underscore-separated for reliable tool-calling.
+      - ./patches/langchain-mcp-tools.py:/app/backend/.venv/lib/python3.12/site-packages/langchain_mcp_adapters/tools.py:ro
+      # Pacgate (401 fix 2026-10-09): re-login on 401 in the pacgate adapter.
+      # The adapter caches its JWT at construction; a pacgate-api restart
+      # invalidates it, so every memory/artifact call 401s until deer-flow
+      # restarts. The patch re-logins once on 401 and retries.
+      - ./patches/pacgate-adapter-client.py:/app/adapters/pacgate_deerflow_adapter/client.py:ro
+      # Pacgate (memory-card crash fix 2026-10-10): normalize the matter-memory
+      # payload to the deer-flow memory shape on load(). The raw matter payload
+      # ({content, revision, tags}) left MemoryResponse defaults as "" and the
+      # frontend's formatTimeAgo("") threw RangeError: Invalid time value,
+      # killing the settings memory card. Bind-mounted until upstreamed.
+      - ./patches/pacgate-adapter-storage.py:/app/adapters/pacgate_deerflow_adapter/storage.py:ro
+      # Persist deer-flow's own SQLite state (threads/runs/admin account) across
+      # container recreation. Without this, every `docker compose up -d` resets
+      # the deer-flow admin account and chat history (first-boot each time).
+      - ./data/deer-flow:/app/backend/.deer-flow
+    restart: unless-stopped
+
+  deer-flow-frontend:
+    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.6
+    healthcheck:
+      # NO bash in this image (only sh), so /dev/tcp is unavailable. It does have
+      # node v22, so the probe uses fetch. Verified: exits 0 against :3000 and 1
+      # against a dead port.
+      test:
+        - CMD-SHELL
+        - node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+    container_name: deer-flow-frontend
+    depends_on: [deer-flow]
+    environment:
+      NEXT_PUBLIC_BACKEND_BASE_URL: http://localhost:8089
+      NEXT_PUBLIC_LANGGRAPH_BASE_URL: http://localhost:8089/api
+      DEER_FLOW_INTERNAL_GATEWAY_BASE_URL: http://deer-flow:8001
+      # PARITY with compose.prod.yaml (fixed 2026-10-19). This block used to
+      # omit every auth-related key, so the same image behaved differently
+      # depending on which compose file happened to `up` it - and both files
+      # declare `name: pacgate-ai-bundle`, so they DO overwrite each other.
+      # Missing DEER_FLOW_TRUSTED_ORIGINS meant the Next.js server fell back
+      # to its localhost-only default and 403'd every non-loopback sign-in;
+      # missing BETTER_AUTH_SECRET / PACGATE_JWT_TOKEN meant the /api/pacgate
+      # proxy route had no service JWT at all. See the GATEWAY_CORS_ORIGINS
+      # comment in this file for the two-gate explanation and measurements.
+      DEER_FLOW_TRUSTED_ORIGINS: ${GATEWAY_CORS_ORIGINS:-http://localhost:8089,http://localhost:8090},http://localhost:3000
+      BETTER_AUTH_SECRET: ${PACGATE_JWT_SECRET}
+      PACGATE_API_URL: http://pacgate-api:8080
+      PACGATE_JWT_TOKEN: ${PACGATE_JWT_TOKEN}
+      NEXT_PUBLIC_PACGATE_REVIEW_ENABLED: "true"
+    ports:
+      - "8090:3000"
+    restart: unless-stopped
+
+  pacgate-mcp:
+    image: ghcr.io/jzkk720/pacgate-mcp:0.2.6
+    healthcheck:
+      # A real MCP `initialize` handshake, not a TCP connect. The image has no
+      # curl; it does have python3, so the probe speaks the protocol and
+      # requires `serverInfo` in the reply. Verified: 200-equivalent with
+      # serverInfo present, and a connection error against a dead port.
+      test:
+        - CMD-SHELL
+        - python3 -c "import json,urllib.request;p=json.dumps({'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2024-11-05','capabilities':{},'clientInfo':{'name':'hc','version':'1'}}}).encode();r=urllib.request.Request('http://127.0.0.1:8000/mcp',data=p,headers={'Content-Type':'application/json','Accept':'application/json, text/event-stream'});b=urllib.request.urlopen(r,timeout=6).read().decode();raise SystemExit(0 if 'serverInfo' in b else 1)"
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+    container_name: pacgate-mcp
+    depends_on: [pacgate-api]
+    environment:
+      PACGATE_API_URL: http://pacgate-api:8080
+      PACGATE_API_EMAIL: ${PACGATE_API_EMAIL}
+      PACGATE_API_PASSWORD: ${PACGATE_API_PASSWORD}
+      PACGATE_JWT_TOKEN: ${PACGATE_JWT_TOKEN}
+      PACGATE_MCP_PORT: "8000"
+      PACGATE_MCP_TIMEOUT: "700"
+      # Default matter for pacgate_read_memory / pacgate_write_memory so the
+      # chat agent can address the deployment's scoped matter without knowing
+      # the UUID (mirrors the deer-flow service's PACGATE_MATTER_ID above).
+      PACGATE_MATTER_ID: ${PACGATE_MATTER_ID}
+    volumes:
+      # Fork patch (2026-10-09): SANITIZE_TIMEOUT_S=700 per-request override for
+      # sanitize endpoints (BERT NER runs minutes; stock 0.1.24 timeout kills
+      # the call and deer-flow retries for ~2min per tool). Bind-mounted until
+      # upstream ships it in a release image. Source lives in the repo at
+      # deploy/pacgate-mcp/server.py; see repo memory mcp-timeout-fix-2026-10-09.
+      - ../pacgate-mcp/server.py:/app/server.py:ro
+    restart: unless-stopped
+
+  # ocr-service: PaddleOCR extraction (plan 019). First-class from 0.1.16.
+  # The PP-OCRv4 det/rec/cls weights (~17 MB) are BAKED INTO the image at build
+  # time. They used to download on FIRST EXTRACTION, which made this the one lane
+  # needing an external host (paddleocr.bj.bcebos.com) and measured 269.9s cold
+  # against a 300s client timeout in pacgate-api - so it failed intermittently.
+  #
+  # No volumes: block, deliberately. Mounting a volume over /root/.paddleocr
+  # SHADOWS the baked copy and lets PaddleOCR reach for the CDN again for anything
+  # the volume lacks - the dependency the bake exists to remove. See the longer
+  # note in compose.prod.yaml.
+  ocr-service:
+    image: ghcr.io/jzkk720/ocr-service:0.2.6
+    healthcheck:
+      # /health verified 200. python3, not curl - the image has no curl.
+      # start_period is long on purpose: this service downloads its model on
+      # first run, which is exactly the window in which a short probe would
+      # mark a healthy-but-busy container unhealthy.
+      test:
+        - CMD-SHELL
+        - python3 -c "import urllib.request;raise SystemExit(0 if urllib.request.urlopen('http://127.0.0.1:8100/health',timeout=6).status==200 else 1)"
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 300s
+    container_name: ocr-service
+    environment:
+      # Python logging rejects lowercase level names.
+      OCR_LOG_LEVEL: INFO
+      OCR_USE_GPU: "0"
+    restart: unless-stopped
+
+  openviking:
+    image: ghcr.io/volcengine/openviking@sha256:46f9e34cd37238c28cbd9535033773d179006bdf7f3e528dd1c46567abce7701
+    container_name: openviking
+    ports:
+      - "1933:1933"
+    volumes:
+      - ./openviking:/app/.openviking
+    environment:
+      OPENVIKING_CONF_CONTENT: ${OPENVIKING_CONF_CONTENT}
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    healthcheck:
+      # nginx's own image is the one place curl does exist. This proves the proxy
+      # is answering, which is the surface clients actually reach.
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null --max-time 5 http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    container_name: pacgate-nginx
+    depends_on: [pacgate-api, deer-flow, deer-flow-frontend]
+    ports:
+      - "8089:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+volumes:
+  pacgate-db-data:
+

@@ -1,0 +1,78 @@
+# Pacgate-ai required Ollama models
+# Pulled automatically by install.ps1 on first run.
+# Keep this list in sync with:
+#   - plans/007-aipc1-kickoff-prompt.md Stage 3.5 (tier verification)
+#   - deploy/client-bundle/deer-flow-config.yaml (active research models)
+#   - deploy/qm-pacgate/qm.config.jsonc (MODEL_NAME)
+
+# --- pacgate-api workflow tiers (Appendix A model-overrides SQL) ---
+# Main + Low tier: fast legal execution, local GPU/NPU
+gemma4:12b-it-qat
+# Mid tier: pacgate-api now defaults to ornith-1.5:9b (6.6 GB) because
+# qwen3.8:27b-mtp-q4_K_M is 17.0 GB and cannot load on a 16 GB AIPC card - it
+# spilled to CPU and presented as a stall. Measured by
+# scripts/test-aipc-capacity-fit.ps1. Restore this line only on a machine with
+# the VRAM, and set PACGATE_MODEL_MID in .env to match.
+# qwen3.8:27b-mtp-q4_K_M
+
+# --- AIPC1 CONTEXT-CAPPED DERIVATIVES (LOCAL-ONLY, 2026-10-16) ---
+# These are NOT registry tags: `ollama pull gemma4-legal:12b-chat` returns HTTP
+# 404. install.ps1 recognises them by name and builds them with
+# `ollama create` from the base tag below (see the $localDerived map), and
+# ensure-context-capped-model.ps1 rebuilds them idempotently.
+#
+# They exist because the base tags declare a 262144-token context, and on the
+# OpenAI-compat route deer-flow uses, neither a per-request options.num_ctx nor
+# the server-wide OLLAMA_CONTEXT_LENGTH default is honoured. At 262144 the KV
+# cache does not fit beside the weights, so Ollama splits the runner across
+# CPU+GPU and commits 18-27 GB of host RAM - the wall that stalled every
+# session. A cap baked into the TAG is route-independent and per-model.
+#
+# The SOURCE tags must therefore be present too; they are listed below.
+gemma4:12b-it-q8_0
+qwen3.8:27b-mtp-q4_K_M
+gemma4-legal:12b-chat
+qwen3.8-legal:27b-mid
+
+# --- RAG embeddings (required by pacgate-api, no alternative) ---
+nomic-embed-text:latest
+
+# --- deer-flow active model + qm harness model ---
+# Pacgate 2026-10-07 (rev 2): cloud roster = the TWO FLASH models per user
+# choice (deepseek-v4.1-flash, glm-5.3-flash) - fast and cheap. The heavier
+# tags (deepseek-v4-pro:cloud, glm-5.3:cloud) were dropped from the picker.
+# Cloud entries are picker OPTIONS only - the deer-flow default is gemma4-12b
+# (local, 7.2 GB) and auto-escalation stays local. It was nemotron-3.5-lightning
+# until 2026-10-19, when that 25 GB entry was withdrawn because it cannot fit a
+# 16 GB AIPC card. Cloud
+# tags have no weight layers on disk (size "-"); they appear in `ollama list`
+# but never in `ollama ps`; inference routes via ollama.com and requires
+# `ollama signin` on the AIPC before install.ps1 runs.
+deepseek-v4.1-flash:cloud
+glm-5.3-flash:cloud
+# qm MODEL_NAME stays unset (checked-in docker target default).
+
+# --- Alternative local models (do NOT enable for Main tier) ---
+# nemotron-3.5-lightning:30b-a3b  <- reasoning-mode, breaks workflow tiers
+# gemma4:26b-a4b-it-qat           <- heavier than AIPC NPU budget for Main
+
+# --- deer-flow model-picker options (NOT defaults, NOT workflow tiers) ---
+# Added 2026-09-21: deer-flow-config.yaml offers these in the model picker, and
+# they were installed by hand on both AIPCs, but they were absent from this list.
+# That left the two artifacts inconsistent: a run works TODAY because the weights
+# exist, but any rebuild or re-image relying on install.ps1 alone would come up
+# without them and the agent would fail at runtime with `model '<tag>' not found`
+# (ollama returns HTTP 404, with no fallback). scripts/audit-model-tags.ps1 guards
+# this class of drift.
+#
+# COST: ornith-1.5:9b is 6.6 GB. The two larger picker options that used to sit
+# here (ornith-1.5:35b at 22 GB and nemotron-3.5-lightning:30b-a3b at 25 GB) are
+# WITHDRAWN as of 2026-10-19: neither can fit a 16 GB AIPC card, so both spilled
+# to CPU and presented as a stall rather than an error. Their roster entries in
+# deer-flow-config.yaml are commented out, and these lines follow them - the rule
+# is to keep this file and that picker consistent, not to delete silently.
+# Restore all three together on a machine that has the VRAM.
+# 2026-10-07: qwen3.8 was DEMOTED from the deer-flow picker (benchmark: dense 27B
+# is 3-5x slower than the MOEs on both generation and context ingestion) and is
+# now withdrawn from the pre-pull entirely - see the Mid tier note above.
+ornith-1.5:9b
