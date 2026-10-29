@@ -147,6 +147,13 @@ services:
       PACGATE_MATTER_ID: ${PACGATE_MATTER_ID}
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       DEER_FLOW_EXTENSIONS_CONFIG_PATH: /app/deer-flow-extensions-config.json
+      # Pacgate 2026-10-29: ceiling for the lead-agent recursion budget.
+      # The patch's own default is 4000, but the chat UI sends 1000 per run, so
+      # 4000 never clamps and the guard is inert. 500 is the value the patch was
+      # designed around: the most expensive SUCCESSFUL run measured on this box
+      # used 138 LLM calls, so 500 leaves ~3.5x headroom while still stopping a
+      # thrashing run long before it burns 1000 supersteps (~16 min).
+      DEERFLOW_MAX_RECURSION_LIMIT: "500"
       # Allow the browser (via the frontend proxy) to call auth routes. The
       # gateway rejects cross-site auth POSTs unless the Origin is same-origin or
       # explicitly allowlisted; the frontend proxies /api/* internally so the
@@ -228,7 +235,7 @@ services:
       # let that overwrite its own 100 default, so a thrashing run spent all 1000
       # supersteps (~16 min) before failing with a bare GraphRecursionError.
       # Baked into the 0.2.7 image as well; mounted here so the fix also applies
-      # without an image rebuild. Ceiling: DEERFLOW_MAX_RECURSION_LIMIT (default 500).
+      # without an image rebuild. Ceiling: DEERFLOW_MAX_RECURSION_LIMIT (set to 500 above).
       - ./patches/deer-flow-run-recursion-cap.py:/app/backend/app/gateway/services.py:ro
       # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets
       # (langchain-openai renames it to max_completion_tokens, which Ollama's

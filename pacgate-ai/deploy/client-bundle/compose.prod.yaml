@@ -173,6 +173,10 @@ services:
       PACGATE_MATTER_ID: ${PACGATE_MATTER_ID}
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       DEER_FLOW_EXTENSIONS_CONFIG_PATH: /app/deer-flow-extensions-config.json
+      # Pacgate 2026-10-29: ceiling for the lead-agent recursion budget.
+      # See compose.bundle.yaml for the measurement. Without this the patch's
+      # 4000 default never clamps the UI's 1000 and the guard is inert.
+      DEERFLOW_MAX_RECURSION_LIMIT: "500"
       # Allow the browser (via the frontend proxy) to call auth routes. The
       # gateway rejects cross-site auth POSTs unless the Origin is same-origin or
       # explicitly allowlisted; the frontend proxies /api/* internally so the
