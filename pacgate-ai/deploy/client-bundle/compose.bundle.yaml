@@ -41,7 +41,7 @@ services:
     restart: unless-stopped
 
   pacgate-api:
-    image: ghcr.io/jzkk720/pacgate-api:0.2.6
+    image: ghcr.io/jzkk720/pacgate-api:0.2.7
     healthcheck:
       # No curl and no wget in this image (measured 2026-10-14), so the probe
       # uses bash's /dev/tcp. /health is the one route that needs no auth
@@ -126,7 +126,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/jzkk720/deer-flow-pacgate:0.2.6
+    image: ghcr.io/jzkk720/deer-flow-pacgate:0.2.7
     healthcheck:
       # :8001 is the gateway nginx proxies to; /health verified 200.
       test:
@@ -223,6 +223,13 @@ services:
       # measured evidence and the removal condition - which is NOT "v2.1.0 has
       # these commits" (it does not; it scopes per run instead).
       - ./patches/deer-flow-loop-detection.py:/app/backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware.py:ro
+      # Pacgate 2026-10-29: clamp the lead-agent recursion budget (0.2.7).
+      # The chat UI sends recursion_limit: 1000 on every run and build_run_config()
+      # let that overwrite its own 100 default, so a thrashing run spent all 1000
+      # supersteps (~16 min) before failing with a bare GraphRecursionError.
+      # Baked into the 0.2.7 image as well; mounted here so the fix also applies
+      # without an image rebuild. Ceiling: DEERFLOW_MAX_RECURSION_LIMIT (default 500).
+      - ./patches/deer-flow-run-recursion-cap.py:/app/backend/app/gateway/services.py:ro
       # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets
       # (langchain-openai renames it to max_completion_tokens, which Ollama's
       # /v1 endpoint ignores - background calls then generate to EOS and hog
@@ -324,7 +331,7 @@ services:
     restart: unless-stopped
 
   deer-flow-frontend:
-    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.6
+    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.7
     healthcheck:
       # NO bash in this image (only sh), so /dev/tcp is unavailable. It does have
       # node v22, so the probe uses fetch. Verified: exits 0 against :3000 and 1
@@ -361,7 +368,7 @@ services:
     restart: unless-stopped
 
   pacgate-mcp:
-    image: ghcr.io/jzkk720/pacgate-mcp:0.2.6
+    image: ghcr.io/jzkk720/pacgate-mcp:0.2.7
     healthcheck:
       # A real MCP `initialize` handshake, not a TCP connect. The image has no
       # curl; it does have python3, so the probe speaks the protocol and
@@ -407,7 +414,7 @@ services:
   # the volume lacks - the dependency the bake exists to remove. See the longer
   # note in compose.prod.yaml.
   ocr-service:
-    image: ghcr.io/jzkk720/ocr-service:0.2.6
+    image: ghcr.io/jzkk720/ocr-service:0.2.7
     healthcheck:
       # /health verified 200. python3, not curl - the image has no curl.
       # start_period is long on purpose: this service downloads its model on
