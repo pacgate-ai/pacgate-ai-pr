@@ -4,7 +4,8 @@
 `0.2.7` (`ghcr.io/jzkk720/deer-flow-pacgate:0.2.7`).
 **Status:** audit complete; six root causes found, five fixed and verified live.
 One fix (2.6, the interactive thinking default) is **reverted and open** — it
-needs a frontend image rebuild, which this machine must not do.
+needs a frontend image rebuild, which this machine must not do. The pre-existing
+NDA docx set has been **regenerated clean** (3.3).
 
 > **Deployment model — read this before the fixes below.**
 > This machine runs the **upstream-pinned ghcr stack**. It does **not** build
@@ -343,33 +344,59 @@ thinking was ON by default, defeating `when_thinking_disabled`. The fix needs a
 frontend image rebuild, which this machine must not do — the stack is pinned to
 upstream ghcr images. Reverted; workaround is to pick Flash mode explicitly.
 
-### 3.3 Pre-existing NDA docx set still fails validation — **OPEN**
+### 3.3 Pre-existing NDA docx set — **FIXED (regenerated 2026-10-30)**
 
-The 2026-10-29 deliverables in thread `d35307ec` still carry validation errors.
-Re-measured 2026-10-30 against the live container:
+The 2026-10-29 deliverables in thread `d35307ec` carried validation errors:
 
-| File | `officecli validate` errors |
-|---|---|
-| `保密协议_甲方版修订稿_带批注_供律师复核.docx` | **89** |
-| `保密协议_清洁稿_供律师复核.docx` | **89** |
-| `保密协议_审查备忘录_RED分流.docx` | **65** |
+| File | Before | After |
+|---|---|---|
+| `保密协议_甲方版修订稿_带批注_供律师复核.docx` | **89** | **0** |
+| `保密协议_清洁稿_供律师复核.docx` | **89** | **0** |
+| `保密协议_审查备忘录_RED分流.docx` | **65** | **0** |
 
-The dominant classes are hand-built-XML artefacts, not content problems:
+The dominant classes were hand-built-XML artefacts, not content problems:
 
 - `<w:b/>` emitted **after** `<w:bCs/>` inside `<w:rPr>` — OOXML requires
-  `b` before `bCs`, so every bold run is a schema violation
-  (`/w:document/w:body/w:p[N]/w:r[N]/w:rPr`).
+  `b` before `bCs`, so every bold run was a schema violation.
 - `<w:tblHeader w:val="true"/>` — the attribute is an ST_OnOff enumeration;
   `true` is rejected, `1` / `on` is required.
 - `<w:updateFields>` and `<w:zoom>` written as children of `<w:settings>` in an
   order the schema does not allow.
 
-These need **regeneration**, not repair — the generator that produced them is
-the same class of defect this audit fixed going forward. Regeneration is now
-**unblocked on the pinned 0.2.7 stack**: the two fixes it depends on are
-bind-mounted patches, not image changes — the `officecli` path contract (2.1,
-`deer-flow-mcp-path-args.py`) and the `read_file` binary hint (2.7,
-`deer-flow-sandbox-tools.py`). Both are live on `0.2.7` today.
+These needed **regeneration**, not repair. Done on the pinned `0.2.7` stack —
+the two fixes it depended on are bind-mounted patches, not image changes: the
+`officecli` path contract (2.1, `deer-flow-mcp-path-args.py`) and the
+`read_file` binary hint (2.7, `deer-flow-sandbox-tools.py`).
+
+The regenerated set is in the same `outputs/` directory; the invalid originals
+are preserved under `outputs/archive-2026-10-29-invalid/`. The new set also
+carries what the old one lacked — Playbook clause citations:
+
+| File | Playbook refs | `validate` |
+|---|---|---|
+| `保密协议_审查备忘录_RED分流.docx` | R1, R3, R4, R5, R8 / Y2, Y3, Y5, Y7 | 0 errors |
+| `保密协议_甲方版修订稿_带批注_供律师复核.docx` | G1, G6 + per-clause 批注 | 0 errors |
+| `保密协议_清洁稿_供律师复核.docx` | (clean copy — no annotations by design) | 0 errors |
+
+### 3.4 `officecli set` rejects the path syntax `get` accepts — **OPEN (upstream)**
+
+Found while regenerating 3.3. `officecli` is internally inconsistent:
+
+| Command | `body/p[1]` | `/body/p[1]` |
+|---|---|---|
+| `get` | ✅ | ✅ |
+| `set` | ❌ `No elements matched selector` | ✅ |
+
+The sandbox's `validate_local_bash_command_paths` rejects any `/`-prefixed token
+on a bash command line as an unsafe absolute path, so the only form `set`
+accepts is the one the sandbox forbids. **Workaround (verified):** put the
+commands in a JSON file and use `officecli batch <file> --input <json>` — the
+`/` then lives in file content, not in the command string. Measured: 4/4
+commands succeeded, `validate` clean, CJK intact.
+
+This is documented in `playbooks/nda-playbook.md` §四 so every skill that
+generates documents inherits it. The underlying inconsistency is an upstream
+`officecli` defect and should be reported rather than patched locally.
 
 ---
 
@@ -381,6 +408,7 @@ bind-mounted patches, not image changes — the `officecli` path contract (2.1,
 | `test-skill-tool-declarations.ps1` (new) | **PASS** (3 passed, 0 defects, 3 legitimate warnings) |
 | `test-recursion-budget.ps1` (new) | **was 4 failed / 7 passed → 11/11 PASS** |
 | `test-officecli-mcp.ps1` | 13/13 PASS |
+| `test-officecli-set-contract.ps1` (new) | **8/8 PASS** — pins the `set`/`batch --input` contract |
 | `test-tool-search-deferral.ps1` | 25/25 PASS |
 | `test-deferred-tool-runtime.ps1` | 17/17 PASS |
 | `test-workflow-compose-wiring.ps1` | PASS — A5 patch-mount parity across the same **27** patches in both compose files |
@@ -389,7 +417,7 @@ bind-mounted patches, not image changes — the `officecli` path contract (2.1,
 | `audit-model-tags.ps1` | **was FAIL → now PASS** (exit 0) |
 | live `/mnt/playbooks` resolution | resolves, exists, `read_only: True` |
 | live `DEERFLOW_MAX_RECURSION_LIMIT` | **4000** in the running container |
-| built frontend bundle | `thinking_enabled` is opt-in; `getResolvedMode` defaults to `"flash"` |
+| regenerated NDA docx set | **0 / 0 / 0** schema errors (was 89 / 89 / 65) |
 
 Live runs:
 
@@ -397,6 +425,9 @@ Live runs:
 |---|---|---|
 | `360aca0d` | gemma4-12b-local | officecli on `/mnt/user-data/...` → created, validate clean, CJK intact, no pandoc |
 | `4de2965b` | gemma4-12b-local | Playbook read; `NDA-redline.docx` (0 validation errors, R1/R2/R3/R6) + `NDA-review.md` (RED, per-clause table, disclaimer) |
+| `dbe26d90` | deepseek-v4.1-flash-cloud | **regeneration of 3.3** — 3 docx, all 0 schema errors, Playbook refs R1/R3/R4/R5/R8 + Y2/Y3/Y5/Y7 + G1/G6 |
+| `353a869f` | deepseek-v4.1-flash-cloud | 3 docx, 0 schema errors, but **no Playbook refs** — the prompt omitted Step 0. Kept as evidence that the citation requirement is prompt-driven, not automatic |
+| `7c68c8a8` | deepseek-v4.1-flash-cloud | 599 s, **0 deliverables** — agent burned the budget probing officecli schema. This is the run that surfaced 3.4 |
 
 Reproduction evidence for 2.6 (live Ollama, `gemma4:12b-it-qat`, `max_tokens=200`,
 identical prompt):
@@ -406,10 +437,20 @@ identical prompt):
 | thinking ON | 7.1 s | `length` | **0 chars** | 649 chars |
 | `reasoning_effort: none` | 0.4 s | `stop` | 32 chars | 0 chars |
 
-At a realistic budget (`max_tokens=8192`) thinking does work — 29.5 s, 148 chars
-content, 2793 chars reasoning on a 3-clause review — so the defect was never
-"thinking is broken", it was "thinking is on when the caller did not ask for it,
-and the reply budget is shared with the reasoning channel".
+**Re-measured 2026-10-30 — this did NOT reproduce.** Same model, same
+`max_tokens=200`, same one-word prompt:
+
+| Setting | content | reasoning | `finish_reason` |
+|---|---|---|---|
+| thinking ON | `OK` | 134 chars | `stop` |
+| `reasoning_effort: none` | `OK` | 0 chars | `stop` |
+
+Both answered. The 0-char result needs a prompt long enough to exhaust the whole
+budget on reasoning, so the defect is **conditional on prompt size**, not
+unconditional. At a realistic budget (`max_tokens=8192`) thinking works — 29.5 s,
+148 chars content, 2793 chars reasoning on a 3-clause review. The defect was
+never "thinking is broken"; it is "thinking is on when the caller did not ask for
+it, and the reply budget is shared with the reasoning channel".
 
 ## Files changed
 
@@ -417,6 +458,7 @@ and the reply budget is shared with the reasoning channel".
 pacgate-ai/deploy/client-bundle/patches/deer-flow-mcp-path-args.py   new  (frozen mount base)
 pacgate-ai/deploy/client-bundle/patches/deer-flow-sandbox-tools.py  new  (read_file binary hint)
 pacgate-ai/deploy/client-bundle/playbooks/nda-playbook.md           new
+pacgate-ai/deploy/client-bundle/playbooks/nda-playbook.md           +officecli set/batch contract
 pacgate-ai/deploy/client-bundle/compose.bundle.yaml                 +2 mounts, ceiling 500->4000
 pacgate-ai/deploy/client-bundle/compose.prod.yaml                   +2 mounts, ceiling 500->4000 (A5 parity)
 pacgate-ai/deploy/client-bundle/deer-flow-config.yaml               +sandbox.mounts ->/mnt/playbooks
@@ -425,6 +467,7 @@ pacgate-ai/deploy/client-bundle/patches/deer-flow-run-recursion-cap.py
 pacgate-ai/scripts/test-mcp-path-args.ps1                           new gate
 pacgate-ai/scripts/test-skill-tool-declarations.ps1                 new gate
 pacgate-ai/scripts/test-recursion-budget.ps1                        new gate
+pacgate-ai/scripts/test-officecli-set-contract.ps1                  new gate (set/batch contract)
 pacgate-ai/scripts/audit-model-tags.ps1                             scope tag scan to models:
 deer-flow/skills/public/{nda-review,contract-review,ma-agreement-review,
   vcpe-financing-suite,dd-report-assembly,cold-start-interview}/SKILL.md

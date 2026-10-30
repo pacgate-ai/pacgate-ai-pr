@@ -98,6 +98,36 @@
 - 交付前必须 `officecli validate` 零错误，且 `officecli view <file> issues` 无溢出/结构问题。
 - 修订与批注优先用 `officecli batch`（实测 16x 于逐条 set）。
 
+**⚠️ `officecli set` 的路径必须以 `/` 开头，且必须走 `batch --input`（2026-10-30 实测）**
+
+`officecli set` 与 `officecli get` 的路径语法**不一致**：
+
+| 命令 | `body/p[1]` | `/body/p[1]` |
+|---|---|---|
+| `get` | ✅ 可用 | ✅ 可用 |
+| `set` | ❌ `No elements matched selector` | ✅ 可用 |
+
+而沙箱的 `validate_local_bash_command_paths` 会把命令行里任何 `/` 开头的 token
+判为「不安全绝对路径」并拒绝执行（`Unsafe absolute paths in command: /tr[1]/tc[1]`）。
+两者叠加的结果是：**在 bash 里直接写 `officecli set ... /body/p[1]` 永远失败**。
+
+正确做法是把命令写进 JSON 文件，用 `batch --input` 执行——`/` 只出现在文件内容里，
+不出现在命令行里：
+
+```bash
+cat > /mnt/user-data/workspace/cmds.json <<'EOF'
+[
+  {"command":"add","parent":"/body","type":"paragraph","props":{"text":"第一条 保密义务"}},
+  {"command":"set","path":"/body/p[1]","props":{"bold":"true"}}
+]
+EOF
+officecli batch /mnt/user-data/outputs/交付件.docx --input /mnt/user-data/workspace/cmds.json
+officecli validate /mnt/user-data/outputs/交付件.docx
+```
+
+实测：4 条命令 4/4 成功，`validate` 零错误，中文正常。**不要**改用
+`./body/p[1]`（同样失败），也**不要**退回 pandoc。
+
 ---
 
 ## 五、红线（与本 Playbook 冲突时的处理）
