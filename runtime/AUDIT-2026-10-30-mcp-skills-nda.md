@@ -105,6 +105,22 @@ clarifying question and never writes the deliverable — the reported symptom
    `cold-start-interview` writes its profile to `/mnt/user-data/outputs/`
    (writable) and documents `/mnt/playbooks` as the read-only publication area.
 
+`sandbox.mounts` is an **in-process path mapping**, not a filesystem mount — so
+`ls /mnt/playbooks` from a container shell correctly reports "no such file".
+Verified against the live provider instead:
+
+```text
+container : /mnt/playbooks/nda-playbook.md
+resolved  : /app/backend/.deer-flow/playbooks/nda-playbook.md
+exists    : True
+readonly  : True
+bytes     : 6781
+```
+
+Live config confirms the mapping:
+`VolumeMountConfig(host_path='/app/backend/.deer-flow/playbooks',
+container_path='/mnt/playbooks', read_only=True)`.
+
 **Verified live** (thread `4de2965b`): the agent read the Playbook and cited its
 clause numbers in both deliverables.
 
@@ -188,6 +204,7 @@ key). Now exits 0. A red gate that is not red trains people to ignore it.
 | `test-workflow-compose-wiring.ps1` | PASS — A5 patch-mount parity across the same **26** patches in both compose files |
 | `test-mcp-tool-surface.ps1` | 6/6 PASS |
 | `audit-model-tags.ps1` | **was FAIL → now PASS** (exit 0) |
+| live `/mnt/playbooks` resolution | resolves, exists, `read_only: True` |
 
 Live runs:
 

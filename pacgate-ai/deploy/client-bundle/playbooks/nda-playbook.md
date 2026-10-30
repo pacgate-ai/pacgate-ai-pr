@@ -1,6 +1,6 @@
 # 百宸 NDA Playbook（本所红线立场）
 
-> **用途：** `nda-review` skill 的 Step 0 第一加载项。`/mnt/user-data/.deer-flow/playbooks/nda-playbook.md`
+> **用途：** `nda-review` skill 的 Step 0 第一加载项。`/mnt/playbooks/nda-playbook.md`
 > 存在即覆盖 skill 内置的通用标准。
 > **红线：** 本文件是本所的**审查立场**，不是法律意见。输出仍为供律师复核的草稿。
 > **维护：** 由业务委员会修订；每次修订须记录在 §六 变更表。未列入本文件的条款，
