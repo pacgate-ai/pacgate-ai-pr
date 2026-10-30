@@ -173,10 +173,12 @@ services:
       PACGATE_MATTER_ID: ${PACGATE_MATTER_ID}
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       DEER_FLOW_EXTENSIONS_CONFIG_PATH: /app/deer-flow-extensions-config.json
-      # Pacgate 2026-10-29: ceiling for the lead-agent recursion budget.
-      # See compose.bundle.yaml for the measurement. Without this the patch's
-      # 4000 default never clamps the UI's 1000 and the guard is inert.
-      DEERFLOW_MAX_RECURSION_LIMIT: "500"
+      # Pacgate 2026-10-30: ceiling for the lead-agent recursion budget, and the
+      # DEFAULT for callers that send no config (the API/IM path).
+      # See compose.bundle.yaml for the measurement. 4000 clears the deepest
+      # observed non-looping workload (1589 super-steps) with ~2.5x headroom;
+      # real loops are stopped by loop detection, not by this number.
+      DEERFLOW_MAX_RECURSION_LIMIT: "4000"
       # Allow the browser (via the frontend proxy) to call auth routes. The
       # gateway rejects cross-site auth POSTs unless the Origin is same-origin or
       # explicitly allowlisted; the frontend proxies /api/* internally so the
@@ -300,6 +302,9 @@ services:
       # See compose.bundle.yaml for the measurement. Baked into the 0.2.7 image
       # as well; mounted here so the fix also applies without an image rebuild.
       - ./patches/deer-flow-run-recursion-cap.py:/app/backend/app/gateway/services.py:ro
+      # Pacgate 2026-10-30: replace the binary-file read error's misrouting hint.
+      # See compose.bundle.yaml for the measurement. A5 parity: both files mount it.
+      - ./patches/deer-flow-sandbox-tools.py:/app/backend/packages/harness/deerflow/sandbox/tools.py:ro
       # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets.
       # langchain-openai renames max_tokens -> max_completion_tokens, which
       # Ollama's /v1 endpoint ignores - background calls (memory updater) then
