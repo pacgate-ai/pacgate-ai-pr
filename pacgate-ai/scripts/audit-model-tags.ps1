@@ -85,8 +85,25 @@ foreach ($cfg in $Configs) {
 
     # Commented-out entries (a leading '#') are deliberately disabled; skip them so
     # a disabled model does not trip the guard.
+    #
+    # SCOPE TO THE `models:` BLOCK (fixed 2026-10-30). Scanning the whole file
+    # also matched the `subagents:` section, where `model:` holds a deer-flow
+    # MODEL NAME ("gemma4-12b-local"), not an Ollama TAG. Normalize-Tag appends
+    # ':latest' to a bare name, so this guard reported
+    # "gemma4-12b-local:latest is requested but NOT pre-pulled" for a tag that
+    # exists nowhere and is never pulled. Measured 2026-10-30: two such false
+    # FAILs while the real tags (gemma4:12b-it-qat, ornith-1.5:9b) were both
+    # present and installed. A red gate that is not red trains people to ignore
+    # it, which is worse than not having the gate.
+    $lines = Get-Content $cfg
+    $inModels = $false
     $tags = @()
-    foreach ($line in (Get-Content $cfg)) {
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+        # Enter the top-level `models:` block; leave it at the next top-level key.
+        if ($line -match '^models:\s*$') { $inModels = $true; continue }
+        if ($inModels -and $line -match '^[a-zA-Z_][\w-]*:') { $inModels = $false }
+        if (-not $inModels) { continue }
         if ($line -match '^\s*#') { continue }
         # YAML `model: <tag>` and JSON `"model": "<tag>"`
         if ($line -match '^\s*model:\s*(\S+)') { $tags += Normalize-Tag $Matches[1] }

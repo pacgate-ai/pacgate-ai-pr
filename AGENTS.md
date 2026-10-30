@@ -242,6 +242,22 @@ git rev-parse "${newRoot}:pacgate-ai"   # must equal: git rev-parse "v0.2.3^{tre
 
   `scripts/test-memory-lane.ps1` also carries two local PS 5.1 fixes.
 
+- **Also re-apply the 2026-10-30 MCP-path + Playbook deltas.** Full detail:
+  `runtime/AUDIT-2026-10-30-mcp-skills-nda.md`. A swap WILL revert them:
+
+  | File | What must survive |
+  |---|---|
+  | `deploy/client-bundle/patches/deer-flow-mcp-path-args.py` | **new file** — not in upstream. Rewrites virtual paths in MCP tool *arguments*; also derives thread paths from `Paths` because `runtime` is never injected into `StructuredTool` MCP tools |
+  | `deploy/client-bundle/playbooks/nda-playbook.md` | **new file** — the R1–R8 / Y1–Y8 / G1–G7 standard that six skills read at Step 0 |
+  | `deploy/client-bundle/deer-flow-config.yaml` | `sandbox.mounts` publishing the Playbook read-only at `/mnt/playbooks` |
+  | `deploy/client-bundle/compose.bundle.yaml` + `compose.prod.yaml` | the `deer-flow-mcp-path-args.py` mount, in **both** (A5 parity) |
+  | `scripts/audit-model-tags.ps1` | the tag scan scoped to the `models:` block only |
+  | `deer-flow/skills/public/{nda-review,contract-review,ma-agreement-review,vcpe-financing-suite,dd-report-assembly,cold-start-interview}/SKILL.md` | `/mnt/playbooks/...` paths — `.deer-flow/playbooks` is NOT reachable from the sandbox |
+  | `deer-flow/skills/public/{diligence-issue-extraction,tabular-review,skill-reviewer}/SKILL.md` | dead `allowed-tools` entries removed |
+
+  New gates: `scripts/test-mcp-path-args.ps1` (19 assertions) and
+  `scripts/test-skill-tool-declarations.ps1`.
+
   **Verify with blob SHAs, not `git diff upstream/main..HEAD`** — the histories are
   unrelated, so that diff reports every file. Per file:
   `git rev-parse upstream/main:<path>` vs `git rev-parse HEAD:<path>`;
@@ -347,6 +363,17 @@ If that prints nothing, **STOP** — the root cause is unfixed.
 ## Conventions
 
 - **Language**: docs are Simplified Chinese; code identifiers are English (`pacgate-*`).
+- **Sandbox virtual roots** are the *only* paths an agent can touch:
+  `/mnt/user-data/{workspace,uploads,outputs}`, `/mnt/skills`, `/mnt/acp-workspace`,
+  plus whatever `sandbox.mounts` publishes (currently `/mnt/playbooks`, read-only).
+  `/.deer-flow` inside the container is the **gateway's** directory and is NOT
+  visible to the sandbox — never point a SKILL.md at it.
+- **MCP tool arguments are path-translated too** (since 2026-10-30, via
+  `patches/deer-flow-mcp-path-args.py`). If you point a document tool at
+  `/mnt/user-data/...` and it reports *"Could not find a part of the path"*, the
+  patch is not mounted — check `mount | grep mcp/tools.py` in the container, then
+  `up -d --force-recreate --no-deps deer-flow`. Never "work around" it with
+  `pandoc` via `bash`: that produces .docx files that fail `officecli validate`.
 - **MCP**: the system *consumes* external legal MCP servers (北大法宝, 元典, 企查查,
   CourtListener, Vaquill, SEC EDGAR) via `.mcp.json` connector configs. It does not
   yet *host* an MCP server.

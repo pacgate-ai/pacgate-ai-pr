@@ -523,6 +523,23 @@ sandbox:
   # (deerflow/sandbox/security.py: is_host_bash_allowed). Without it the bash
   # tool is hard-gated off and skills that carry scripts/ cannot execute.
   allow_host_bash: true
+  # Pacgate 2026-10-30: publish the firm's Playbooks to the agent at
+  # /mnt/playbooks. Four skills (nda-review, contract-review,
+  # ma-agreement-review, dd-report-assembly) tell the agent to load
+  # `.deer-flow/playbooks/<type>-playbook.md` as Step 0. That path is NOT
+  # reachable from the sandbox: the only virtual roots are /mnt/user-data,
+  # /mnt/skills and /mnt/acp-workspace, and GATEWAY mounts the gateway's own
+  # .deer-flow, not the agent's. So Step 0 always fell through to
+  # `cold-start-interview`, which asks a clarifying question and never writes
+  # the deliverable -- the reported symptom "NDA-review.md cannot be
+  # generated". Measured 2026-10-30: an nda-review run stopped at
+  # ask_clarification after `ls .../nda-playbook.md` returned "No such file".
+  # A custom mount is the supported way to expose a directory; read_only so a
+  # run cannot rewrite the firm's standards.
+  mounts:
+    - host_path: /app/backend/.deer-flow/playbooks
+      container_path: /mnt/playbooks
+      read_only: true
 
 # Pacgate: expose the sandbox file/shell tools to the agent. Without a tools:
 # section get_available_tools() returns only the 2 builtins + MCP tools, so the
