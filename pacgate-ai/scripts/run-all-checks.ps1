@@ -80,6 +80,13 @@ if (-not $SkipOcrPull -and $script:OcrImage) {
 # unversioned tag could not prove which image a gate ran against.
 
 $gates = @(    'scripts/test-install-render.ps1'
+    # CONNECTOR RENDER SAFETY, registered 2026-10-30. `test-install-render` proves
+    # the render is idempotent and reports changes; it does not prove the render
+    # cannot DELETE a connector the template does not know about. Measured: a
+    # 6-server config lost 2 servers to a 3-server template, and the report named
+    # neither because it compared against a hardcoded three-name list. Red-checked
+    # against the original installer: 11 of 15 assertions fail.
+    'scripts/test-connector-template-safety.ps1'
     'scripts/test-install-repo-pull.ps1'
     'scripts/test-update-end-to-end.ps1'
     # install.ps1 -Update executes the OLD body after refreshing the repo, because
@@ -180,6 +187,21 @@ $gates = @(    'scripts/test-install-render.ps1'
     'scripts/test-staleness-probe.ps1'
     'scripts/audit-qm-bootstrap.ps1'
     'scripts/test-qm-sandbox-fingerprint.ps1'
+    # Proves the SQL audit's hand-written mirror of the rule layer has not drifted.
+    # That mirror is a second source of truth by necessity (the audit runs as SQL,
+    # where Rust cannot reach), and this repo has paid for the drift three times:
+    # 2026-10-15 the remediation "fixed" 39 clean documents; 2026-10-25 a `(?!0{17})`
+    # guard never matched its own placeholder (37 false leaks per pattern); and
+    # 2026-11-02 a placeholder-format change broke the then-correct guard from index
+    # 10 onward. Each failure was silent, and two were in the dangerous direction
+    # (a clean machine reported as leaking, or a leak reported as clean). Offline:
+    # no docker, no database.
+    'scripts/test-sanitize-pattern-mirror.ps1'
+    # Asserts the GHCR pruner cannot delete a release it means to keep, and cannot
+    # misreport its own result. Deletion is irreversible and a digest can carry
+    # several tags, so a bug here either destroys a shipped image or reports a
+    # clean run as failed. Offline: fixtures only, no credential, no network.
+    'scripts/test-prune-ghcr-versions.ps1'
     'scripts/test-version-marker.ps1'
     'scripts/test-version-marker-against-image.ps1'
     # Asserts the release TAG still identifies the PUBLISHED artifacts - that the
@@ -290,6 +312,32 @@ $gates = @(    'scripts/test-install-render.ps1'
     # safe in the gate list. Negative-tested against both the stale tag and a
     # main.rs that bypasses the overrides.
     'scripts/test-model-roster-consistency.ps1'
+    # CONNECTOR REGISTRY, registered 2026-10-31. The code reads COURTLISTENER_API_KEY
+    # while both compose files and plans/013 told operators to set a differently
+    # spelled name with an extra underscore. Nothing read that spelling, so the
+    # connector reported available=false forever and the only symptom was a source
+    # that never returned results. This asserts every key the code reads is
+    # documented, and that no documented connector key is one the code ignores.
+    #
+    # Also asserts the property that makes per-machine keys safe: a keyed connector is
+    # inert without a key, and `search` never propagates an error into the router.
+    # STATIC - reads the Rust source, two compose files and .env.example.
+    'scripts/test-connector-registry.ps1'
+    # THINKING DEFAULT, registered 2026-10-30. `thinking_enabled: mode !== "flash"`
+    # is true for an unset mode, and the mode default is read from local storage on
+    # mount - so a fresh profile ran every first turn with thinking on. The config's
+    # when_thinking_disabled suppression only fires when thinking is OFF, so it never
+    # fired and 12 replies spent the whole 8192-token budget on reasoning, returning
+    # an empty message. Static: reads the frontend patch source, which the next image
+    # build compiles in. Red-checked by restoring the negation (4 assertions fail).
+    'scripts/test-thinking-default.ps1'
+    # MODEL TAG AUDIT, registered 2026-10-30. This ran green for months while the
+    # Rust tier roster 404'd, because nothing invoked it - it was described in
+    # comments here but never added to the list. Its matcher also scanned the whole
+    # YAML, so a `subagents:` model name was collected as a local tag and
+    # :latest-normalized into a false miss. Scoped to the `models:` block and
+    # registered here. Negative-tested: a bogus subagents: model no longer appears.
+    'scripts/audit-model-tags.ps1'
     # Baked-weights integrity. 0.1.28 bakes the PP-OCRv4 det/rec/cls weights into
     # the ocr-service image, but both compose files went on mounting a
     # `paddleocr-models` volume over /root/.paddleocr - and a mount point SHADOWS
@@ -415,6 +463,12 @@ $gates = @(    'scripts/test-install-render.ps1'
     # STATIC - reads the tracked prompt patch only. Red-checked by reverting the
     # wording; 4 of 5 checks fail on the pre-fix file.
     'scripts/test-prompt-document-reading.ps1'
+    # OFFICECLI SELECTOR CONTRACT, registered 2026-10-30. officecli's set verb only
+    # accepts /body/p[1], while the sandbox rejects any /-prefixed token on a bash
+    # command line - so the prompt's own add/get instructions were unrunnable. The
+    # prompt now teaches officecli batch --input, which puts the selector in a file.
+    # Static, plus a live probe of the real validator.
+    'scripts/test-prompt-officecli-selectors.ps1'
 
     # An empty `kb_search` must say WHY it is empty. Registered 2026-10-24, after
     # a lawyer asked for the firm's 互联网+/电商合规 material and got `[]` eighteen
@@ -579,6 +633,29 @@ $liveStackGates = @(
     # compose.prod.yaml, while both declare `name: pacgate-ai-bundle` (same project).
     # Exits 2 when nothing is reachable, so a clean machine is not a false red.
     'scripts/test-lane-connectivity.ps1'
+    # LEGAL JOURNEY, registered 2026-10-31. This is the closest thing to a real
+    # acceptance test in the repo - matter -> upload -> extract -> sanitize -> review
+    # gate -> KB search -> external search -> connector health -> deer-flow auth ->
+    # qm -> OpenViking recall - and it was never in this list. It passed 19/19 while
+    # unregistered, which means a release could have shipped with the whole journey
+    # broken and the suite would still have said "all green".
+    #
+    # It is a LIVE gate: exit 2 (CANNOT CHECK) when the stack or credentials are
+    # absent, exit 1 only on a real broken step. It names the first failing step
+    # rather than collecting them, because once step N fails the rest is noise.
+    'scripts/test-legal-journey.ps1'
+    # AGENT -> MCP END TO END, registered 2026-10-31. smoke-full-stack.ps1 said so
+    # itself: "agent->MCP invocation NOT exercised ... there is no committed
+    # agent-run E2E". Every other MCP gate proves advertisement or argument
+    # translation; none proves the agent can start and CALL. The cost of that gap was
+    # measured: one unescaped brace in the prompt made EVERY run die at construction
+    # (KeyError: '"command"') and the full suite stayed green.
+    #
+    # This gate starts a run whose prompt cannot be answered without a tool call and
+    # asserts a real advertised tool name appears in the payload, with a result.
+    # Red-checked by reintroducing the brace: E3 and E4 fail, and the container log
+    # shows the same KeyError.
+    'scripts/test-agent-mcp-e2e.ps1'
     # qm CURRENTNESS, registered 2026-10-18. `install.ps1 -Update` deliberately does
     # NOT restart the qm stack - "a restart of the co-working stack is user-visible
     # (qm is where staff work)" - which is the right call, and which means qm can sit
@@ -667,6 +744,23 @@ $liveStackGates = @(
     # tool needs no edit here while REMOVING one still fails - the source and the
     # deployed surface cannot drift. Mutation-tested by renaming a decorator.
     'scripts/test-mcp-tool-surface.ps1'
+    # MCP ARGUMENT path translation, registered 2026-10-30. `test-mcp-tool-surface`
+    # proves the tools are ADVERTISED; this proves they can accept a path. The
+    # measured failure was officecli returning "Could not find a part of the path"
+    # for /mnt/user-data/outputs/x.docx, because MCP arguments were the one input
+    # the sandbox never translated. The subtler half is that a naive patch no-ops:
+    # without InjectedToolArg the injected ToolRuntime never reaches the tool
+    # closure, so the rewrite has no thread context. Static checks plus a live
+    # mount assertion and a real import of the tool surface.
+    'scripts/test-mcp-argument-paths.ps1'
+    # BAKED PATCH PARITY, registered 2026-10-30. Two patches are both COPYed into
+    # the deer-flow image and bind-mounted over the same destination. The Dockerfile
+    # claimed they "cannot diverge" because they point at the same file - false as
+    # soon as the source changes without a rebuild. Measured: the 0.2.7 image's baked
+    # copy still defaults the recursion budget to 100. The mount masks it today, so
+    # the gate does not fail on drift; it fails when a baked patch has NO mount
+    # (which would make the stale bake live) and warns when the bake is stale.
+    'scripts/test-baked-patch-parity.ps1'
 )
 
 
@@ -814,6 +908,28 @@ $gates += 'scripts/test-aipc-capacity-fit-strict.ps1'
 # Static, so it runs everywhere. Red-checked two ways: deleting a SKILL.md and
 # stripping another's frontmatter each make it exit 1.
 $gates += 'scripts/test-skills-and-templates.ps1'
+
+# SKILL EVOLUTION, registered 2026-10-30.
+#
+# Self-evolving legal skills were entirely config-gated and nothing asserted the
+# gate: on 0.2.7 the live container loaded ZERO skills, `skill_manage` was not
+# bound, and the skills root defaulted to a path that is neither in the image nor
+# on a volume. Turning it on is two keys and one path, and a future edit could
+# silently revert any of them.
+#
+# The subtle half is the one worth a gate. `allowed_tools` is a UNION across
+# loaded skills, and once ANY skill declares it, skills that omit it contribute
+# nothing (measured: one declaring ["bash"] collapses 45 tools to 1). A
+# self-evolving agent can author exactly that, so this checks the union cannot
+# amputate the surface, not just that the flag is on.
+#
+# E1 skill_evolution.enabled is true                (else skill_manage is unbound)
+# E2 skills.path is on the persistent .deer-flow volume
+# E3 both compose lanes mount the seed corpus read-only
+# E4 every seed's name matches its directory and has a matchable description
+# E5 no seed declares a partial allowed-tools
+# E6 live: the running stack loads the seeds with the surface intact
+$gates += 'scripts/test-skill-evolution.ps1'
 
 $failed = @()
 

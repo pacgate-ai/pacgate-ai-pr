@@ -242,51 +242,6 @@ def resolve_agent_factory(assistant_id: str | None):
 #
 # The cap is a LIMIT, not a target. Env-tunable so a genuinely deeper workload can
 # be raised without editing the image, matching DEERFLOW_STREAM_IDLE_TIMEOUT_S.
-#
-# Pacgate 2026-10-30: the DEFAULT is the ceiling, not a separate floor.
-#
-# The first version of this patch kept ``{"recursion_limit": 100}`` as the
-# default and only clamped when a caller asked for MORE, so the two callers
-# diverged:
-#
-#   chat UI  -> sends recursion_limit: 1000 -> clamped to the ceiling (cap works)
-#   API / IM -> sends nothing               -> gets 100            (floor applies)
-#
-# The API/IM path is the one that actually runs document work, and 100 is far
-# too small for it. Measured (thread 4de2965b, run 27e0916c):
-#
-#   Recursion limit of 100 reached without hitting a stop condition.
-#
-# after the thread had ALREADY written and validated both deliverables. Its own
-# checkpoints show the work completing at step ~25 and the remaining ~75 steps
-# going to a single dead-end detour (see the read_file hint patch).
-#
-# Why 100 was never enough in this build: LangGraph charges one super-step per
-# graph node, and every middleware carrying an ``after_model`` / ``before_model``
-# hook is its OWN node. This chain registers nine such hooks
-# (LoopDetection, SafetyFinishReason, SubagentLimit, Title, TokenUsage,
-# DeerFlowSummarization, ...), so a single model call costs
-# ``~5845 super-steps / 599 LLM calls = ~9.8`` steps. A 100-step budget is
-# therefore about TEN model calls, not a hundred. The upstream default assumed
-# 1-2 steps per call.
-#
-# Why raising it is safe - the guards that stop a real loop are independent of
-# this number:
-#   * LoopDetectionMiddleware layer 1: identical tool-call hash, warn 3 /
-#     hard-stop 5. Fires regardless of the step count.
-#   * LoopDetectionMiddleware layer 2: per-tool frequency in a window sized to
-#     the largest hard limit (bash warn 100 / hard 150).
-#   * DEERFLOW_STREAM_IDLE_TIMEOUT_S and the 420 s no-output stall detector.
-# Measured: the two threads that consumed the most steps were genuine loops
-# (d35307ec: 2439 bash calls, only 245 distinct = 10%; dcced4b5: 915 calls, 83
-# distinct = 9%). They are the failure mode layer 1/2 exist for, and they are
-# NOT the justification for this number.
-#
-# The profile, verified live 2026-10-30 and accepted with the owner: a single-
-# tenant local deployment where a long legal run that DIES is acceptable, but a
-# run that is CUT OFF mid-work is not. Deliverables survive either way (they
-# land on the /data bind mount), so the failure mode is recoverable by
-# re-prompting on the same thread.
 _PACGATE_MAX_RECURSION_LIMIT = int(os.environ.get("DEERFLOW_MAX_RECURSION_LIMIT", "4000") or 4000)
 
 def build_run_config(
@@ -316,14 +271,28 @@ def build_run_config(
     # Lead-agent recursion budget (LangGraph super-steps for the lead graph
     # only). Independent of subagent depth: a `task()` dispatch runs the whole
     # subagent inside ONE lead tools-node step, and subagents enforce their own
-    # limit via `subagents.max_turns`. Do not conflate this budget with the
+    # limit via `subagents.max_turns`. Do not conflate this 100 with the
     # general-purpose subagent's max_turns.
+    # Pacgate 2026-10-30: the DEFAULT is the CEILING, not 100.
     #
-    # Pacgate 2026-10-30: the DEFAULT is the CEILING. A hardcoded 100 here was
-    # the defect — the API/IM path sends no config and inherited it, so a
-    # document run died at 100 super-steps (~10 LLM calls at ~9.8 steps/call)
-    # AFTER writing and validating both deliverables. Callers may still ask for
-    # LESS (honoured verbatim) and are clamped when they ask for MORE.
+    # A caller that sends no config (the API and IM paths both do this) used to
+    # inherit a 100-step budget. LangGraph charges ~9.8 super-steps per model call
+    # in this graph because nine middleware hooks are each their own node, so 100
+    # steps is roughly ten model calls - not a budget, a tripwire.
+    #
+    # The ceiling is what protects against a runaway caller; making the floor a
+    # second, much smaller ceiling protected nothing and broke real work. A real
+    # loop is still stopped by LoopDetectionMiddleware layers 1/2 and the idle and
+    # stall detectors, none of which consult this number.
+    #
+    # KNOWN REMAINING FLOORS (2026-10-30, measured live on 0.2.7):
+    #   app/channels/manager.py:51   DEFAULT_RUN_CONFIG = {"recursion_limit": 100}
+    #   deerflow/client.py:218       recursion_limit=overrides.get("recursion_limit", 100)
+    # Neither routes through build_run_config, so neither sees this default. The IM
+    # channel path merges DEFAULT_RUN_CONFIG and hands it to the gateway, which DOES
+    # go through build_run_config and is therefore clamped - but a caller of
+    # deerflow.client directly is not. Patching both is a separate change with its
+    # own blast radius; recorded here so the gap is not mistaken for coverage.
     config: dict[str, Any] = {"recursion_limit": _PACGATE_MAX_RECURSION_LIMIT}
     if request_config:
         # LangGraph >= 0.6.0 introduced ``context`` as the preferred way to

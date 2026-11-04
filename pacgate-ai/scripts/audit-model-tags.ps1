@@ -31,10 +31,7 @@ param(
     [string]$PrePullList = 'deploy/client-bundle/ollama-models.txt',
     # Optional: also require the tag to be present in a running ollama.
     [switch]$CheckInstalled,
-    [string]$OllamaBase = 'http://localhost:11434',
-    # Pacgate 2026-10-16: .env overrides the compose ${VAR:-default} tier tags for
-    # the live stack; read it so the tier inventory matches what actually runs.
-    [string]$EnvFile = 'deploy/client-bundle/.env'
+    [string]$OllamaBase = 'http://localhost:11434'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -83,31 +80,41 @@ foreach ($cfg in $Configs) {
     if (-not (Test-Path $cfg)) { Fail "config not found: $cfg"; continue }
     $text = Get-Content $cfg -Raw
 
-    # Commented-out entries (a leading '#') are deliberately disabled; skip them so
-    # a disabled model does not trip the guard.
+    # Pacgate 2026-10-30: scan the `models:` BLOCK, not every line of the file.
     #
-    # SCOPE TO THE `models:` BLOCK (fixed 2026-10-30). Scanning the whole file
-    # also matched the `subagents:` section, where `model:` holds a deer-flow
-    # MODEL NAME ("gemma4-12b-local"), not an Ollama TAG. Normalize-Tag appends
-    # ':latest' to a bare name, so this guard reported
-    # "gemma4-12b-local:latest is requested but NOT pre-pulled" for a tag that
-    # exists nowhere and is never pulled. Measured 2026-10-30: two such false
-    # FAILs while the real tags (gemma4:12b-it-qat, ornith-1.5:9b) were both
-    # present and installed. A red gate that is not red trains people to ignore
-    # it, which is worse than not having the gate.
-    $lines = Get-Content $cfg
-    $inModels = $false
+    # The previous matcher was `^\s*model:\s*(\S+)` over the whole YAML, so a
+    # `subagents:` entry's `model:` key was collected as if it were a loadable
+    # model tag. Two such entries in one config produced false positives, and
+    # Normalize-Tag turned each into a `:latest` miss - so the guard exited 1 on a
+    # config that was correct, which is how a guard gets ignored.
+    #
+    # Measured on a fixture: the old matcher reported gemma4-12b-local:latest from a
+    # `subagents:` block; the scoped matcher reports only gemma4:12b-it-qat and
+    # nomic-embed-text:latest.
+    #
+    # JSON configs have no block structure to respect, so the JSON form still scans
+    # the whole file - a JSON model entry IS a loadable model.
     $tags = @()
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        $line = $lines[$i]
-        # Enter the top-level `models:` block; leave it at the next top-level key.
-        if ($line -match '^models:\s*$') { $inModels = $true; continue }
-        if ($inModels -and $line -match '^[a-zA-Z_][\w-]*:') { $inModels = $false }
-        if (-not $inModels) { continue }
-        if ($line -match '^\s*#') { continue }
-        # YAML `model: <tag>` and JSON `"model": "<tag>"`
-        if ($line -match '^\s*model:\s*(\S+)') { $tags += Normalize-Tag $Matches[1] }
-        elseif ($line -match '"model"\s*:\s*"([^"]+)"') { $tags += Normalize-Tag $Matches[1] }
+    $lines = @(Get-Content $cfg)
+    $isJson = $cfg -match '\.json$'
+
+    if ($isJson) {
+        foreach ($line in $lines) {
+            if ($line -match '^\s*#') { continue }
+            if ($line -match '"model"\s*:\s*"([^"]+)"') { $tags += Normalize-Tag $Matches[1] }
+        }
+    } else {
+        $inModels = $false
+        foreach ($line in $lines) {
+            if ($line -match '^[A-Za-z_][A-Za-z0-9_-]*\s*:') {
+                # A new top-level key ends the models block.
+                $inModels = ($line -match '^models\s*:')
+                continue
+            }
+            if (-not $inModels) { continue }
+            if ($line -match '^\s*#') { continue }
+            if ($line -match '^\s*model:\s*(\S+)') { $tags += Normalize-Tag $Matches[1] }
+        }
     }
     $tags = @($tags | Where-Object { $_ } | Sort-Object -Unique)
     Write-Host "  $cfg"
@@ -200,27 +207,6 @@ foreach ($compose in @('deploy/client-bundle/compose.prod.yaml', 'deploy/client-
             $tierTags += $t
             if (-not $tierSources.ContainsKey($t)) { $tierSources[$t] = @() }
             $tierSources[$t] += "$compose ($var)"
-        }
-    }
-}
-# Pacgate 2026-10-16: deploy/client-bundle/.env overrides the PACGATE_MODEL_*
-# defaults above for the live stack (compose interpolates ${VAR:-default} from
-# .env, and pacgate-api also gets it via env_file). Without reading .env the
-# "pre-pulled but never requested" check flagged the CONTEXT-CAPPED tier tags
-# (gemma4-legal:12b-chat, qwen3.8-legal:27b-mid) as unused even though they are
-# exactly what the running containers use - a false negative that would hide a
-# genuine drift later. Read it as an additional tier source.
-if ($EnvFile -and (Test-Path $EnvFile)) {
-    foreach ($envLine in (Get-Content $EnvFile)) {
-        # Strip an inline comment and surrounding whitespace; tolerate `export `.
-        $line = ($envLine -replace '\s+#.*$', '').Trim()
-        if ($line -match '^(?:export\s+)?(PACGATE_MODEL_(?:MAIN|MID|LOW))\s*=\s*(.+)$') {
-            $t = $Matches[2].Trim().Trim('"').Trim("'")
-            if ($t) {
-                $tierTags += $t
-                if (-not $tierSources.ContainsKey($t)) { $tierSources[$t] = @() }
-                $tierSources[$t] += "$EnvFile ($($Matches[1]))"
-            }
         }
     }
 }

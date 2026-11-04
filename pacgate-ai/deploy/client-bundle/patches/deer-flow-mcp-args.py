@@ -1,60 +1,5 @@
-"""PacGate patch (2026-10-30): translate ``/mnt/user-data`` paths in MCP tool ARGUMENTS.
+"""Load MCP tools using langchain-mcp-adapters with stdio session pooling."""
 
-Base: ghcr.io/jzkk720/deer-flow-pacgate:0.2.7 image version of
-``packages/harness/deerflow/mcp/tools.py``.
-
-ROOT CAUSE FIXED HERE
-    The sandbox tools translate the virtual path contract, the MCP bridge does
-    not. ``deerflow/sandbox/tools.py`` owns ``replace_virtual_path`` /
-    ``replace_virtual_paths_in_command`` and applies them in ``bash``,
-    ``read_file``, ``write_file``, ``glob``, ``grep``, ``ls`` and
-    ``str_replace``. This module only translated paths in the RESULT
-    (:func:`_convert_call_tool_result`, via ``_local_uri_to_virtual_path``);
-    the ARGUMENTS went to the server verbatim:
-
-        call_tool_result = await session.call_tool(original_name, arguments)
-
-    Every agent-facing document tells the model to use ``/mnt/user-data/...``
-    (that is what ``<uploaded_files>`` prints and what every SKILL.md assumes),
-    so an MCP filesystem/Office tool received a path that does not exist on the
-    container filesystem. Measured live 2026-10-30 on 0.2.7:
-
-        officecli_officecli({"command": "create /mnt/user-data/outputs/x.docx"})
-          -> ToolException: Error: Could not find a part of the path
-             '/mnt/user-data/outputs/x.docx'.
-        officecli_officecli({"command": "create <real outputs path>/x.docx"})
-          -> Created: .../outputs/x.docx   (validate: no errors found)
-
-    The visible symptom was "officecli is not working". It is not: the server
-    is healthy and ``scripts/test-officecli-mcp.ps1`` passes 13/13. The damage
-    is worse than a clean error, because the model recovered by calling
-    ``pandoc`` through the ``bash`` tool (whose command string IS rewritten) and
-    shipped a .docx that fails ``officecli validate`` with 16 schema errors
-    (``w:nsid val='A990'`` is not 4-byte hexBinary; ``w:b`` in the wrong
-    ``rPr`` order). Thread 7b05b461 recorded exactly that sequence.
-
-WHAT THIS PATCH DOES
-    Rewrites virtual path tokens in every string value of the tool arguments
-    (recursing into lists/dicts, because ``officecli`` accepts a pre-split argv
-    array) before the call reaches the server. Mappings come from
-    ``_thread_virtual_to_actual_mappings`` — the same builder the sandbox tools
-    use — so both surfaces agree, and ``/mnt/skills`` / ``/mnt/acp-workspace``
-    are included when they are configured.
-
-SAFETY
-    - Only LONGEST-prefix matches on a path SEGMENT boundary are replaced, so
-      ``/mnt/user-data/workspace`` resolves before ``/mnt/user-data``, and
-      ``/mnt/user-data/workspacex`` is never touched.
-    - Writes stay inside the thread's own tree: the mapping is derived from that
-      thread's ``ThreadDataState``, so a rewritten path cannot escape it.
-    - Nothing is rewritten when the thread data is unavailable (non-sandbox
-      callers keep the previous behaviour), and non-string scalars are untouched.
-    - Result translation is unchanged, so ``changed_files`` correlation and the
-      bare-filename rewrite keep working.
-"""
-
-# Upstream module docstring: "Load MCP tools using langchain-mcp-adapters with
-# stdio session pooling."
 from __future__ import annotations
 
 import asyncio
@@ -62,7 +7,7 @@ import logging
 import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 from urllib.parse import unquote, urlparse
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -77,6 +22,15 @@ from deerflow.reflection import resolve_variable
 from deerflow.runtime.user_context import resolve_runtime_user_id
 from deerflow.tools.sync import make_sync_tool_wrapper
 from deerflow.tools.types import Runtime
+
+# Pacgate 2026-10-30: the two helpers this patch needs. They already exist in the
+# image - imported rather than copied so this patch cannot drift from them.
+from deerflow.sandbox.tools import (
+    get_thread_data,
+    replace_virtual_path,
+    replace_virtual_paths_in_command,
+)
+from langchain_core.tools.base import InjectedToolArg
 
 logger = logging.getLogger(__name__)
 
@@ -100,13 +54,6 @@ _LOCAL_PATH_IN_TEXT_RE = re.compile(r"(?:file://)?/[^\s'\"<>|*?]+|(?:\.{0,2}/|[\
 _TEXT_PATH_TRAILING_CHARS = ".,;:!?)]}>\"'`"
 
 _FILE_SNAPSHOT = dict[Path, tuple[int, int]]
-
-# Virtual roots the sandbox tools also translate. Kept here so the argument
-# rewrite can skip non-path arguments cheaply without importing the sandbox
-# stack on every call. ``deerflow.sandbox.tools`` owns the authoritative
-# resolvers; these are only used for the fast "is there anything to do?" test.
-_SKILLS_VIRTUAL = "/mnt/skills"
-_ACP_VIRTUAL = "/mnt/acp-workspace"
 
 
 def _local_path_from_uri(uri: str, *, base_dir: Path | None = None) -> Path | None:
@@ -350,94 +297,6 @@ def _rewrite_local_paths_in_text(
     )
 
 
-def _thread_data_from_runtime(runtime: Runtime | None) -> dict[str, Any] | None:
-    """Recover this thread's sandbox paths the same way the sandbox tools do.
-
-    ``runtime`` is NOT injected into MCP tools. They are built as
-    ``StructuredTool`` objects with an explicit ``args_schema`` (the server's own
-    JSON schema), so LangChain never inspects a Python signature for a ``Runtime``
-    annotation and ``runtime`` arrives as ``None``. Measured live 2026-10-30 on
-    0.2.7: ``get_thread_data(runtime)`` returned ``None`` on every MCP call while
-    the ``bash`` tool — a plain function with a ``runtime`` parameter — got the
-    real state.
-
-    Falling back to ``Paths`` keyed on the thread/user from the LangGraph config
-    is the same derivation ``ThreadDataMiddleware`` uses, so the paths match the
-    directories the sandbox actually created. ``_extract_thread_id`` and
-    ``resolve_runtime_user_id`` are already the module's authority for those two
-    values; this only adds the directory computation.
-    """
-    # Preferred: real graph state, when a caller does supply a runtime.
-    try:
-        from deerflow.sandbox.tools import get_thread_data
-
-        thread_data = get_thread_data(runtime)
-        if thread_data:
-            return thread_data
-    except Exception:  # pragma: no cover - defensive
-        logger.debug("thread_data from runtime unavailable", exc_info=True)
-
-    try:
-        thread_id = _extract_thread_id(runtime)
-        if not thread_id or thread_id == "default":
-            return None
-        user_id = resolve_runtime_user_id(runtime)
-        paths = get_paths()
-        return {
-            "workspace_path": str(paths.sandbox_work_dir(thread_id, user_id=user_id)),
-            "uploads_path": str(paths.sandbox_uploads_dir(thread_id, user_id=user_id)),
-            "outputs_path": str(paths.sandbox_outputs_dir(thread_id, user_id=user_id)),
-        }
-    except Exception:  # pragma: no cover - defensive: never break a tool call
-        logger.debug("thread_data derivation failed; passing arguments through", exc_info=True)
-        return None
-
-
-def _rewrite_virtual_paths_in_args(value: Any, runtime: Runtime | None) -> Any:
-    """Resolve ``/mnt/user-data`` and friends in every MCP tool argument string.
-
-    Delegates to ``deerflow.sandbox.tools.replace_virtual_paths_in_command`` —
-    the SAME function the ``bash`` tool uses — so the two surfaces cannot drift.
-    That function already handles ``/mnt/user-data/{workspace,uploads,outputs}``
-    via the thread's own mapping, plus ``/mnt/skills`` and ``/mnt/acp-workspace``
-    through their own resolvers, using a segment-safe regex.
-
-    Recursion matters because ``officecli`` accepts ``command`` as either a
-    single string or a pre-split argv array, and other servers nest paths inside
-    objects; a top-level string-only rewrite would miss both.
-
-    Arguments are returned untouched when the thread's sandbox state is not
-    available (stateless runs, unit tests, non-sandbox callers), which preserves
-    the exact pre-patch behaviour for those paths.
-    """
-    if value is None or not isinstance(value, (str, list, tuple, dict)):
-        return value
-
-    def _rewrite(text: str) -> str:
-        if not text or VIRTUAL_PATH_PREFIX not in text and _SKILLS_VIRTUAL not in text and _ACP_VIRTUAL not in text:
-            return text
-        try:
-            from deerflow.sandbox.tools import replace_virtual_paths_in_command
-
-            thread_data = _thread_data_from_runtime(runtime)
-            if thread_data is None:
-                logger.info("MCP argument path rewrite SKIPPED: no thread data")
-                return text
-            rewritten = replace_virtual_paths_in_command(text, thread_data)
-        except Exception:  # pragma: no cover - defensive: never break a tool call
-            logger.debug("MCP argument path rewrite failed; passing through", exc_info=True)
-            return text
-        if rewritten != text:
-            logger.info("MCP argument path rewrite applied")
-        return rewritten
-
-    if isinstance(value, str):
-        return _rewrite(value)
-    if isinstance(value, list):
-        return [_rewrite_virtual_paths_in_args(item, runtime) for item in value]
-    if isinstance(value, tuple):
-        return tuple(_rewrite_virtual_paths_in_args(item, runtime) for item in value)
-    return {key: _rewrite_virtual_paths_in_args(item, runtime) for key, item in value.items()}
 def _extract_thread_id(runtime: Runtime | None) -> str:
     """Extract thread_id from the injected tool runtime or LangGraph config."""
     if runtime is not None:
@@ -559,6 +418,127 @@ def _convert_call_tool_result(
     return lc_content, artifact
 
 
+# Pacgate 2026-10-30: MCP tool ARGUMENTS were never path-translated.
+#
+# WHY: `sandbox/tools.py` rewrites the bash COMMAND string via
+# `replace_virtual_paths_in_command`, and `read_file`/`write_file` rewrite their
+# `path` argument. MCP tools had no equivalent, so this was reachable from a live
+# run:
+#
+#   officecli_officecli({"command": "create /mnt/user-data/outputs/x.docx"})
+#     -> ToolException: Could not find a part of the path
+#
+# `/mnt/user-data/...` is a VIRTUAL path. It is not a mount inside this container;
+# the real directory is `{data}/deer-flow/users/<user>/threads/<thread>/user-data/
+# outputs`. officecli receives the virtual string, `open()` fails, and the model
+# concludes the tool is broken and falls back to `pandoc` - which produces a docx
+# that fails `officecli validate`.
+#
+# Verified end to end in the live 0.2.7 container: with the rewrite applied,
+# `officecli create <host outputs path>/probe.docx` -> "Created ...",
+# `officecli validate` -> "Validation passed: no errors found".
+#
+# SCOPE - deliberately narrow, because a blind string rewrite inside arbitrary
+# arguments is how a prompt injection becomes a filesystem write:
+#   * only str values are considered, and only when they CONTAIN the virtual
+#     prefix. A value that does not mention it is passed through untouched.
+#   * `replace_virtual_path` only maps the three known roots
+#     (workspace/uploads/outputs) plus their common parent. Any other prefix is
+#     returned unchanged, so `..` cannot be introduced by this code.
+#   * dicts and lists are walked to a bounded depth; everything else is left alone.
+_ARG_PATH_MAX_DEPTH = 8
+
+
+def _rewrite_virtual_paths_in_args(
+    args: dict[str, Any],
+    thread_data: Any,
+    *,
+    _depth: int = 0,
+) -> dict[str, Any]:
+    """Return *args* with virtual ``/mnt/user-data`` paths mapped to host paths.
+
+    A no-op when *thread_data* is falsy, so a caller with no thread context keeps
+    exactly the previous behaviour rather than failing.
+    """
+    if not thread_data or not isinstance(args, dict):
+        return args
+    if _depth >= _ARG_PATH_MAX_DEPTH:
+        return args
+
+    rewritten: dict[str, Any] = {}
+    changed = False
+    for key, value in args.items():
+        new_value = _rewrite_virtual_paths_in_value(value, thread_data, _depth=_depth)
+        if new_value is not value:
+            changed = True
+        rewritten[key] = new_value
+    return rewritten if changed else args
+
+
+def _rewrite_virtual_paths_in_value(value: Any, thread_data: Any, *, _depth: int) -> Any:
+    """Recursive helper for :func:`_rewrite_virtual_paths_in_args`."""
+    if _depth >= _ARG_PATH_MAX_DEPTH:
+        return value
+    if isinstance(value, str):
+        if VIRTUAL_PATH_PREFIX not in value:
+            return value
+        # Two shapes reach an MCP argument, and they need different helpers:
+        #
+        #   a PURE path      "/mnt/user-data/uploads/a.pdf"
+        #   an EMBEDDED path "create /mnt/user-data/outputs/x.docx"
+        #
+        # `replace_virtual_path` only rewrites a value that STARTS with a virtual
+        # root, so it is exact (and space-safe) but does nothing to a command.
+        # `replace_virtual_paths_in_command` rewrites anywhere in the string, but it
+        # tokenizes on whitespace, so it truncates a path that contains a space.
+        # Try the exact one first and fall back to the embedded one - that way a
+        # path with spaces never goes through the tokenizer.
+        new_value = replace_virtual_path(value, thread_data)
+        if new_value == value:
+            new_value = replace_virtual_paths_in_command(value, thread_data)
+        if new_value != value:
+            logger.info("MCP argument path rewrite applied")
+        return new_value
+    if isinstance(value, dict):
+        return _rewrite_virtual_paths_in_args(value, thread_data, _depth=_depth + 1)
+    if isinstance(value, (list, tuple)):
+        items = [_rewrite_virtual_paths_in_value(item, thread_data, _depth=_depth + 1) for item in value]
+        if isinstance(value, tuple):
+            items = tuple(items)
+        return items if any(a is not b for a, b in zip(items, value)) else value
+    return value
+
+
+def _thread_data_for_mcp(runtime: Runtime | None) -> Any:
+    """Best-effort thread data for an MCP tool call.
+
+    Preferred source is the injected ``runtime.state["thread_data"]``, which
+    ``ThreadDataMiddleware`` writes. When this tool is invoked outside a graph
+    (a direct unit call, or an older LangGraph that does not inject), fall back to
+    deriving the same three directories from the thread id - the identical
+    derivation ``ThreadDataMiddleware`` uses - so the rewrite still works.
+    """
+    thread_data = get_thread_data(runtime)
+    if thread_data:
+        return thread_data
+
+    thread_id = _extract_thread_id(runtime)
+    if not thread_id or thread_id == "default":
+        return None
+
+    user_id = resolve_runtime_user_id(runtime)
+    try:
+        paths = get_paths()
+        return {
+            "workspace_path": str(paths.sandbox_work_dir(thread_id, user_id=user_id)),
+            "uploads_path": str(paths.sandbox_uploads_dir(thread_id, user_id=user_id)),
+            "outputs_path": str(paths.sandbox_outputs_dir(thread_id, user_id=user_id)),
+        }
+    except Exception as exc:  # noqa: BLE001 - a failed derivation must not break the call
+        logger.warning("MCP argument path rewrite skipped: could not derive thread dirs: %s", exc)
+        return None
+
+
 def _make_session_pool_tool(
     tool: BaseTool,
     server_name: str,
@@ -584,7 +564,18 @@ def _make_session_pool_tool(
     pool = get_session_pool()
 
     async def call_with_persistent_session(
-        runtime: Runtime | None = None,
+        # Pacgate 2026-10-30: WITHOUT InjectedToolArg the model's (empty) tool
+        # arguments are the only source for this parameter, so the injected
+        # ToolRuntime never reaches the function and `runtime` is None.
+        #
+        # This is not a theory. Measured in the live 0.2.7 container against a
+        # real ToolNode with an MCP-shaped args schema:
+        #     plain `runtime: Runtime | None = None`          -> runtime_none=True
+        #     Annotated[Runtime | None, InjectedToolArg()]    -> thread_id=THREAD-42
+        # LangGraph discovers injection by parameter NAME (`runtime`) and then
+        # needs InjectedToolArg for `StructuredTool._parse_input` to keep the
+        # value instead of dropping it as a key the schema does not declare.
+        runtime: Annotated[Runtime | None, InjectedToolArg()] = None,
         **arguments: Any,
     ) -> Any:
         thread_id = _extract_thread_id(runtime)
@@ -628,12 +619,11 @@ def _make_session_pool_tool(
             session_connection["env"] = session_env
         session = await pool.get_session(server_name, scope_key, session_connection)
 
-        # PacGate 2026-10-30: resolve /mnt/user-data (and /mnt/skills,
-        # /mnt/acp-workspace) in the ARGUMENTS before they reach the server.
-        # The result path was already translated below; arguments were not, so
-        # a document tool told to write "/mnt/user-data/outputs/x.docx" received
-        # a path that does not exist on the container filesystem.
-        resolved_arguments = _rewrite_virtual_paths_in_args(arguments, runtime)
+        # Pacgate 2026-10-30: map virtual /mnt/user-data paths in the ARGUMENTS to
+        # the real per-thread directories. Done once here, BEFORE the interceptor
+        # branch, so the interceptor path and the direct path cannot diverge - and
+        # so no call path can skip it. A no-op when thread data is absent.
+        arguments = _rewrite_virtual_paths_in_args(arguments, _thread_data_for_mcp(runtime))
 
         if tool_interceptors:
             from langchain_mcp_adapters.interceptors import MCPToolCallRequest
@@ -660,13 +650,13 @@ def _make_session_pool_tool(
 
             request = MCPToolCallRequest(
                 name=original_name,
-                args=resolved_arguments,
+                args=arguments,
                 server_name=server_name,
                 runtime=runtime,
             )
             call_tool_result = await handler(request)
         else:
-            call_tool_result = await session.call_tool(original_name, resolved_arguments)
+            call_tool_result = await session.call_tool(original_name, arguments)
 
         # The after-call snapshot diff only feeds bare-filename correlation in
         # free text, so skip the second recursive walk when there is no text
@@ -784,8 +774,19 @@ async def get_mcp_tools() -> list[BaseTool]:
         wrapped_tools: list[BaseTool] = []
         for tool in tools:
             tool_server: str | None = None
-            for name in servers_config:
-                if tool.name.startswith(f"{name}_"):
+            # Pacgate 2026-10-30: the mounted langchain_mcp_adapters patch renames
+            # the tool prefix's hyphens to underscores ("yuandian-law" ->
+            # "yuandian_law_<tool>") so models can transcribe the name. This loop
+            # still compared against the RAW server key, so every hyphenated server
+            # fell through to `else: wrapped_tools.append(tool)` and lost the
+            # persistent session AND the result conversion. Measured:
+            # "yuandian-law" -> attributed False, "officecli" -> True.
+            #
+            # Match either spelling, longest name first, so a server called "qcc"
+            # cannot claim a tool that belongs to "qcc-company".
+            for name in sorted(servers_config, key=len, reverse=True):
+                normalized = name.replace("-", "_")
+                if tool.name.startswith(f"{normalized}_") or tool.name.startswith(f"{name}_"):
                     tool_server = name
                     break
 
