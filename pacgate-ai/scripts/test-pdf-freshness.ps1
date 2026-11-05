@@ -126,9 +126,18 @@ foreach ($pdf in $tracked) {
 
     # Working-tree freshness: an uncommitted md edit that also changes mtime. On a
     # fresh clone all mtimes are the checkout time, so this cannot fire there.
+    #
+    # mtime ALONE IS NOT EVIDENCE OF AN EDIT. A version bump applied and then
+    # reverted restores the bytes but not the clock, which produced a false
+    # "uncommitted edit" on 2026-10-28. The source must ALSO be dirty in git before
+    # its newer mtime means anything. test-pdf-freshness-mutations.ps1 CASE 1b
+    # asserts exactly this negative (newer mtime + identical bytes -> accepted) and
+    # fails without the `$mdDirty` guard - measured 2026-11-05.
     $pdfMt = (Get-Item $pdf).LastWriteTimeUtc
     $mdMt = (Get-Item $src).LastWriteTimeUtc
-    $byMtime = ($mdMt -gt $pdfMt)
+    $dirtyOut = (& git @GitPathArgs status --porcelain -- $src 2>$null | Out-String)
+    $mdDirty = -not [string]::IsNullOrWhiteSpace($dirtyOut)
+    $byMtime = ($mdMt -gt $pdfMt) -and $mdDirty
 
     if ($byCommit -or $byMtime) {
         $why = if ($byCommit) { 'commit history' } else { 'working-tree mtime' }

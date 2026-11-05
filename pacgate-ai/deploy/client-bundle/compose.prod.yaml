@@ -34,7 +34,7 @@ services:
     restart: unless-stopped
 
   pacgate-api:
-    image: ghcr.io/jzkk720/pacgate-api:0.2.24
+    image: ghcr.io/jzkk720/pacgate-api:0.2.30
     healthcheck:
       # No curl and no wget in this image (measured 2026-10-14), so the probe
       # uses bash's /dev/tcp. /health is the one route that needs no auth
@@ -111,6 +111,19 @@ services:
       # Set-but-MISSING is fatal by design: a deployment that intends NER must not
       # silently degrade. That is why this must match the image path exactly.
       PACGATE_NER_MODEL_DIR: /app/models/ner
+      # Internal calls must never be routed through a proxy, even if one is added
+      # to this file or inherited from the host later. The containers themselves
+      # do not set a proxy today (verified 2026-11-04: printenv shows no *_PROXY),
+      # but the Rust client exempts loopback rather than trusting that - this
+      # variable closes the other half, so a future edit cannot reintroduce the
+      # defect by exporting HTTP_PROXY for cloud egress.
+      #
+      # NO_PROXY covers the service names used on the compose network, the
+      # container loopback, and host.docker.internal (the native Ollama on the
+      # AIPC). Do not narrow it to loopback only: ocr-service and pacgate-mcp are
+      # reached by service name.
+      NO_PROXY: "localhost,127.0.0.1,::1,host.docker.internal,pacgate-db,pacgate-api,pacgate-mcp,ocr-service,deer-flow,deer-flow-frontend,openviking,laya,nginx"
+      no_proxy: "localhost,127.0.0.1,::1,host.docker.internal,pacgate-db,pacgate-api,pacgate-mcp,ocr-service,deer-flow,deer-flow-frontend,openviking,laya,nginx"
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       # Plan 019/021: the extraction lane. pacgate-api POSTs multipart to
       # {url}/extract; extraction is cached per document version, so a warm
@@ -148,7 +161,7 @@ services:
       # that names it would break `ModelConfig::from_env` on a machine where the
       # installer never ran.
       PACGATE_MODEL_MID: ${PACGATE_MODEL_MID:-ornith-1.5:9b}
-      PACGATE_MODEL_LOW: ${PACGATE_MODEL_LOW:-gemma4:12b-it-qat}
+      PACGATE_MODEL_LOW: ${PACGATE_MODEL_LOW:-nemotron-3.5-bolt:e4b-q8_0}
       RUST_LOG: info
     # Load ALL secrets from .env so pacgate-search's default_router() can read
     # the connector API keys (YUANDIAN_API_KEY, PKULAW_API_KEY, QCC_API_KEY,
@@ -177,7 +190,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/jzkk720/deer-flow-pacgate:0.2.24
+    image: ghcr.io/jzkk720/deer-flow-pacgate:0.2.30
     healthcheck:
       # :8001 is the gateway nginx proxies to; /health verified 200.
       test:
@@ -278,6 +291,19 @@ services:
       # working copy. The published image has NO /app/skills - re-verified against
       # 0.2.6 on 2026-10-25. See compose.bundle.yaml.
       - ../../../deer-flow/skills/public:/app/skills/public:ro
+      # Pacgate 2026-11-05: ALSO mount the shipped seed corpus into the writable
+      # skills root, as upstream does. This is NOT redundant with the line above:
+      # they have different destinations.
+      #   /app/skills/public               <- the 60-skill merged tree (gateway root)
+      #   /app/backend/.deer-flow/skills/public <- the 5 seeded skills, over the
+      #       directory the agent's `skill_manage` writes custom skills into
+      # Dropping it (a local delta from the 0.2.x port) meant `skill_evolution`
+      # had no seed to load on a client install, while this machine passed only
+      # because the merged tree happens to contain the same 5 names. Measured
+      # 2026-11-05: test-skill-evolution.ps1 E3 failed on BOTH lanes without it.
+      # Read-only: a seeded skill is changed by copying into `custom/`, never by
+      # mutating the seed.
+      - ./deer-flow-skills:/app/backend/.deer-flow/skills/public:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
       # Pacgate: add a unified generated-outputs listing endpoint
       # (GET /api/threads/{id}/outputs). Mounted so it survives container
@@ -449,7 +475,7 @@ services:
   # correct without a runtime patch. Published to GHCR by the build-ghcr.yml
   # workflow; pushed on every release tag so both AIPCs stay in sync.
   deer-flow-frontend:
-    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.24
+    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.30
     healthcheck:
       # NO bash in this image (only sh), so /dev/tcp is unavailable. It does have
       # node v22, so the probe uses fetch. Verified: exits 0 against :3000 and 1
@@ -501,7 +527,7 @@ services:
     restart: unless-stopped
 
   pacgate-mcp:
-    image: ghcr.io/jzkk720/pacgate-mcp:0.2.24
+    image: ghcr.io/jzkk720/pacgate-mcp:0.2.30
     healthcheck:
       # A real MCP `initialize` handshake, not a TCP connect. The image has no
       # curl; it does have python3, so the probe speaks the protocol and
@@ -578,7 +604,7 @@ services:
     # Models are pre-staged, never downloaded at runtime: HF_HUB_OFFLINE=1 plus a
     # mounted model directory. A client machine must not reach huggingface.co.
     profiles: ["laya"]
-    image: ${LAYA_IMAGE:-ghcr.io/jzkk720/laya-serve:0.2.24}
+    image: ${LAYA_IMAGE:-ghcr.io/jzkk720/laya-serve:0.2.30}
     healthcheck:
       # /health is documented by laya. start_period is long because with
       # LAYA_PRELOAD=1 the first boot loads a 1.2 GB checkpoint into memory, and a
@@ -626,7 +652,7 @@ services:
     restart: unless-stopped
 
   ocr-service:
-    image: ghcr.io/jzkk720/ocr-service:0.2.24
+    image: ghcr.io/jzkk720/ocr-service:0.2.30
     healthcheck:
       # /health verified 200. python3, not curl - the image has no curl.
       # start_period is long on purpose: this service downloads its model on

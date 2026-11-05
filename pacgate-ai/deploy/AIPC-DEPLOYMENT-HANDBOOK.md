@@ -102,11 +102,11 @@ The runtime is published on GHCR and needs no rebuild on the AIPC.
 
 | Image | Status |
 |---|---|
-| `ghcr.io/jzkk720/pacgate-api:0.2.24` | **The sanitizer release.** Fixes the verifier that let a document pass while still holding 身份证号, 统一社会信用代码, 律师执业证号, 银行账号, 港澳通行证, 车牌, 微信号 and 纳税人识别号 (see below). Also adds the matter-workspace rollup and two remediation endpoints: `POST /api/documents/:id/sanitize-rescan` and `PATCH /api/documents/:id/sanitize-reset`. |
-| `ghcr.io/jzkk720/pacgate-mcp:0.2.24` | Exposes 24 MCP tools to deer-flow; adds `pacgate_rescan_residue` and `pacgate_reset_sanitization` for the remediation path. Note `server.py` is bind-mounted into the container, so `git pull` delivers these without a new image. |
-| `ghcr.io/jzkk720/deer-flow-pacgate:0.2.24` | Unchanged this release. |
-| `ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.24` | Unchanged this release. |
-| `ghcr.io/jzkk720/ocr-service:0.2.24` | PaddleOCR extraction; first-class since 0.1.16. Its PP-OCRv4 weights are **baked into the image** from 0.1.28, so extraction needs no external model host and works offline. |
+| `ghcr.io/jzkk720/pacgate-api:0.2.30` | **The sanitizer release.** Fixes the verifier that let a document pass while still holding 身份证号, 统一社会信用代码, 律师执业证号, 银行账号, 港澳通行证, 车牌, 微信号 and 纳税人识别号 (see below). Also adds the matter-workspace rollup and two remediation endpoints: `POST /api/documents/:id/sanitize-rescan` and `PATCH /api/documents/:id/sanitize-reset`. |
+| `ghcr.io/jzkk720/pacgate-mcp:0.2.30` | Exposes 24 MCP tools to deer-flow; adds `pacgate_rescan_residue` and `pacgate_reset_sanitization` for the remediation path. Note `server.py` is bind-mounted into the container, so `git pull` delivers these without a new image. |
+| `ghcr.io/jzkk720/deer-flow-pacgate:0.2.30` | Unchanged this release. |
+| `ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.30` | Unchanged this release. |
+| `ghcr.io/jzkk720/ocr-service:0.2.30` | PaddleOCR extraction; first-class since 0.1.16. Its PP-OCRv4 weights are **baked into the image** from 0.1.28, so extraction needs no external model host and works offline. |
 | `ghcr.io/volcengine/openviking@sha256:46f9e34c…` | Pinned by digest in `compose.prod.yaml`. Upstream public image. |
 
 > **0.2.14 is a correctness fix, not a feature release.** A client scan of a real
@@ -678,8 +678,44 @@ Run this checklist on each AIPC independently.
 ### Ollama
 
 - [ ] `ollama list` shows the required models
+- [ ] **`ollama ps` shows a GPU, not `100% CPU`** - run `scripts/test-ollama-gpu-residency.ps1`, it must exit 0
 - [ ] deer-flow can call Ollama for inference
 - [ ] qm can call Ollama for inference
+
+> **The CPU-only trap - read this before you conclude a machine is slow.**
+>
+> Ollama enumerates compute devices **once, at server start**, and it unpacks the
+> ROCm/Vulkan backend into `lib\ollama\<vendor>_*` only *after* that. A server
+> started before the unpack completes decides "CPU only" and keeps that decision
+> for its entire lifetime - with a perfectly healthy install, a supported GPU, and
+> no error anywhere.
+>
+> Measured 2026-11-04 on the RX 7600 XT box:
+>
+> | Event | Time |
+> |---|---|
+> | Ollama server started | 09:12:46 |
+> | `rocm_v7_1` unpacked | 09:13:24 (+38 s) |
+> | `ggml-hip.dll` written | 09:13:32 |
+>
+> That machine ran every local model on the CPU for 3.5 hours. One "Reply with
+> exactly: OK" took **377 s**; the same request after restarting Ollama took
+> **7.4 s** at `100% GPU`. A chat turn looked like a hang while
+> `smoke-full-stack` reported every lane green.
+>
+> **First action if local inference feels slow or the agent appears to stall:**
+>
+> ```powershell
+> ollama ps                      # PROCESSOR must say GPU, not 100% CPU
+> .\scripts\test-ollama-gpu-residency.ps1
+> ```
+>
+> If either says CPU, **restart the Ollama app** (not the model) and re-check. Do
+> not reinstall ROCm, do not replace the model, and do not touch the stack - the
+> install is almost certainly fine.
+>
+> This is also why the residency gate is part of `run-all-checks.ps1`: a fresh
+> AIPC can lose this same race on its very first start.
 
 ### Data
 

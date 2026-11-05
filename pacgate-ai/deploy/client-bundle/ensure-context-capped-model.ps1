@@ -3,14 +3,21 @@
 # AIPC1 memory-wall fix (2026-10-16). Creates the LOCAL DERIVATIVE Ollama tags
 # that bake a context ceiling into a model whose upstream tag declares 262144.
 #
-#   gemma4-legal:12b-chat  = FROM gemma4:12b-it-q8_0      + num_ctx 131072
 #   qwen3.8-legal:27b-mid  = FROM qwen3.8:27b-mtp-q4_K_M  + num_ctx  32768
+#
+# 2026-11-05: the gemma4 derivative (`gemma4-legal:12b-chat`) was DROPPED.
+# gemma4 is retired upstream (v0.2.30 + a78073a) in favour of
+# nemotron-3.5-bolt:e4b-q8_0, which ships a 65536 ceiling and therefore needs no
+# cap - the whole reason this script exists does not apply to it. Do not re-add
+# it: a derived tag duplicates the blobs, and two tags over the same weights
+# cannot co-reside in VRAM (measured 2026-10-21: 15.9 s reload churn per swap).
+# The Mid tier still needs a cap because qwen3.8 declares 262144 and does NOT
+# fit this 16 GB card uncapped.
 #
 # WHY: those base tags declare a 262144-token context. On this 16GB card the KV
 # cache at that size does not fit beside the weights, so Ollama splits the runner
-# across CPU+GPU ("2%/98% CPU/GPU" for gemma4 q8_0) and commits 18-27GB of host
-# RAM - host free RAM falls to ~1GB, which is the wall that stalled every
-# deer-flow session.
+# across CPU+GPU and commits 18-27GB of host RAM - host free RAM falls to ~1GB,
+# which is the wall that stalled every deer-flow session.
 #
 # WHY THE CAP LIVES IN THE TAG, NOT IN A SETTING (measured 2026-10-16):
 #   * A per-request `options.num_ctx` does NOT reach the runner on either route
@@ -52,7 +59,6 @@ if (-not (Test-Path $ollama)) {
 # The canonical capped roster. Keep in sync with deploy/client-bundle/.env
 # (PACGATE_MODEL_*), ollama-models.txt and the $localDerived map in install.ps1.
 $Capped = @(
-    [pscustomobject]@{ Target = 'gemma4-legal:12b-chat'; Source = 'gemma4:12b-it-q8_0';     NumCtx = 131072 }
     [pscustomobject]@{ Target = 'qwen3.8-legal:27b-mid'; Source = 'qwen3.8:27b-mtp-q4_K_M'; NumCtx = 32768  }
 )
 
@@ -134,7 +140,7 @@ foreach ($spec in $Capped) { Ensure-Capped $spec }
 
 Write-Host ""
 Write-Host "Verify the runner fits in VRAM. In 'ollama ps', PROCESSOR should show"
-Write-Host "100% GPU for gemma4-legal:12b-chat (the 27B Mid tier still shares some"
-Write-Host "layers with the CPU by design):
-  ollama run gemma4-legal:12b-chat `"Say OK`"
+Write-Host "100% GPU for qwen3.8-legal:27b-mid at num_ctx 32768 (the 27B Mid tier is"
+Write-Host "expected to share some layers with the CPU by design):
+  ollama run qwen3.8-legal:27b-mid `"Say OK`"
   ollama ps"

@@ -93,7 +93,7 @@ function Get-OllamaResidencyProfile {
             return [pscustomobject]@{
                 Tier = 'high'; MaxLoaded = 3; ContextLength = 65536; NumParallel = 2
                 CacheRamMiB = 4096; SystemGiB = $sysGiB
-                MidTag = 'ornith-1.5:9b'; LowTag = 'gemma4:12b-it-qat'
+                MidTag = 'ornith-1.5:9b'; LowTag = 'nemotron-3.5-bolt:e4b-q8_0'
             }
         }
         return [pscustomobject]@{
@@ -101,7 +101,7 @@ function Get-OllamaResidencyProfile {
             # Generous host RAM, but a small card means the runner is the only
             # large consumer. 2 GiB of prompt cache is still ~30x one prompt.
             CacheRamMiB = 2048; SystemGiB = $sysGiB
-            MidTag = 'ornith-1.5:9b'; LowTag = 'gemma4:12b-it-qat'
+            MidTag = 'ornith-1.5:9b'; LowTag = 'nemotron-3.5-bolt:e4b-q8_0'
         }
     }
     if ($sysGiB -ge 24) {
@@ -115,14 +115,14 @@ function Get-OllamaResidencyProfile {
         return [pscustomobject]@{
             Tier = 'standard'; MaxLoaded = 2; ContextLength = 32768; NumParallel = 2
             CacheRamMiB = 1024; SystemGiB = $sysGiB
-            MidTag = 'ornith-1.5:9b'; LowTag = 'gemma4:12b-it-qat'
+            MidTag = 'ornith-1.5:9b'; LowTag = 'nemotron-3.5-bolt:e4b-q8_0'
         }
     }
     # Low-memory fallback: one resident model, minimum viable context.
     return [pscustomobject]@{
         Tier = 'constrained'; MaxLoaded = 1; ContextLength = 16384; NumParallel = 1
         CacheRamMiB = 512; SystemGiB = $sysGiB
-        MidTag = 'ornith-1.5:9b'; LowTag = 'gemma4:12b-it-qat'
+        MidTag = 'ornith-1.5:9b'; LowTag = 'nemotron-3.5-bolt:e4b-q8_0'
     }
 }
 
@@ -971,13 +971,13 @@ if ((Test-Path $envPath) -and (Test-Path $ovTemplate)) {
             foreach ($ovM in [regex]::Matches($minified, '"model":\s*"([^"]+)"')) {
                 $ovModels[$ovM.Groups[1].Value] = $true
             }
-            foreach ($ovName in @('gemma4:12b-it-q8_0', 'gemma4:12b-it-qat')) {
-                if ($ovModels.ContainsKey($ovName)) {
+            foreach ($ovName in $ovModels.Keys) {
+                if ($ovName -notmatch 'nomic-embed') {
                     Write-Host "     OpenViking VLM now: $ovName" -ForegroundColor Yellow
                 }
             }
-            if ($minified -match '"model":\s*"gemma4:12b-it-q8_0"') {
-                Write-Host "     NOTE: the template still names q8_0 (13 GB). qat is 7.2 GB and shares one resident model with the other utility lanes." -ForegroundColor Yellow
+            if ($ovModels.ContainsKey('nemotron-3.5-bolt:e4b-q8_0')) {
+                Write-Host "     NOTE: the VLM shares the Low-tier model - one resident model serves both roles, so it adds no VRAM." -ForegroundColor DarkGray
             }
 
             # Same-run visibility: docker compose reads ${OPENVIKING_CONF_CONTENT}
@@ -985,6 +985,37 @@ if ((Test-Path $envPath) -and (Test-Path $ovTemplate)) {
             $envVars['OPENVIKING_CONF_CONTENT'] = $minified
             $env:OPENVIKING_CONF_CONTENT = $minified
         }
+    }
+}
+
+# 4b-i-2. Propagate the VLM tag into the ov.conf FILE OpenViking actually reads.
+#
+# OpenViking reads ./openviking/ov.conf (bind-mounted to /app/.openviking/ov.conf),
+# NOT the OPENVIKING_CONF_CONTENT env var - the env only SEEDS that file on FIRST
+# boot. So the .env render above reaches a fresh install but NEVER the running VLM
+# on a machine that already has an ov.conf. Measured 2026-11-05: the VLM stayed on
+# the stale tag across every -Update; once that tag was removed from Ollama the VLM
+# failed with HTTP 404 'model not found' while PaddleOCR kept working, so the break
+# was invisible. Section 7c restarts openviking when this changes.
+#
+# Swap ONLY the vlm model tag, in place. The container-generated ov.conf holds a
+# root_api_key that DIFFERS from .env's OPENVIKING_ROOT_API_KEY; rewriting the whole
+# file with the rendered content would rotate that key and break auth. A surgical
+# tag swap preserves every other byte.
+$script:ovConfVlmChanged = $false
+$ovConfFile = ".\openviking\ov.conf"
+$ovConfTpl = ".\openviking\ov.conf.template"
+if ((Test-Path $ovConfFile) -and (Test-Path $ovConfTpl)) {
+    $ovTplRaw = Get-Content $ovConfTpl -Raw
+    $ovConfRaw = Get-Content $ovConfFile -Raw
+    $tplVlm = if ($ovTplRaw -match '"vlm"\s*:\s*\{[^}]*?"model"\s*:\s*"([^"]+)"') { $Matches[1] } else { $null }
+    $fileVlm = if ($ovConfRaw -match '"vlm"\s*:\s*\{[^}]*?"model"\s*:\s*"([^"]+)"') { $Matches[1] } else { $null }
+    if ($tplVlm -and $fileVlm -and ($tplVlm -ne $fileVlm)) {
+        Copy-Item $ovConfFile ("$ovConfFile.bak." + (Get-Date -Format 'yyyyMMddHHmmss')) -Force
+        $ovConfNew = $ovConfRaw.Replace($fileVlm, $tplVlm)
+        [System.IO.File]::WriteAllText((Resolve-Path $ovConfFile), $ovConfNew, [System.Text.UTF8Encoding]::new($false))
+        Write-Host "[OK] OpenViking ov.conf VLM: $fileVlm -> $tplVlm (openviking restart applies it)" -ForegroundColor Green
+        $script:ovConfVlmChanged = $true
     }
 }
 
@@ -1366,21 +1397,102 @@ else {
     }
 }
 
-# 5. Pull models (first install only)
-if (-not $Update) {
-    Write-Host "`nPulling Ollama models (this takes a while on first run)..." -ForegroundColor Cyan
-    foreach ($model in Get-Content ollama-models.txt -Encoding UTF8) {
-        if ($model -and -not $model.StartsWith("#")) {
-            Write-Host "  Pulling $model..." -ForegroundColor Yellow
-            ollama pull $model
+# 5. Reconcile Ollama models against ollama-models.txt
+#
+# FIXED 2026-11-05. This used to run ONLY on first install:
+#
+#     if (-not $Update) { ... ollama pull ... }
+#
+# That meant a model ADDED to ollama-models.txt by a later release was never
+# pulled on any machine that had already been installed - which is every client
+# AIPC. 0.2.25 promoted `nemotron-3.5-bolt:e4b-q8_0` to the LOW tier and retired
+# gemma4:12b, so an AIPC running `install.ps1 -Update` would get the new compose
+# pin and the new deer-flow roster while the weights were still absent: Ollama
+# returns HTTP 404 for an unknown tag with no fallback, so every LOW-tier call
+# fails. The dev box cannot catch this because the tag was pulled by hand there.
+#
+# `scripts/audit-aipc-update-coverage.ps1` did not report it either: its marker
+# table had no Ollama-models row, so it certified "13 of 13, 0 needing a human"
+# while this gap was live. A coverage tool that omits a component is the same
+# class of defect as one with hardcoded verdicts.
+#
+# Now: list what is installed, pull ONLY what is missing. Idempotent, so the
+# first-install path is unchanged in effect, and `-Update` converges.
+Write-Host "`nReconciling Ollama models against ollama-models.txt..." -ForegroundColor Cyan
+
+# One registry read, not N. `ollama list` is the authority for what this host
+# can serve; the pre-pull file is the authority for what the release requires.
+$installedTags = @()
+try {
+    # Invoke-WithNativeStderr, not a bare `2>$null`: under Windows PowerShell 5.1
+    # a native command's stderr record becomes a terminating error when a caller
+    # sets $ErrorActionPreference = 'Stop', so the redirect alone does not protect
+    # this call. Same pattern as the ollama probe earlier in this file.
+    $installedTags = @(Invoke-WithNativeStderr { & ollama list 2>$null } |
+        Select-Object -Skip 1 |
+        ForEach-Object { ($_ -split '\s+')[0] } |
+        Where-Object { $_ })
+} catch {
+    Write-Host "[WARN] could not read 'ollama list'; attempting every pull blind" -ForegroundColor Yellow
+}
+
+$requiredModels = @(Get-Content ollama-models.txt -Encoding UTF8 |
+    Where-Object { $_ -and -not $_.TrimStart().StartsWith('#') } |
+    ForEach-Object { $_.Trim() })
+
+# A bare name and its :latest form are the same model to Ollama.
+function Test-ModelInstalled([string]$tag) {
+    if ($installedTags -contains $tag) { return $true }
+    $bare = ($tag -replace ':[^:]+$', '')
+    if ($tag -notmatch ':' -and ($installedTags -contains "$tag`:latest")) { return $true }
+    return ($installedTags -contains "$bare`:latest")
+}
+
+$missingModels = @($requiredModels | Where-Object { -not (Test-ModelInstalled $_) })
+
+if ($missingModels.Count -eq 0) {
+    Write-Host "[OK] all $($requiredModels.Count) required model(s) already present" -ForegroundColor Green
+}
+else {
+    Write-Host "  $($missingModels.Count) of $($requiredModels.Count) required model(s) missing:" -ForegroundColor Yellow
+    foreach ($m in $missingModels) { Write-Host "    - $m" -ForegroundColor Yellow }
+    foreach ($model in $missingModels) {
+        Write-Host "  Pulling $model..." -ForegroundColor Yellow
+        & ollama pull $model
+        if ($LASTEXITCODE -ne 0) {
+            # A missing tier model is a hard failure, not a warning: the stack
+            # comes up healthy and then 404s on every call that uses that tier.
+            Write-Host "[FAIL] could not pull $model (exit $LASTEXITCODE)" -ForegroundColor Red
+            Write-Host "       The stack would start and then fail at call time with" -ForegroundColor Red
+            Write-Host "       \"model '$model' not found\". Fix the pull before continuing." -ForegroundColor Red
         }
     }
-    Write-Host "[OK] Models pulled" -ForegroundColor Green
+    Write-Host "[OK] model reconciliation complete" -ForegroundColor Green
 }
 
 # 6. Pull Docker images
 Write-Host "`nPulling Docker images..." -ForegroundColor Cyan
-docker compose -f compose.prod.yaml pull
+
+# `laya` lives behind the opt-in `laya` profile, and a plain `compose pull`
+# SKIPS profiled services. That is why a machine which had started laya once
+# kept running an old laya-serve image through every later release (observed at
+# laya-serve:0.2.20 while the rest of the stack was on 0.2.22 on 2026-11-04):
+# the update path never pulled it and never recreated it.
+#
+# The profile is only passed when laya is ALREADY present. A machine that never
+# opted in must not start pulling a 1.2 GB checkpoint it does not run, and
+# `up -d` without the flag still leaves that service stopped - which is the
+# documented supported state.
+$layaPresent = (Invoke-WithNativeStderr { (docker compose -f compose.prod.yaml ps -a --format '{{.Service}}' 2>$null | Out-String) }) -split "`n" |
+    Where-Object { $_.Trim() -eq 'laya' }
+$composeProfileArgs = if ($layaPresent) {
+    Write-Host "  laya profile detected - including it in pull/recreate so it does not stay stale." -ForegroundColor Gray
+    @('--profile', 'laya')
+} else {
+    @()
+}
+
+docker compose -f compose.prod.yaml @composeProfileArgs pull
 # Capture WHY, not just the fact. `compose pull` writes progress to stderr, so it
 # must stay unredirected here (under Windows PowerShell 5.1 any 2>&1 / 2>$null
 # makes a native command's stderr TERMINATING). But leaving the exit code
@@ -1787,7 +1899,11 @@ else {
 
 # 7. Start stack
 Write-Host "`nStarting Pacgate-ai..." -ForegroundColor Cyan
-docker compose -f compose.prod.yaml up -d
+# Same profile decision as the pull in step 6: only recreate laya on a machine
+# that already runs it. Without the flag a stale laya container is left running
+# the old image while the rest of the stack moves on - the exact drift observed
+# on 2026-11-04, where laya sat at 0.2.20 and everything else at 0.2.22.
+docker compose -f compose.prod.yaml @composeProfileArgs up -d
 Write-Host "[OK] Stack running" -ForegroundColor Green
 
 # 7a. Prove deer-flow is on the SANITIZED lane, not the fallback. This is the
@@ -1878,6 +1994,22 @@ if ($Update) {
         Write-Host "[OK] pacgate-mcp restarted (bind-mounted server.py now in effect)" -ForegroundColor Green
     } else {
         Write-Host "[WARN] pacgate-mcp is not running; skipped restart" -ForegroundColor Yellow
+    }
+
+    # openviking: ov.conf is bind-mounted (./openviking) and read ONLY at process
+    # start. Section 4b-i-2 swaps the VLM model tag in place when it drifts from the
+    # template; without this restart the running VLM stays on the old tag and 404s
+    # once that tag is removed from Ollama (PaddleOCR still works, so it is silent).
+    # Guarded by the change flag so an unrelated -Update does not bounce the RAG
+    # engine - a restart drops in-flight OpenViking work.
+    if ($script:ovConfVlmChanged) {
+        $ovRunning = docker compose -f compose.prod.yaml ps -q openviking
+        if ($ovRunning) {
+            docker compose -f compose.prod.yaml restart openviking
+            Write-Host "[OK] openviking restarted (ov.conf VLM tag now in effect)" -ForegroundColor Green
+        } else {
+            Write-Host "[WARN] openviking is not running; skipped restart" -ForegroundColor Yellow
+        }
     }
 
     # 7c-bis. PROVE the restarted deer-flow actually loaded the bind-mounted code.
