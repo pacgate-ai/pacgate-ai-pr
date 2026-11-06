@@ -620,6 +620,21 @@ $liveStackGates = @(
     # that image is not present.
     'scripts/test-officecli-mcp.ps1'
     'scripts/test-format-coverage-e2e.ps1'
+    # THE ROUND TRIP, registered 2026-11-06. test-format-coverage-e2e proves
+    # upload -> extract -> sanitize -> convert and stops there: it never re-renders
+    # the sanitized text and never re-extracts the result, so the property a
+    # redaction product actually sells was unproven - that a REGENERATED document is
+    # still clean AND still readable. This gate closes the loop: raster OCR, native
+    # PDF extraction, markitdown on the binary, sanitize, re-render to a fresh .docx
+    # and .pdf, then re-extract both and assert the identifier did not come back
+    # while the keep-token did, that the .docx passes officecli validate, and that
+    # the .pdf still has a text layer.
+    #
+    # It also covers the fail-open hole text_extract.rs documents: a .docx whose
+    # identifier lives ONLY in the header/footer. A converter reading just
+    # word/document.xml never sees it, the redactor reports 'sanitized', and the file
+    # egresses dirty. Case 7 asserts the prefix scan reads it.
+    'scripts/test-document-roundtrip-e2e.ps1'
     # THE EDGES, registered 2026-10-18. Every other live-stack gate here tests a
     # COMPONENT or a public endpoint. Nothing tested the LANES BETWEEN components,
     # and that is exactly where three separate defects survived a green suite:
