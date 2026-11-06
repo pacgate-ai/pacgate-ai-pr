@@ -127,3 +127,19 @@ runtime/backup-pre-*/
 # Credential reports contain plaintext admin passwords and API keys.
 # Never commit them. See runtime/CREDENTIAL-REPORT-2026-10-23.md.
 runtime/CREDENTIAL-REPORT-*
+
+# 2026-11-06: one-off scratch scripts and captured outputs. Several of these
+# carried the LIVE pacgate-api password, the Vaquill key, the pacgate-db
+# password and a full pre-upgrade connector credential file. They were tracked
+# despite this file's own "never commit" rule above, and shipped to the PUBLIC
+# fork. Detected by scripts/detect-literal-credentials.ps1 during the v0.2.30
+# audit; the secrets must still be ROTATED - untracking cannot undo git history.
+# Delete a line here when a scratch file legitimately needs to ship.
+runtime/*-1010.py
+runtime/*-1016.ps1
+runtime/relocate/BUILT-IMAGE-E2E.txt
+runtime/*.pre-0.2.*
+runtime/*.pre-0.2.*/**
+runtime/upgrade-*/**/*.pre-*
+runtime/upgrade-*/**/extensions-config*.json
+runtime/upgrade-*/**/deer-flow-extensions-config*
