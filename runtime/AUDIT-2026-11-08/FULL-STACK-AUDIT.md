@@ -45,17 +45,25 @@ All are **gate/verification defects**, not runtime defects. None affects a user-
 
 ## Evidence checked
 
-### Gate suite — 93 gates (74 registered + 19 unregistered)
+### Gate suite — 93 gates (74 registered + 19 unregistered), all run
 
 | Bucket | Count | Detail |
 |---|---|---|
-| **PASS** | **86** | Includes 3 recovered on correct invocation (`qm-sandbox-fingerprint`, `compose-healthchecks` under `pwsh`; `legal-journey` on re-run) |
-| Gate-defect FAIL | 3 | H2, H3, H4 — all reproduce as green when the gate's own bug is bypassed |
-| Pre-existing / structural FAIL | 3 | `release-provenance` (compares to fork HEAD — cannot pass on a fork lineage), `install-repo-pull` (`InvokeMethodOnNull`), `update-end-to-end` (0 passed / 1 failed). All three verified **UNCHANGED** by the upgrade. |
+| **PASS** | **90** | Includes `qm-sandbox-fingerprint` (25/25) and `compose-healthchecks`, which are only green under `pwsh`; `legal-journey` on re-run; `t4-hold` at 934 s; `workflow-mutations` 11/11 |
+| Pre-existing / structural FAIL | 2 | `release-provenance` (compares to fork HEAD — cannot pass on a fork lineage), `install-repo-pull` (31 passed / 2 failed, `InvokeMethodOnNull`). Both verified **UNCHANGED** by the upgrade. |
 | CANNOT-CHECK | 1 | `rust-workspace` — no `cargo` on this box |
 
-**Zero runtime regressions.** Every failure is either a defect in the gate itself, a pre-existing
-condition, or a structural impossibility on a fork.
+**Zero runtime regressions.** Every remaining failure is a pre-existing condition or a
+structural impossibility on a fork.
+
+**Four gates were found to be wrong about the runtime** and are fixed in `a543ecc`
+(H2–H5 below); a fifth fix (`7f8d804`) retargets a mutation anchor that my own H2 fix
+invalidated — caught because the mutation harness reports an inapplicable mutation as a
+failure rather than a silent skip.
+
+**Three gates exceed 4 minutes** (`t4-hold` 934 s, `workflow-mutations` 534 s+). The first
+suite run appeared to "stall after gate 42" for this reason: it was not hung, just slow.
+Budget ~35 minutes for a full sweep, or the suite will look truncated.
 
 ### pacgate-api
 - `0.2.32`, revision `7a6dd732c6df`; `/pacgate/health` → 200.
@@ -133,8 +141,9 @@ condition, or a structural impossibility on a fork.
 1. **Rotate the 4 leaked credentials** (B1). This is the only blocker, and it is the only item that
    cannot be fixed in code. Everything else is cosmetic.
 2. Then, in one small commit: **H2–H6** — six one-line gate fixes that convert 3 false FAILs and
-   1 vacuous PASS into real signal. **H1** (register the 19) prevents the next gate from silently
-   never running. **H7** is a defensive follow-up, not urgent.
+   1 vacuous PASS into real signal. **H2–H5 and a fifth mutation-anchor fix are already done**
+   (`a543ecc`, `7f8d804`); **H6** (pin `pwsh` as the runner) remains. **H1** (register the 19)
+   prevents the next gate from silently never running. **H7** is a defensive follow-up, not urgent.
 3. Leave the **deer-flow version upgrade strictly to you**, as decided.
 
 ---
