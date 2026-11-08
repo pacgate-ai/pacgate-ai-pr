@@ -247,16 +247,51 @@ git rev-parse "${newRoot}:pacgate-ai"   # must equal: git rev-parse "v0.2.3^{tre
 
   | File | What must survive |
   |---|---|
-  | `deploy/client-bundle/patches/deer-flow-mcp-path-args.py` | **new file** — not in upstream. Rewrites virtual paths in MCP tool *arguments*; also derives thread paths from `Paths` because `runtime` is never injected into `StructuredTool` MCP tools |
   | `deploy/client-bundle/playbooks/nda-playbook.md` | **new file** — the R1–R8 / Y1–Y8 / G1–G7 standard that six skills read at Step 0 |
   | `deploy/client-bundle/deer-flow-config.yaml` | `sandbox.mounts` publishing the Playbook read-only at `/mnt/playbooks` |
-  | `deploy/client-bundle/compose.bundle.yaml` + `compose.prod.yaml` | the `deer-flow-mcp-path-args.py` mount, in **both** (A5 parity) |
   | `scripts/audit-model-tags.ps1` | the tag scan scoped to the `models:` block only |
   | `deer-flow/skills/public/{nda-review,contract-review,ma-agreement-review,vcpe-financing-suite,dd-report-assembly,cold-start-interview}/SKILL.md` | `/mnt/playbooks/...` paths — `.deer-flow/playbooks` is NOT reachable from the sandbox |
   | `deer-flow/skills/public/{diligence-issue-extraction,tabular-review,skill-reviewer}/SKILL.md` | dead `allowed-tools` entries removed |
 
-  New gates: `scripts/test-mcp-path-args.ps1` (19 assertions) and
+  > **Correction (2026-11-08).** Earlier revisions of this file listed
+  > `deploy/client-bundle/patches/deer-flow-mcp-path-args.py` as a new local file
+  > with a mount in both compose files, plus a `scripts/test-mcp-path-args.ps1`
+  > gate with 19 assertions. **Neither exists.** The path was an empty directory
+  > (removed 2026-11-08) and the gate was never written. The MCP argument-path
+  > rewriting actually lives in `patches/deer-flow-mcp-args.py`, which is
+  > byte-identical to upstream and mounted at `deerflow/mcp/tools.py`; its gate is
+  > `scripts/test-mcp-argument-paths.ps1` (21 assertions).
+
+  New gates: `scripts/test-mcp-argument-paths.ps1` and
   `scripts/test-skill-tool-declarations.ps1`.
+
+- **Also re-apply the 2026-11-08 v0.2.32 deltas.** A swap WILL revert them, and
+  three of them are **bind-mounted over the exact paths 0.2.32 changed** — so a
+  stale local copy silently defeats the upstream fix even after a correct pull:
+
+  | File | What must survive |
+  |---|---|
+  | `deploy/client-bundle/patches/deer-flow-run-recursion-cap.py` | the **FLOOR** — `_PACGATE_MIN_RECURSION_LIMIT` (default 2000, `DEERFLOW_MIN_RECURSION_LIMIT`). Without it a client's `recursion_limit: 1000` is binding and the run dies at the wall |
+  | `deploy/client-bundle/patches/deer-flow-worker.py` | `_recursion_exhaustion_message()` — turns the raw LangGraph text into an actionable message naming the recoverable partial deliverable |
+  | `deploy/pacgate-mcp/server.py` | `pacgate_web_search` / `pacgate_web_scrape` (Firecrawl). This file is bind-mounted at `/app/server.py`, so a stale copy deletes both tools |
+  | `deploy/client-bundle/patches/deer-flow-file-conversion.py` | **new file** — strips pymupdf4llm's `<mark>`/`<br>` from heading titles before they reach the prompt |
+  | `deploy/pacgate-pins/pymupdf4llm.constraints.txt` | **new file** — pins the pymupdf4llm install in the image Dockerfile |
+  | `scripts/run-all-checks.ps1` | the four gate registrations: `test-run-recursion-cap`, `test-chat-artifact-durability`, `test-pdf-outline-extraction`, `test-firecrawl-wiring` |
+  | `scripts/audit-deer-flow-patches.ps1` | the `deer-flow-run-recursion-cap.py` → `backend/app/gateway/services.py` mapping |
+
+  **Verify a bind-mounted patch is not stale** — this is the check that matters,
+  and blob SHAs alone do not catch it:
+
+  ```powershell
+  # For each patch that is BOTH baked into the image AND bind-mounted:
+  git rev-parse "28d73c4:deploy/client-bundle/patches/<name>.py"   # the old base
+  git rev-parse "HEAD:pacgate-ai/deploy/client-bundle/patches/<name>.py"
+  ```
+
+  If those two are **equal** while `upstream/main:<path>` differs, the mount is
+  shadowing an upstream fix. That is exactly how the recursion floor, the
+  actionable error message, and the Firecrawl tools were all silently absent on
+  0.2.30.
 
   **Verify with blob SHAs, not `git diff upstream/main..HEAD`** — the histories are
   unrelated, so that diff reports every file. Per file:
@@ -269,9 +304,25 @@ git rev-parse "${newRoot}:pacgate-ai"   # must equal: git rev-parse "v0.2.3^{tre
 
 ### 2. Pull the pinned images and recreate
 
+> ⚠️ **The Docker proxy is dead on this box (measured 2026-11-08).**
+> `HTTP_PROXY`/`HTTPS_PROXY` point at `http://127.0.0.1:7890`, which is not
+> listening. `docker compose pull` fails with
+> `connectex: No connection could be made because the target machine actively refused it`.
+> Even with the proxy cleared, `docker compose pull` stalled >10 min with no layer
+> progress. GHCR is reachable **directly** (token endpoint 200 in 0.58 s). Clear
+> the proxy vars and pull each image by name:
+
+```powershell
+$env:HTTP_PROXY=''; $env:HTTPS_PROXY=''; $env:http_proxy=''; $env:https_proxy=''
+foreach ($i in @('pacgate-api','deer-flow-pacgate','deer-flow-frontend-pacgate','pacgate-mcp','ocr-service')) {
+  docker pull "ghcr.io/jzkk720/${i}:0.2.32"
+}
+```
+
+Then recreate:
+
 ```powershell
 cd pacgate-ai\deploy\client-bundle
-docker compose -f compose.bundle.yaml pull
 docker compose -f compose.bundle.yaml up -d --force-recreate --no-deps `
   pacgate-api deer-flow deer-flow-frontend pacgate-mcp ocr-service
 ```
@@ -283,7 +334,7 @@ state and named volumes, and avoids touching `pacgate-db`.
 ### 3. Push to the fork
 
 ```powershell
-git push fork HEAD:aipc1/v0.2.3-sync
+git push fork HEAD:aipc1/v0.2.32-sync
 ```
 
 - `origin` = `github.com/JZKK720/pacgate-ai-pr` (read/pull)
@@ -369,7 +420,7 @@ If that prints nothing, **STOP** — the root cause is unfixed.
   `/.deer-flow` inside the container is the **gateway's** directory and is NOT
   visible to the sandbox — never point a SKILL.md at it.
 - **MCP tool arguments are path-translated too** (since 2026-10-30, via
-  `patches/deer-flow-mcp-path-args.py`). If you point a document tool at
+  `patches/deer-flow-mcp-args.py`). If you point a document tool at
   `/mnt/user-data/...` and it reports *"Could not find a part of the path"*, the
   patch is not mounted — check `mount | grep mcp/tools.py` in the container, then
   `up -d --force-recreate --no-deps deer-flow`. Never "work around" it with
