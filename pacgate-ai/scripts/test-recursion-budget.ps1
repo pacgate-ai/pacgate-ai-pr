@@ -53,8 +53,11 @@
 #   R3  No caller config (the API / IM channel path) defaults to the CEILING,
 #       not to a hardcoded 100. This is the defect.
 #   R4  An empty config ({}) also defaults to the CEILING.
-#   R5  An explicit BELOW-ceiling request is still honoured verbatim (a caller
-#       may ask for a small budget; the cap must not raise it).
+#   R5  An explicit request BELOW the server floor is raised to the floor, and one
+#       between the floor and the ceiling is honoured verbatim. The floor exists
+#       because a below-floor budget cannot complete a deep run: a caller asking
+#       for 50 would burn 50 super-steps and fail mid-task. See
+#       deploy/DEFECT-recursion-budget-floor.md (the floor is the intended fix).
 #   R6  An ABOVE-ceiling request is clamped to the ceiling.
 #   R7  DEERFLOW_MAX_RECURSION_LIMIT actually controls the default AND the cap
 #       (the env var is the only lever, so it must not be cosmetic).
@@ -183,12 +186,24 @@ if ($emptyCfg -and [int]$emptyCfg.limit -eq $ceiling) {
     Fail "R4 an empty config defaults to $($emptyCfg.limit) instead of the ceiling ($ceiling)"
 }
 
-# --- R5: an explicit SMALLER request is honoured, never raised ---------------
+# --- R5: a below-floor request is raised to the floor ------------------------
+# The floor is the documented fix (deploy/DEFECT-recursion-budget-floor.md):
+# a budget under it cannot finish a deep run. This assertion previously required
+# the OPPOSITE (50 honoured verbatim), encoding the pre-floor contract.
 $small = Invoke-BuildRunConfig -JsonConfig '{"recursion_limit": 50}'
-if ($small -and [int]$small.limit -eq 50) {
-    Pass 'R5 an explicit below-ceiling request (50) is honoured verbatim'
+$floor = if ($env:DEERFLOW_MIN_RECURSION_LIMIT) { [int]$env:DEERFLOW_MIN_RECURSION_LIMIT } else { 2000 }
+if ($small -and [int]$small.limit -eq $floor) {
+    Pass "R5 a below-floor request (50) is raised to the floor ($floor)"
 } else {
-    Fail "R5 an explicit request of 50 became $($small.limit) — the cap raised a caller's budget"
+    Fail "R5 a below-floor request (50) became $($small.limit); expected the floor ($floor)"
+}
+
+# --- R5b: a request between floor and ceiling is honoured verbatim -----------
+$mid = Invoke-BuildRunConfig -JsonConfig '{"recursion_limit": 3000}'
+if ($mid -and [int]$mid.limit -eq 3000) {
+    Pass 'R5b an in-range request (3000) is honoured verbatim'
+} else {
+    Fail "R5b an in-range request (3000) became $($mid.limit) — it must not be altered"
 }
 
 # --- R6: an explicit LARGER request is clamped -------------------------------

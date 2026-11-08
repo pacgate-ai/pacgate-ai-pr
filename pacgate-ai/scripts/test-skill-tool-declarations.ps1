@@ -132,7 +132,10 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-$raw = (& docker exec $Container /app/backend/.venv/bin/python $probePath 2>&1) -join "`n"
+# cwd matters: LocalSkillStorage resolves relative to the process cwd, and from
+# /app it finds 0 skills while /app/backend finds the full set. Run the probe from
+# the backend root so the gate measures the runtime, not its own working directory.
+$raw = (& docker exec $Container sh -c "cd /app/backend && /app/backend/.venv/bin/python $probePath" 2>&1) -join "`n"
 & docker exec $Container rm -f $probePath 2>&1 | Out-Null
 
 $line = ($raw -split "`n" | Where-Object { $_ -match '^PROBE_JSON:' } | Select-Object -First 1)
