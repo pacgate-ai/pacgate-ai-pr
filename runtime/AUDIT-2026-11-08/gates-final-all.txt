@@ -1,0 +1,93 @@
+PASS|test-adapter-python|0|PASSED: the Python adapter suite is green
+PASS|test-agent-mcp-e2e|0|RESULT: 5 passed, 0 failed
+PASS|test-aipc-capacity-fit-strict|0|RESULT: no unconditional over-cap model. (3 warning(s) for review)
+PASS|test-aipc-capacity-fit|0|decision. Run with -Strict once that decision is made.
+PASS|test-auth-provisioning-gate|0|RESULT: 8 passed, 0 failed
+PASS|test-auth-registration-gate|0|RESULT: registration is refused on every tested port, nothing created, login intact.
+PASS|test-auxiliary-model-pins|0|RESULT: 10 of 10 checks passed
+PASS|test-baked-patch-parity|0|RESULT: 16 passed, 0 failed, 0 warning(s)
+PASS|test-chat-artifact-durability|0|RESULT: 7 of 7 checks passed - chat artifacts survive their run and stay retrievable.
+PASS|test-chat-no-auto-egress|0|RESULT: 12 of 12 checks passed
+PASS|test-ci-verify-step|0|The image is genuinely public; the verification logic is wrong.
+PASS|test-compose-healthchecks|0|== RESULT: 0 failure(s), 0 skipped ==
+PASS|test-connector-registry|0|RESULT: 25 passed, 0 failed
+PASS|test-connector-template-safety|0|RESULT: 15 passed, 0 failed
+PASS|test-cross-stack-credentials|0|RESULT: every shared credential agrees across both stacks. (0 warning(s))
+PASS|test-deferred-tool-runtime|0|RESULT: 17 passed, 0 failed
+PASS|test-document-generation-e2e|0|RESULT: 19 passed, 0 failed
+PASS|test-document-roundtrip-e2e|0|RESULT: 30 passed, 0 failed, 0 skipped
+PASS|test-empty-extraction-gate|0|RESULT: 15 of 15 checks passed
+PASS|test-firecrawl-wiring|0|RESULT: 19 passed, 0 failed
+PASS|test-format-coverage-e2e|0|RESULT: every accepted format survived upload -> extract -> sanitize -> convert
+PASS|test-handbook-verify|0|RESULT: all 5 pins resolve to HTTP 200.
+PASS|test-handoff-command-safety|0|RESULT: handoff docs are safe to execute.
+PASS|test-host-memory-budget|0|RESULT: 20 passed, 0 failed
+PASS|test-initialize-gate|0|RESULT: the setup-token gate refuses anonymous/wrong callers and still allows first-boot creation.
+PASS|test-install-render|0|RESULT: 26 passed, 0 failed
+FAIL|test-install-repo-pull|1|RESULT: 31 passed, 2 failed
+PASS|test-installer-self-update|0|RESULT: 11 passed, 0 failed
+PASS|test-kb-search-empty-signal|0|RESULT: 5 of 5 checks passed
+PASS|test-lane-connectivity|0|RESULT: every reachable lane connects. (11 passed, 0 not reachable)
+PASS|test-laya-tools|0|RESULT: the laya tools ship, degrade safely, and keep abstention. (41 passed, 4 skipped)
+PASS|test-legal-journey|0|RESULT: full legal journey PASSED, all lanes verified.
+PASS|test-loop-detection-window|0|RESULT: 33 passed, 0 failed
+PASS|test-mcp-401-retry|0|2026-11-08 15:35:54,890 INFO httpx - HTTP Request: POST http://pacgate-api:8080/api/matters/m-1/memory "HTTP/1.1 200 OK"
+TIMEOUT|test-mcp-argument-paths|-|exceeded 240s
+PASS|test-mcp-tool-surface|0|RESULT: the MCP tool surface matches its source. (6 passed)
+PASS|test-memory-bound|0|PASSED: the NER memory bound holds at both layers
+PASS|test-memory-guard|0|PASSED: the matter memory guard is connected at every link
+PASS|test-memory-lane-mutations|0|PASSED: every mutation was rejected and every file restored
+PASS|test-memory-lane|0|PASSED: deer-flow memory lane is configured as the sanitized adapter, and cannot degrade silently
+PASS|test-memory-prompt-stability|0|all checks passed
+PASS|test-memory-scope|0|PASSED: the memory scope rule is defined, enforced, and correctly asymmetric
+PASS|test-model-picker-e2e|0|RESULT: 13 passed, 0 failed
+PASS|test-model-roster-consistency|0|RESULT: 15 of 15 checks passed
+PASS|test-ner-enabled|0|PASSED: NER is enabled in all 2 base compose file(s) that define pacgate-api
+PASS|test-ocr-bake-integrity|0|== RESULT: PASS ==
+PASS|test-ocr-extraction|0|== RESULT: PASS ==
+PASS|test-officecli-mcp|0|RESULT: 13 passed, 0 failed
+PASS|test-officecli-set-contract|0|RESULT: 8 passed, 0 failed
+PASS|test-ollama-context-scope|0|RESULT: 22 passed, 0 failed, 0 skipped
+PASS|test-ollama-gpu-residency|0|RESULT: local inference is GPU-backed
+PASS|test-origin-coherence|0|RESULT: every advertised origin is accepted for auth. (14 passed)
+PASS|test-pdf-freshness-mutations|0|PASSED: every mutation was rejected and every file restored
+PASS|test-pdf-freshness|0|PASSED: rendered PDFs are current and the client-delivery copies are in sync
+PASS|test-pdf-outline-extraction|0|RESULT: 7 passed, all green
+PASS|test-prompt-contract|0|RESULT: PASS - no new prompt-contract regressions
+PASS|test-prompt-document-reading|0|RESULT: 5 of 5 checks passed
+PASS|test-prompt-officecli-selectors|0|RESULT: 10 passed, 0 failed
+PASS|test-prune-ghcr-versions|0|RESULT: the pruner cannot delete a kept release or misreport itself. (14 passed)
+PASS|test-ps51-native-stderr|0|RESULT: 35 passed, 0 failed
+PASS|test-qm-currentness|0|RESULT: qm is current. (0 warning(s))
+PASS|test-qm-mutations|0|9 passed, 0 failed
+PASS|test-qm-restage|0|13 passed, 0 failed
+PASS|test-qm-sandbox-fingerprint|0|25 passed, 0 failed
+PASS|test-recursion-budget|0|RESULT: 12 passed, 0 failed
+FAIL|test-release-provenance|1|FAILED: 1 provenance defect(s)
+PASS|test-run-recursion-cap|0|RESULT: 43 passed, 0 failed
+FAIL|test-rust-workspace|2|exit 2 - cargo not found at the expected path; cannot check
+PASS|test-sanitization-gate|0|ALL ASSERTIONS PASSED
+PASS|test-sanitize-pattern-mirror|0|RESULT: the audit mirror agrees with the rule layer. (15 patterns)
+PASS|test-sanitizer-e2e|0|== RESULT: PASS ==
+PASS|test-scheduled-update|0|38 passed, 0 failed
+PASS|test-skill-evolution|0|RESULT: skill evolution is enabled, seeded, and cannot silently amputate the tool surface. (14 passed)
+PASS|test-skill-tool-declarations|0|RESULT: every declaration resolves. (3 passed, 0 warning(s))
+PASS|test-skills-and-templates|0|RESULT: skills and workflow templates ship and reach the agent. (9 passed)
+PASS|test-stack-version-coherence|0|RESULT: every running service is the image its compose pin names. (14 passed)
+PASS|test-staleness-probe|0|12 passed, 0 failed
+PASS|test-summarization-treadmill|0|RESULT: 6 of 6 checks passed
+PASS|test-sync-capability|0|RESULT: cross-machine transfer capability is present and coherent. (12 passed)
+TIMEOUT|test-t4-hold|-|exceeded 240s
+PASS|test-text-native-sanitize|0|RESULT: 59 of 59 checks passed
+PASS|test-thinking-default|0|RESULT: 12 passed, 0 failed
+PASS|test-tool-search-deferral|0|RESULT: 25 passed, 0 failed
+PASS|test-update-end-to-end|0|31 passed, 0 failed
+PASS|test-upload-symlink-guard|0|RESULT: the delete route refuses symlinks, and normal deletes pass through. (10 passed)
+PASS|test-version-marker-against-image|0|5 passed, 0 failed
+PASS|test-version-marker|0|6 passed, 0 failed
+PASS|test-workflow-compose-wiring-mutations|0|=== 7 of 7 fault classes proven caught ===
+PASS|test-workflow-compose-wiring|0|RESULT: workflow-library wiring is complete and consistent.
+PASS|test-workflow-library-served|0|RESULT: the legal workflow library is served (222 workflows, 46 categories).
+TIMEOUT|test-workflow-mutations|-|exceeded 240s
+PASS|test-workflow-namespace|0|41 passed, 0 failed
+PASS|test-workflow-validity-mutations|0|3 passed, 0 failed
