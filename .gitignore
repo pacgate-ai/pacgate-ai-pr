@@ -148,3 +148,8 @@ runtime/upgrade-*/**/deer-flow-extensions-config*
 # ORIGINAL plaintext credentials, kept only so the redaction can be reversed by an
 # operator. Never commit them.
 runtime/SECURITY-2026-11-08-redaction/pre-redaction-backup/
+
+# Smoke-test scratch: the JWT and matter id from runtime/smoke-test/login.ps1.
+# Re-created on every run, never needed in history.
+runtime/smoke-test/.token
+runtime/smoke-test/.matter
