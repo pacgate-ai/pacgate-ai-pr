@@ -1,0 +1,74 @@
+PASS|test-connector-template-safety.ps1|0|RESULT: 15 passed, 0 failed
+FAIL|test-install-repo-pull.ps1|1|+ FullyQualifiedErrorId : InvokeMethodOnNull
+FAIL|test-update-end-to-end.ps1|1|0 passed, 1 FAILED
+PASS|test-installer-self-update.ps1|0|RESULT: 11 passed, 0 failed
+PASS|test-ollama-context-scope.ps1|0|RESULT: 22 passed, 0 failed, 0 skipped
+PASS|test-ollama-gpu-residency.ps1|0|RESULT: local inference is GPU-backed
+PASS|test-tool-search-deferral.ps1|0|RESULT: 25 passed, 0 failed
+PASS|test-deferred-tool-runtime.ps1|0|RESULT: 17 passed, 0 failed
+PASS|test-loop-detection-window.ps1|0|RESULT: 33 passed, 0 failed
+PASS|test-prompt-contract.ps1|0|RESULT: PASS - no new prompt-contract regressions
+PASS|test-run-recursion-cap.ps1|0|RESULT: 43 passed, 0 failed
+PASS|test-chat-artifact-durability.ps1|0|RESULT: 7 of 7 checks passed - chat artifacts survive their run and stay retrievable.
+PASS|test-pdf-outline-extraction.ps1|0|RESULT: 7 passed, all green
+PASS|test-scheduled-update.ps1|0|38 passed, 0 failed
+PASS|test-ps51-native-stderr.ps1|0|RESULT: 35 passed, 0 failed
+PASS|test-workflow-namespace.ps1|0|41 passed, 0 failed
+PASS|test-workflow-compose-wiring.ps1|0|RESULT: workflow-library wiring is complete and consistent.
+PASS|test-workflow-compose-wiring-mutations.ps1|0|=== 7 of 7 fault classes proven caught ===
+PASS|test-handoff-command-safety.ps1|0|RESULT: handoff docs are safe to execute.
+PASS|test-workflow-validity-mutations.ps1|0|3 passed, 0 failed
+PASS|test-workflow-mutations.ps1|0|4 passed, 0 failed
+PASS|test-qm-mutations.ps1|0|9 passed, 0 failed
+PASS|test-qm-restage.ps1|0|13 passed, 0 failed
+PASS|test-staleness-probe.ps1|0|12 passed, 0 failed
+FAIL|test-qm-sandbox-fingerprint.ps1|1|+ FullyQualifiedErrorId : NativeCommandError
+PASS|test-sanitize-pattern-mirror.ps1|0|RESULT: the audit mirror agrees with the rule layer. (15 patterns)
+PASS|test-prune-ghcr-versions.ps1|0|RESULT: the pruner cannot delete a kept release or misreport itself. (14 passed)
+PASS|test-version-marker.ps1|0|6 passed, 0 failed
+PASS|test-version-marker-against-image.ps1|0|5 passed, 0 failed
+FAIL|test-release-provenance.ps1|1|FAILED: 1 provenance defect(s)
+CANNOT-CHECK|test-rust-workspace.ps1|2|exit 2 - cargo not found at the expected path; cannot check
+PASS|test-ner-enabled.ps1|0|PASSED: NER is enabled in all 2 base compose file(s) that define pacgate-api
+PASS|test-memory-bound.ps1|0|PASSED: the NER memory bound holds at both layers
+PASS|test-memory-guard.ps1|0|PASSED: the matter memory guard is connected at every link
+PASS|test-memory-scope.ps1|0|PASSED: the memory scope rule is defined, enforced, and correctly asymmetric
+PASS|test-memory-lane.ps1|0|PASSED: deer-flow memory lane is configured as the sanitized adapter, and cannot degrade silently
+PASS|test-memory-prompt-stability.ps1|0|all checks passed
+PASS|test-memory-lane-mutations.ps1|0|PASSED: every mutation was rejected and every file restored
+PASS|test-pdf-freshness.ps1|0|PASSED: rendered PDFs are current and the client-delivery copies are in sync
+PASS|test-pdf-freshness-mutations.ps1|0|PASSED: every mutation was rejected and every file restored
+PASS|test-adapter-python.ps1|0|PASSED: the Python adapter suite is green
+PASS|test-mcp-401-retry.ps1|0|PASS  401-retry behaviour verified
+PASS|test-chat-no-auto-egress.ps1|0|RESULT: 12 of 12 checks passed
+PASS|test-model-roster-consistency.ps1|0|RESULT: 15 of 15 checks passed
+PASS|test-connector-registry.ps1|0|RESULT: 25 passed, 0 failed
+PASS|test-firecrawl-wiring.ps1|0|RESULT: 19 passed, 0 failed
+PASS|test-thinking-default.ps1|0|RESULT: 12 passed, 0 failed
+PASS|test-ocr-bake-integrity.ps1|0|== RESULT: PASS ==
+FAIL|test-compose-healthchecks.ps1|1|== RESULT: 2 failure(s), 0 skipped ==
+PASS|test-summarization-treadmill.ps1|0|RESULT: 6 of 6 checks passed
+PASS|test-prompt-document-reading.ps1|0|RESULT: 5 of 5 checks passed
+PASS|test-prompt-officecli-selectors.ps1|0|RESULT: 10 passed, 0 failed
+PASS|test-kb-search-empty-signal.ps1|0|RESULT: 5 of 5 checks passed
+PASS|test-empty-extraction-gate.ps1|0|RESULT: 15 of 15 checks passed
+PASS|test-text-native-sanitize.ps1|0|RESULT: 59 of 59 checks passed
+PASS|test-auth-provisioning-gate.ps1|0|RESULT: 8 passed, 0 failed
+PASS|test-sanitizer-e2e.ps1|0|== RESULT: PASS ==
+PASS|test-model-picker-e2e.ps1|0|RESULT: 13 passed, 0 failed
+PASS|test-document-generation-e2e.ps1|0|RESULT: 19 passed, 0 failed
+PASS|test-officecli-mcp.ps1|0|RESULT: 13 passed, 0 failed
+PASS|test-format-coverage-e2e.ps1|0|RESULT: every accepted format survived upload -> extract -> sanitize -> convert
+PASS|test-document-roundtrip-e2e.ps1|0|RESULT: 33 passed, 0 failed, 0 skipped
+PASS|test-lane-connectivity.ps1|0|RESULT: every reachable lane connects. (11 passed, 0 not reachable)
+FAIL|test-legal-journey.ps1|1|artifacts left: matter=a5260a44-e0a6-46f4-9fce-6047e3011c87 doc=12688535-7e09-488a-8a55-77c1614609f6
+PASS|test-agent-mcp-e2e.ps1|0|RESULT: 5 passed, 0 failed
+PASS|test-qm-currentness.ps1|0|RESULT: qm is current. (0 warning(s))
+PASS|test-origin-coherence.ps1|0|RESULT: every advertised origin is accepted for auth. (14 passed)
+PASS|test-stack-version-coherence.ps1|0|RESULT: every running service is the image its compose pin names. (14 passed)
+PASS|test-mcp-tool-surface.ps1|0|RESULT: the MCP tool surface matches its source. (6 passed)
+PASS|test-mcp-argument-paths.ps1|0|RESULT: 21 passed, 0 failed
+PASS|test-baked-patch-parity.ps1|0|RESULT: 16 passed, 0 failed, 0 warning(s)
+PASS|test-workflow-library-served.ps1|0|RESULT: the legal workflow library is served (222 workflows, 46 categories).
+PASS|test-auxiliary-model-pins.ps1|0|RESULT: 10 of 10 checks passed
+PASS|test-aipc-capacity-fit.ps1|0|decision. Run with -Strict once that decision is made.

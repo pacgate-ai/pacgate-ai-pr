@@ -1,0 +1,19 @@
+PASS|test-aipc-capacity-fit-strict|0|glm-5.3-flash-cloud -> glm-5.3-flash:cloud FITS
+PASS|test-auth-registration-gate|0|passed: 8 failed: 0
+PASS|test-ci-verify-step|0|ok
+PASS|test-cross-stack-credentials|0|qm /mcp accepted OPENVIKING_API_KEY (HTTP 200)
+PASS|test-handbook-verify|0|5/5 pins HTTP 200 (needs pacgate-ai cwd + proxy cleared)
+PASS|test-host-memory-budget|0|20 passed, 0 failed
+FAIL|test-initialize-gate|1|STALE DEFAULT: hardcodes 0.1.17 (absent); PASSES 8/8 with -Image :0.2.32
+PASS|test-install-render|0|26 passed, 0 failed
+PASS|test-laya-tools|0|41 passed, 4 skipped
+PASS|test-ocr-extraction|0|PASS
+PASS|test-officecli-set-contract|0|8 passed, 0 failed
+FAIL|test-recursion-budget|1|R5 asserts "cap must not raise 50" but DEFECT doc L107-114 mandates floor; R5 stale
+PASS|test-sanitization-gate|0|ALL ASSERTIONS PASSED
+PASS|test-skill-evolution|0|14 passed
+FAIL|test-skill-tool-declarations|1|A1 probes from /app (0 skills); /app/backend loads 5 - gate cwd bug
+PASS|test-skills-and-templates|0|9 passed
+PASS|test-sync-capability|0|12 passed
+PASS|test-t4-hold|0|PASS 15 assertions
+PASS|test-upload-symlink-guard|0|10 passed
