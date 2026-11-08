@@ -550,6 +550,20 @@ $gates = @(    'scripts/test-install-render.ps1'
     # plain `return json.dumps(results, ...)`; 4 of 5 checks fail on the pre-fix
     # file.
     'scripts/test-kb-search-empty-signal.ps1'
+
+    # deploy/client-bundle/data/ is bind-mounted into deer-flow at /data, and the
+    # sandbox is LocalSandboxProvider with allow_host_bash, so the agent can grep
+    # every file there. On 2026-11-08 this gate's first run found a live Firecrawl
+    # API key and an Ansvar key sitting in the agent's own memory.json as the
+    # remembered fact "The user's Firecrawl MCP API Key is <value>" - memory that
+    # is injected into every later prompt - plus the same two keys in three
+    # .tool-results dumps, and a plaintext API token plus five passwords in the
+    # MCP授权 credential docs. Every other gate inspects code and config; none
+    # looked at the data tree the agent can actually read, which is how it lasted.
+    #
+    # Reports the file and the KEY NAME, never the value. Red-checked by
+    # re-inserting a .env secret into a file under data/.
+    'scripts/test-secret-in-mounted-data.ps1'
 )
 
 # A LIVE-STACK GATE: real assertions against the running system, but its exit 2

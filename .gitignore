@@ -143,3 +143,8 @@ runtime/*.pre-0.2.*/**
 runtime/upgrade-*/**/*.pre-*
 runtime/upgrade-*/**/extensions-config*.json
 runtime/upgrade-*/**/deer-flow-extensions-config*
+
+# Pre-remediation backups for the 2026-11-08 credential redaction. These hold the
+# ORIGINAL plaintext credentials, kept only so the redaction can be reversed by an
+# operator. Never commit them.
+runtime/SECURITY-2026-11-08-redaction/pre-redaction-backup/
