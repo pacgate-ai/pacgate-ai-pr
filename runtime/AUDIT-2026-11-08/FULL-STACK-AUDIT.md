@@ -148,6 +148,25 @@ Budget ~35 minutes for a full sweep, or the suite will look truncated.
 
 ---
 
+## Post-audit addendum (later on 2026-11-08)
+
+The audit above was scored on the 2026-11-08 stack **before** upstream `1a1b7ba` was adopted and
+before two credential findings were resolved. Corrections, so this document is not read as current:
+
+| Item | Audit said | Now |
+|---|---|---|
+| `PACGATE_SANITIZER_KEY` | not mentioned | **was unset** — upstream's own `audit-e2e-credentials.ps1` (adopted from `1a1b7ba`) fails without it, because the sanitizer fell back to a per-process random key and cross-document token correlation silently stopped working. **Set to a 64-hex value; gate now 9/9, and the `SANITIZER_KEY unset` warning is gone.** |
+| Credentials in the data tree and vector store | blocker B1 (rotation) | **redacted + purged**; see `runtime/SECURITY-2026-11-08-redaction/REMEDIATION.md`. Rotation is **still outstanding** and still the only blocker. |
+| `COURTLISTENER_API_KEY` / `QCC_API_KEY` "dormant" | reported as a fix | **retracted — both are implemented, registered and actively consumed** by the Rust search registry. `test-connector-registry` 25/25. |
+| Gate count | 93 scripts / 74 registered | **92 registrations** after the `1a1b7ba` union merge, plus new gates from upstream (summarization recovery, credential audit, fold telemetry, context-band calibration). |
+| KB coverage | 257 / 2,317 chunks (11 %) retrievable | extraction backfilled (rows 76 → 249, zero pending docs unextracted). 208 docs are now sanitize-eligible but **not yet sanitized** — the batch saturates `pacgate-api`. See `runtime/smoke-test/FIX-OUTCOMES.md`. |
+| Deer-flow summarization | not covered | upstream `1a1b7ba` adds a **949-line summarization-recovery patch**, now live (verified 42,179 bytes in-container, `test-summarization-recovery` 22/22). |
+
+**The score still stands at 66/100** — capped for the unrotated credentials, which is unchanged.
+
+
+---
+
 ## Appendix — gate result files
 
 - `gates.txt` — the 74 registered gates, as `VERDICT|name|exit|last-line`
