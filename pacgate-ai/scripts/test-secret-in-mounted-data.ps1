@@ -132,6 +132,31 @@ if ($bad -eq 0) {
     Fail "$bad plaintext password field(s) remain in the credential docs"
 }
 
+# --- and assert the KB ingester refuses those files ---------------------------
+# Redaction stops the CURRENT content leaking. This asserts the ingester never
+# picks the files up in the first place, which is what failed on 2026-11-08:
+# OPERATOR.md was on the deny-list but the two MCP授权 docs beside it were not,
+# so they were chunked into kb_chunks. Only the retrieval gate hid them.
+$seeder = Join-Path $repoRoot 'pacgate-ai/crates/pacgate-api/src/bin/seed.rs'
+if (Test-Path -LiteralPath $seeder) {
+    $src = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($seeder))
+    $m = [regex]::Match($src, 'const EXCLUDE_FILENAMES[^=]*=\s*&\[(?<body>.*?)\];', 'Singleline')
+    if (-not $m.Success) {
+        Fail 'could not locate EXCLUDE_FILENAMES in seed.rs'
+    } else {
+        $body = $m.Groups['body'].Value
+        foreach ($needed in @('OPERATOR.md', '法律数据库MCP.md', '境外法律数据库和网站.md')) {
+            if ($body.Contains("`"$needed`"")) {
+                Pass "seed deny-list excludes $needed"
+            } else {
+                Fail "seed deny-list is MISSING $needed - it would be chunked into kb_chunks"
+            }
+        }
+    }
+} else {
+    Skip 'seed.rs not found; cannot check the KB deny-list.'
+}
+
 Write-Host ''
 if ($fail -eq 0) {
     Write-Host "RESULT: $pass passed, 0 failed - no .env secret is reachable from the data tree." -ForegroundColor Green

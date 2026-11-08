@@ -45,6 +45,38 @@ The sanitizer was doing its job. The exposure was the **raw file**, plus the
 
 ---
 
+## Root cause — the KB ingester had an incomplete deny-list
+
+`pacgate-api/src/bin/seed.rs` walks `--assets DIR` and ingests **every** `.md` / `.txt`
+it finds. It already had a deny-list:
+
+```rust
+const EXCLUDE_FILENAMES: &[&str] = &["OPERATOR.md", "render.py"];
+const EXCLUDE_SUFFIXES:  &[&str] = &[".pdf", ".docx"];
+```
+
+`OPERATOR.md` was denied. `法律数据库MCP.md` and `境外法律数据库和网站.md` sit in the
+**same `MCP授权/` directory** and were never added, so they were chunked into
+`kb_chunks`. That is precisely how 8 credential chunks across 6 documents were created.
+
+The RAG retrieval gate then hid them by accident of state, not by design: all 8 were
+`blocked`/`pending`, and `lib.rs:341` requires `sanitized`/`never`. A later re-ingest or
+a single state flip would have made them retrievable and prompt-injectable.
+
+**Fixed** by adding both filenames to `EXCLUDE_FILENAMES`. This cannot be compiled on
+this box (no `cargo`), so the property is asserted statically instead:
+`test-secret-in-mounted-data.ps1` parses `EXCLUDE_FILENAMES` out of `seed.rs` and fails
+if any of the three credential docs is missing. **Red-checked**: removing the
+`境外法律数据库和网站.md` entry makes the gate fail with
+`seed deny-list is MISSING 境外法律数据库和网站.md - it would be chunked into kb_chunks`.
+
+> The `pacgate-seed` **binary in the running image is unchanged** — this edit only takes
+> effect after a rebuild. It does not need to be urgent: the credentials are redacted on
+> disk and purged from `kb_chunks`, so even a stale seeder would ingest only `<REDACTED>`
+> placeholders. Rebuild on the normal release cadence.
+
+---
+
 ## What was done
 
 1. **Backed up** the three source files and the three tenant doc copies to

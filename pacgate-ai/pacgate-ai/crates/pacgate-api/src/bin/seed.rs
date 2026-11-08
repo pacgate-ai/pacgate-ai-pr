@@ -26,7 +26,22 @@ use pacgate_tenant::{MatterStore, TenantStore};
 /// Files that must never enter the knowledge base.
 /// OPERATOR.md holds real GitHub/RustDesk credentials; render.py and PDFs are
 /// build artifacts; `*_converted.md` are machine-generated duplicates.
-const EXCLUDE_FILENAMES: &[&str] = &["OPERATOR.md", "render.py"];
+///
+/// The two MCP授权 documents were added 2026-11-08. They sit in the SAME
+/// directory as OPERATOR.md and hold a plaintext CourtListener API token plus
+/// five plaintext passwords for 元典 / 北大法宝 / 企查查 / overseas databases.
+/// OPERATOR.md was denied but its neighbours were not, so they were chunked:
+/// 8 chunks across 6 duplicate documents reached kb_chunks, where the RAG
+/// retrieval gate happened to hide them (`sanitization_state IN ('sanitized',
+/// 'never')` and all 8 were blocked/pending). That was luck, not design — a
+/// later re-ingest or a state flip would have made them retrievable. Denying
+/// them here is the actual fix.
+const EXCLUDE_FILENAMES: &[&str] = &[
+    "OPERATOR.md",
+    "render.py",
+    "法律数据库MCP.md",
+    "境外法律数据库和网站.md",
+];
 const EXCLUDE_SUFFIXES: &[&str] = &[".pdf", ".docx"];
 
 #[derive(Debug)]
