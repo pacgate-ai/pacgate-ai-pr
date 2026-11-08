@@ -188,6 +188,55 @@ pre-existing PS 5.1 incompatibility. Under `pwsh`: `0 failure(s), 0 skipped`.
 | Skills | 65-skill merged tree + 5 seeds |
 | Extensions config | **30 connectors intact** (backup at `runtime/upgrade-0.2.32/extensions-config.backup.json`) |
 
+## Post-report fixes (same session, after the first push)
+
+Three items were found by comparing the **whole subtree** against upstream rather
+than only the 49 files upstream changed in this release. Final state: **0 of 894
+upstream files missing locally**.
+
+### `.gitattributes` — 25 of 29 patches were CRLF in the worktree
+
+The local `.gitattributes` was a strict subset of upstream's: it pinned the qm
+sandbox launchers to LF but had dropped upstream's rule for
+`deploy/client-bundle/patches/**`. Measured: **25 of 29** patch files were CRLF.
+
+Python parses a CRLF copy fine, so the running stack was never broken — but the
+worktree stopped being byte-identical across machines, and `git am` cannot replay
+these commits at all ("does not match index" on every converted file).
+
+Adopted upstream's `.gitattributes` verbatim and re-checked-out the patches.
+**0 of 29 are CRLF now**, and every blob sha is unchanged. Gates after:
+`test-baked-patch-parity` 16/16, `test-run-recursion-cap` 43/43,
+`test-mcp-argument-paths` 21/21.
+
+### `scripts/diagnose-github-egress.ps1` — the one upstream file missing
+
+It was in the v0.2.30 base (`48f75cfc`) but never carried into the subtree. Now
+adopted byte-identically. It is directly relevant to this session: it reports the
+dead proxy and separates it from real reachability —
+
+```
+env HTTPS_PROXY = http://127.0.0.1:7890
+github.com:443  (HTTPS)    open
+ghcr.io:443     (registry) open
+=> At least one git route is open, so pushes can work.
+```
+
+Known local limitation, deliberately **not** patched (kept byte-identical to
+upstream): it inspects a remote named `origin`, and this monorepo has `upstream`
+and `fork`, so it prints one `NativeCommandError` line before the correct verdict.
+Cosmetic.
+
+### Workflows and remaining divergences are intentional
+
+All 15 `deploy/client-bundle/workflows/*.yaml` are **LOCAL CUSTOMIZED** (diverged
+from both the 0.2.30 base and upstream) — the firm's own legal workflow library,
+222 workflows across 46 categories. Not a gap.
+
+The 98 differing files break down as 15 workflow YAMLs + 26 scripts/config files
+carrying local PS 5.1 fixes and local features + the 8 files deliberately
+preserved. Nothing unintended.
+
 ## Known gaps
 
 1. **`test-release-provenance.ps1`** needs a fork-aware mode before it can be
