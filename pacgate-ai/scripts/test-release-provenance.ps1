@@ -250,9 +250,30 @@ if (-not $resolved) {
 #
 # Read as: a changed file matching one of these is image-affecting.
 $contextPrefixes = @(
+    # These are UPSTREAM-relative, and that is correct only because the diff below
+    # is now taken at that level too.
+    #
+    # Read this before "fixing" the missing outer prefix: the first entry really is
+    # 'pacgate-ai/', meaning this repo's 'pacgate-ai/pacgate-ai/'. AGENTS.md's name
+    # collision makes the outer pacgate-ai/ the upstream ROOT and the inner one the
+    # real `context: pacgate-ai`, so upstream-relative 'pacgate-ai/' is right here
+    # and adding a second prefix would match nothing.
+    #
+    # HISTORY - why this list looked broken on 2026-11-08 and was not. The gate
+    # reported 901 image-affecting files after upstream was adopted. The cause was
+    # NOT these prefixes, it was the diff: `git diff <published-rev>..HEAD` compares
+    # two UNRELATED roots (upstream's tree vs this monorepo's root), so it returned
+    # 2200 files, essentially every path in the repo, and the blanket 'pacgate-ai/'
+    # entry then swept all of them in. Measured the same day: 2200 files the wrong
+    # way, 124 files via `git diff <published-rev> HEAD:pacgate-ai`. The diff is
+    # fixed below; these prefixes are unchanged and were always correct.
     'pacgate-ai/',                     # context: pacgate-ai
     'deploy/pacgate-mcp/',             # context: deploy/pacgate-mcp
     'deploy/ocr-service/',             # context: deploy/ocr-service
+    # ADDED 2026-11-08. `deploy/laya-serve` is a build context in build-ghcr.yml but
+    # had NO entry here, so a change to it was classified benign - the under-report
+    # this gate's own comments call the dangerous direction.
+    'deploy/laya-serve/',              # context: deploy/laya-serve
     # context: '.' for the two deer-flow images - only their COPY sources reach
     # a layer, so a repo-root context does NOT make every file an input.
     'pacgate-adapters/python/pacgate_deerflow_adapter/',
@@ -343,15 +364,31 @@ function Get-ShadowedPath([string]$file) {
 # conservative direction - an over-report asks a human to look, an under-report
 # hides a break.
 $ignoredPrefixes = @()
-if (Test-Path 'pacgate-ai/.dockerignore') {
-    $ignoredPrefixes = @(Get-Content 'pacgate-ai/.dockerignore' |
-        Where-Object { $_ -and $_ -notmatch '^\s*#' } |
-        ForEach-Object { $_.Trim().TrimStart('/') } |
-        Where-Object { $_ -match '/$' } |
-        ForEach-Object { "pacgate-ai/$_" })
+# Each build context has its OWN .dockerignore, and only that file narrows that
+# context. Using the wrong one is how this gate's exclusion logic stopped applying
+# anything at all: the pacgate-ai context is `pacgate-ai/pacgate-ai/` (see the
+# namespace note above), so ITS dockerignore - not the upstream-root one - decides
+# what is excluded there. Both are read, each against its own prefix, and a file
+# is excluded only when the dockerignore of the context it sits in excludes it.
+foreach ($pair in @(
+        @{ Ignore = 'pacgate-ai/pacgate-ai/.dockerignore'; Prefix = 'pacgate-ai/pacgate-ai/' },
+        @{ Ignore = 'pacgate-ai/.dockerignore'; Prefix = 'pacgate-ai/' }
+    )) {
+    if (-not (Test-Path $pair.Ignore)) { continue }
+    foreach ($line in (Get-Content -LiteralPath $pair.Ignore)) {
+        if (-not $line -or $line -match '^\s*#') { continue }
+        $entry = $line.Trim().TrimStart('/')
+        # Only plain prefixes are handled. A glob this does not understand stays
+        # in the report, which is the conservative direction - an over-report asks
+        # a human to look, an under-report hides a break.
+        $entry = ($entry -replace '/?\*+.*$', '').TrimEnd('/')
+        if (-not $entry) { continue }
+        $ignoredPrefixes += ($pair.Prefix + $entry + '/')
+        $ignoredPrefixes += ($pair.Prefix + $entry)
+    }
 }
 
-$changed = @(& git diff --name-only "$resolved..HEAD" 2>$null | Where-Object { $_ })
+$changed = @(& git diff --name-only "$resolved" 'HEAD:pacgate-ai' 2>$null | Where-Object { $_ })
 $affecting = @()
 $benign = @()
 $shadowedChanges = @()
@@ -405,8 +442,7 @@ if (Test-Path $deerFlowDf) {
     }
 }
 
-if ($affecting.Count -gt 0) {
-    Fail "$($affecting.Count) file(s) that CAN reach a built image changed after the published revision was built:"
+if ($affecting.Count -gt 0) {    Fail "$($affecting.Count) file(s) that CAN reach a built image changed after the published revision was built:"
     $affecting | ForEach-Object { Info "  $_" }
     Info 'the tag does not identify the published artifacts: a rebuild from the tag would differ from what clients pull'
     Info "fix: re-point $tag at the commit the images were built from, or rebuild so they match the tag"
