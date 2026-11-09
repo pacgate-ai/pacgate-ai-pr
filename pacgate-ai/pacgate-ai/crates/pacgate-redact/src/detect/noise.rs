@@ -238,6 +238,10 @@ static PUBLIC_ENTITIES: Lazy<Vec<&'static str>> = Lazy::new(|| {
         "台湾",
         "中港",
         "香港法院",
+        // The full official forms. The suffix rule cannot derive these: stripping
+        // `区` from `香港特别行政区` leaves `香港特别行政`, which is not a place.
+        "香港特别行政区",
+        "澳门特别行政区",
         "开曼",
         "开曼群岛",
         "英属维尔京群岛",
@@ -276,27 +280,78 @@ static PUBLIC_ENTITIES: Lazy<Vec<&'static str>> = Lazy::new(|| {
         "西藏",
         "内蒙古",
         "海南",
+        // ── Municipalities and districts, in the 市 form ─────────────────────
+        // MEASURED 2026-11-09 on `equity-transfer-agreement`: the document
+        // blocked with residue exactly `上海市` + `浦东新区` and ZERO structural
+        // survivors. `上海` was listed; `上海市` was not.
+        //
+        // The mechanism is worth recording because it is not "the list is
+        // incomplete" - it is that the redactor and the verifier saw DIFFERENT
+        // spans. On the way in the model emitted `上` (one character, dropped by
+        // the single-character rule) and `浦东新区` at confidence 0.44 (dropped by
+        // MIN_MODEL_CONFIDENCE). So the redactor never had a span to redact. On
+        // the way out the same model emitted `上海市` (three characters,
+        // confidence 0.97) and `浦东新区` at 0.65 - both above every suppressor,
+        // neither in this list - so the verifier blocked.
+        //
+        // A Block is terminal, so the document became permanently undownloadable
+        // over a place name. The 市 forms of the four municipalities are the same
+        // public geography as their stems, and the asymmetry between the two
+        // spellings is the same defect the 印尼 / 印度尼西亚 note above records.
+        "上海市",
+        "北京市",
+        "天津市",
+        "重庆市",
+        "浦东新区",
     ]
 });
 
 /// True when `matched` is a public body, place or vendor rather than client
 /// identity.
 ///
-/// Exact match after trimming, deliberately. A substring test would let
-/// `北京` suppress `北京市朝阳区建国路88号`, which is a real address and must
-/// still be redacted.
+/// Three rules, in order:
 ///
-/// The one exception is the legal-data vendors: the NER model emits them with
-/// ragged tails (`华宇元典`, `华宇元典数`, `华宇元典数据库`), so a vendor entry
-/// matches when the span STARTS WITH it. A vendor name is never a prefix of a
-/// client's name, so this cannot suppress a real identity.
+///   1. An exact match against `PUBLIC_ENTITIES`. Deliberately exact: a substring
+///      test would let `北京` suppress `北京市朝阳区建国路88号`, which is a real
+///      address and must still be redacted.
+///   2. A legal-data vendor PREFIX. The NER model emits those with ragged tails
+///      (`华宇元典`, `华宇元典数`, `华宇元典数据库`), and a vendor name is never a
+///      prefix of a client's name, so this cannot suppress a real identity.
+///   3. A listed public place carrying an administrative suffix - see
+///      `is_administrative_form_of_public_place`.
 pub fn is_public_entity(matched: &str) -> bool {
     let t = matched.trim();
-    PUBLIC_ENTITIES.iter().any(|p| {
-        if *p == t {
-            return true;
-        }
-        is_vendor(p) && t.starts_with(p)
+    if PUBLIC_ENTITIES.iter().any(|p| *p == t) {
+        return true;
+    }
+    if is_vendor_prefix(t) {
+        return true;
+    }
+    is_administrative_form_of_public_place(t)
+}
+
+/// True when `t` is a listed public place carrying an administrative suffix.
+///
+/// MEASURED 2026-11-09 on `equity-transfer-agreement`: the document blocked with
+/// residue exactly `上海市` + `浦东新区` and zero structural survivors. `上海` was
+/// listed; `上海市` was not, so a place name made the document permanently
+/// undownloadable (a Block is terminal).
+///
+/// Adding `上海市` alone would leave `广州市`, `深圳市`, `杭州市` ... to block the
+/// next document the same way, so the rule is the suffix rather than the entry.
+///
+/// This cannot suppress a real identity, and the reason is structural: the stem
+/// must ALREADY be in `PUBLIC_ENTITIES`. `朝阳区` does not qualify (`朝阳` is not
+/// listed), so a client's district is still redacted. A full street address is a
+/// `PostalAddress` rule match ending in 号/路/街, which no suffix here strips, and
+/// rule matches are never suppressed by this function on the verifier path
+/// anyway (`is_suppressible_model_match` returns false for non-model sources).
+fn is_administrative_form_of_public_place(t: &str) -> bool {
+    const SUFFIXES: [&str; 6] = ["市", "省", "区", "县", "镇", "乡"];
+    SUFFIXES.iter().any(|suffix| {
+        t.strip_suffix(suffix)
+            .filter(|stem| !stem.is_empty())
+            .is_some_and(|stem| PUBLIC_ENTITIES.iter().any(|p| *p == stem))
     })
 }
 
@@ -306,6 +361,13 @@ fn is_vendor(name: &str) -> bool {
         name,
         "华宇元典" | "北大法宝" | "威科先行" | "法信" | "中国裁判文书网" | "人民法院案例库"
     )
+}
+
+/// True when `t` starts with a listed vendor name.
+fn is_vendor_prefix(t: &str) -> bool {
+    PUBLIC_ENTITIES
+        .iter()
+        .any(|p| is_vendor(p) && t.starts_with(p))
 }
 
 /// Minimum model confidence for a span to be redacted at all.

@@ -198,3 +198,99 @@ fn private_entities_are_not_excused() {
     }
 }
 
+/// A public place in its administrative form is the same public place.
+///
+/// MEASURED 2026-11-09 on `equity-transfer-agreement` (doc 8b03bf9d): the
+/// document blocked with residue exactly `上海市` + `浦东新区` and ZERO structural
+/// survivors, so `GET /download` answered 409 forever and the only way out was
+/// manual SQL. `上海` was in the list; `上海市` was not.
+///
+/// The asymmetry is the defect, not the missing entry: `广州市`, `深圳市`,
+/// `杭州市` would each block the next document the same way. So the rule is the
+/// administrative suffix, and it only applies when the stem is ALREADY listed.
+#[test]
+fn a_listed_place_in_its_administrative_form_is_still_public() {
+    for name in [
+        "上海市",
+        "北京市",
+        "天津市",
+        "重庆市",
+        "浦东新区",
+        "广东省",
+        "浙江省",
+        "香港特别行政区",
+    ] {
+        assert!(
+            noise::is_public_entity(name),
+            "{name} is a listed public place in administrative form and must not block a document"
+        );
+    }
+}
+
+/// The suffix rule must not become a hole for a client's own district.
+///
+/// `朝阳区` is a real Beijing district and also where a client's office sits. It
+/// is NOT suppressed, because `朝阳` is not a listed public place - the stem has
+/// to be public geography before the suffix rule applies. This is the guard on
+/// the fix above: without it, `is_administrative_form_of_public_place` would
+/// excuse every 区/县/市 in the language.
+#[test]
+fn an_unlisted_district_is_not_excused_by_the_suffix_rule() {
+    for name in [
+        "朝阳区",
+        "海淀区",
+        "南山区",
+        "余杭区",
+        "昆山市",
+        "义乌市",
+    ] {
+        assert!(
+            !noise::is_public_entity(name),
+            "{name} is not a listed public place and must still be redacted"
+        );
+    }
+}
+
+/// The end-to-end shape of the 2026-11-09 block, with the real detector set.
+///
+/// This is the regression that matters: the redactor and the verifier saw
+/// DIFFERENT spans for the same place. On the way in the model emitted `上` (one
+/// character, dropped) and `浦东新区` at 0.44 (below MIN_MODEL_CONFIDENCE), so
+/// there was nothing to redact. On the way out it emitted `上海市` at 0.97 and
+/// `浦东新区` at 0.65 - above every suppressor, so the verifier blocked on a
+/// place name the redactor had been right to leave alone.
+///
+/// Requires the NER weights; skipped when `NER_MODEL_DIR` is unset so the suite
+/// still runs without them.
+#[test]
+fn a_contract_signed_in_a_public_place_does_not_block() {
+    let Ok(dir) = std::env::var("NER_MODEL_DIR") else {
+        eprintln!("NER_MODEL_DIR unset - skipping the model-backed regression");
+        return;
+    };
+    let detectors = pacgate_redact::detect::full_detectors(&dir).expect("model loads");
+    let mut s = Sanitizer::with_key(detectors, MappingVersion::CURRENT, key());
+
+    let text = "股权转让协议本协议由以下双方于二〇二五年六月十八日在上海市浦东新区签署：\
+                转让方：杭州晨曦投资合伙企业（有限合伙），统一社会信用代码 91330100MA2XXXXXXX。\
+                受让方：宁波远望创业投资有限公司，统一社会信用代码 91330200MA8YYYYYYY。";
+
+    let out = s
+        .sanitize(text, DataLevel::T3ProjectSpecific)
+        .expect("sanitize must not error");
+
+    assert!(
+        !out.ledger.verdict.is_block(),
+        "a contract signed in a public place must not block; residue was {:?}",
+        out.ledger
+            .residue
+            .iter()
+            .map(|r| r.text.clone())
+            .collect::<Vec<_>>()
+    );
+    // The over-correction guard: the place is preserved AND the identities are not.
+    assert!(out.text.contains("上海市浦东新区"), "the place must survive");
+    assert!(!out.text.contains("91330100MA2XXXXXXX"), "USCC leaked");
+    assert!(!out.text.contains("杭州晨曦投资合伙企业"), "org name leaked");
+}
+
