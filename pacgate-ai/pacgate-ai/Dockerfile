@@ -80,6 +80,19 @@ RUN set -eux; \
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
 
+# Source revision, so the running process can report WHICH commit it is.
+#
+# This MUST be re-declared here. `ARG` and `ENV` do not cross a `FROM`
+# boundary: the declaration in the builder stage above is scoped to that stage
+# and is gone by the time this one starts. Measured 2026-11-09 - a build with
+# `--build-arg PAC_SOURCE_REVISION=<sha>` produced an image whose runtime
+# `$PAC_SOURCE_REVISION` was EMPTY, so the staleness marker the comment above
+# promises never reached the process it exists to describe. The api reports
+# "unknown" (or nothing) and a deployed tag can silently disagree with the
+# binary, which is the exact failure the marker was added to catch.
+ARG PAC_SOURCE_REVISION=unknown
+ENV PAC_SOURCE_REVISION=${PAC_SOURCE_REVISION}
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     ca-certificates \
