@@ -104,6 +104,19 @@ const AUDIT_RESET: &str = "document.sanitize-reset";
 /// itself evidence, and a scan that found nothing must not look like an audit
 /// that was never run.
 const AUDIT_RESCAN: &str = "document.sanitize-rescan";
+/// A body was released to a caller (download or extract).
+///
+/// The operator manual promises `doc_id / principal / channel / data_level /
+/// bytes` for every body fetch. Until 2026-11-09 no code existed for either
+/// path, so the promise was unimplemented - a body could leave the system with
+/// no record that it had.
+pub(crate) const AUDIT_EGRESS: &str = "document.egress";
+/// A body fetch was REFUSED by the egress gate.
+///
+/// Recorded separately from `AUDIT_EGRESS` because a refusal is the evidence
+/// that the gate ran. Without it, "no egress row" is ambiguous between "nobody
+/// asked" and "the gate blocked it".
+pub(crate) const AUDIT_EGRESS_REFUSED: &str = "document.egress-refused";
 
 #[derive(Debug, Serialize)]
 pub struct JobOutcome {
@@ -208,7 +221,7 @@ fn sanitizer_key_for(
     )
 }
 
-async fn audit_row(
+pub(crate) async fn audit_row(
     state: &AppState,
     tenant_id: &TenantId,
     user_id: Option<&UserId>,
@@ -469,7 +482,13 @@ async fn run_job_inner(
         let ingestor = pacgate_rag::ChunkIngestor::new(state.db.clone(), state.embedding.clone());
         (
             ingestor
-                .reingest_sanitized_chunks(tenant_id, matter_id, document_id, &outcome.text)
+                .reingest_sanitized_chunks_at(
+                    tenant_id,
+                    matter_id,
+                    document_id,
+                    &outcome.text,
+                    Some(data_level),
+                )
                 .await
                 .map_err(|e| {
                     ApiError::internal(format!("sanitized chunk rewrite failed: {e}"))
