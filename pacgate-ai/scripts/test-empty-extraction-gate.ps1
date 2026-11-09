@@ -216,13 +216,18 @@ function Invoke-Case {
     if (-not $doc.id) { Check "$Label - upload" $false 'upload returned no id'; return }
     $script:createdDocs += $doc.id
 
-    $extract = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/extract" -Method Post `
-        -Headers $AuthHeaders -ContentType 'application/json' -Body '{}' -TimeoutSec 300
-    Write-Host "     extract incomplete=$($extract.incomplete) chars=$(($extract.text | Measure-Object -Character).Characters)"
-    Check "$Label - extract reports incomplete=$ExpectIncomplete" `
-        ("$($extract.incomplete)" -eq $ExpectIncomplete) `
-        "got incomplete=$($extract.incomplete), expected $ExpectIncomplete"
-
+    # Completeness is read from /sanitize-status, NOT from /extract.
+    #
+    # The 0.2.33 egress chokepoint refuses /extract on a `pending` document, so
+    # the body endpoint can no longer answer "did the OCR read this in full?".
+    # /sanitize-status reports the same fact as a boolean with no text attached,
+    # which is what this gate actually needs - it never asserted on the body.
+    #
+    # ORDER MATTERS: the status reports the STORED extraction, and nothing has
+    # been extracted yet at this point. The old gate got its answer as a side
+    # effect of calling /extract, which both triggered the extraction and served
+    # the body. Sanitize is now the call that triggers extraction, so it runs
+    # first and the status is read afterwards.
     $sanitizeStatus = $null
     try {
         $sanitizeStatus = (Invoke-WebRequest -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize" -Method Post `
@@ -231,6 +236,13 @@ function Invoke-Case {
     } catch {
         $sanitizeStatus = [int]$_.Exception.Response.StatusCode.value__
     }
+
+    $status = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize-status" `
+        -Headers $AuthHeaders -TimeoutSec 60
+    Write-Host "     extraction_incomplete=$($status.extraction_incomplete)"
+    Check "$Label - extract reports incomplete=$ExpectIncomplete" `
+        ("$($status.extraction_incomplete)" -eq $ExpectIncomplete) `
+        "got extraction_incomplete=$($status.extraction_incomplete), expected $ExpectIncomplete"
 
     $downloadStatus = $null
     try {
@@ -272,18 +284,26 @@ function Invoke-CacheCase {
     if (-not $doc.id) { Check "$Label - upload" $false 'upload returned no id'; return }
     $script:createdDocs += $doc.id
 
-    $first = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/extract" -Method Post `
-        -Headers $AuthHeaders -ContentType 'application/json' -Body '{}' -TimeoutSec 300
-    Check "$Label - first extract incomplete=true" ("$($first.incomplete)" -eq 'true') `
-        "got incomplete=$($first.incomplete)"
+    # Trigger the extraction. /extract is refused on a `pending` document, so
+    # sanitize is the call that runs it; it will refuse the document afterwards
+    # because the read was incomplete, which is the point.
+    try {
+        $null = Invoke-WebRequest -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize" -Method Post `
+            -Headers $AuthHeaders -ContentType 'application/json' -Body '{"data_level":"T3"}' `
+            -TimeoutSec 300 -UseBasicParsing
+    } catch { }
 
-    $second = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/extract" -Method Post `
-        -Headers $AuthHeaders -ContentType 'application/json' -Body '{}' -TimeoutSec 300
-    Write-Host "     cached read: incomplete=$($second.incomplete) chars=$(($second.text | Measure-Object -Character).Characters)"
+    $first = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize-status" `
+        -Headers $AuthHeaders -TimeoutSec 60
+    Check "$Label - first extract incomplete=true" ("$($first.extraction_incomplete)" -eq 'true') `
+        "got extraction_incomplete=$($first.extraction_incomplete)"
+
+    $second = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize-status" `
+        -Headers $AuthHeaders -TimeoutSec 60
+    Write-Host "     cached read: extraction_incomplete=$($second.extraction_incomplete)"
     Check "$Label - CACHED extract still reports incomplete=true" `
-        ("$($second.incomplete)" -eq 'true') `
-        "the cache branch reported incomplete=$($second.incomplete); the stored completeness was lost"
-}
+        ("$($second.extraction_incomplete)" -eq 'true') `
+        "the cache branch reported extraction_incomplete=$($second.extraction_incomplete); the stored completeness was lost"}
 
 # A1 - blank page. THE assertion this plan exists for.
 $blankPdf = Join-Path $fixtureDir 'blank.pdf'
@@ -383,14 +403,13 @@ function Invoke-EmptyTextCase {
         ("$spans" -eq '0' -and "$chunks" -eq '0') `
         "spans=$spans chunks=$chunks; the state under test is not set up"
 
-    $extract = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/extract" -Method Post `
-        -Headers $AuthHeaders -ContentType 'application/json' -Body '{}' -TimeoutSec 300
-    $textLen = ($extract.text | Measure-Object -Character).Characters
-    Write-Host "     cache hit: incomplete=$($extract.incomplete) chars=$textLen"
+    $status = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize-status" `
+        -Headers $AuthHeaders -TimeoutSec 60
+    Write-Host "     cache hit: extraction_incomplete=$($status.extraction_incomplete)"
 
     Check "$Label - empty text is NOT reported complete" `
-        ("$($extract.incomplete)" -eq 'true') `
-        "a record claiming complete with 0 chars reported incomplete=$($extract.incomplete)"
+        ("$($status.extraction_incomplete)" -eq 'true') `
+        "a record claiming complete with 0 chars reported extraction_incomplete=$($status.extraction_incomplete)"
 
     $sanitizeStatus = $null
     try {

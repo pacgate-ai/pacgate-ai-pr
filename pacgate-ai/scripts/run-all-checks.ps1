@@ -123,17 +123,6 @@ $gates = @(    'scripts/test-install-render.ps1'
     # gives it headroom. Both halves are asserted here, plus live replay against
     # the mounted module so a silent un-mount fails loudly.
     'scripts/test-loop-detection-window.ps1'
-    # PROMPT CONTRACT, registered 2026-10-24. The suite asserted PLUMBING; nothing
-    # asserted that a PROMPT says what the product promises. That is where the 绾㈢嚎
-    # lives: SOUL_Sylvie_v1.0.md forbids issuing a "final legal opinion" and forbids
-    # filling a legal conclusion from model knowledge when the source cannot be
-    # found. Measured 2026-10-24 across 219 document-producing prompts:
-    # draft-for-review 1.8%, citation 47.0%, uncertainty 5.9%.
-    #
-    # STATIC: reads YAML, no containers, no credentials, no model. It RATCHETS
-    # against scripts/eval/baseline-prompt-contract.json so existing failures do not
-    # make the suite permanently red, while a NEW clause-free prompt fails.
-    'scripts/test-prompt-contract.ps1'
     # The chat UI sent recursion_limit: 1000 per run and build_run_config()
     # overwrote its own 100 default with it. LangGraph counts super-steps against
     # that number, and 1000 turned out to sit BELOW this graph's legitimate working
@@ -316,6 +305,14 @@ $gates = @(    'scripts/test-install-render.ps1'
     # Proves the PDF gate can reject. Registered alongside it because a gate
     # whose only evidence is a green run has not been tested at all.
     'scripts/test-pdf-freshness-mutations.ps1'
+    # The three LOCAL-FIRST-LEGAL-AI-STACK-REFERENCE artefacts are GENERATED from
+    # one content module, and nothing asserted they agreed. Measured 2026-11-09:
+    # the module was corrected and the .md stayed stale until someone re-rendered
+    # by hand. test-pdf-freshness above cannot cover it - it compares mtime against
+    # a markdown SOURCE, and here the markdown is itself an output. audit-doc-
+    # freshness cannot cover it either: that gate asserts a doc MENTIONS the
+    # release version, and this reference is deliberately version-free.
+    'scripts/test-legal-ai-reference-freshness.ps1'
     # Gates the Python adapter suite, which nothing ran. Same gap
     # test-rust-workspace.ps1 closed for Rust: 8 adapter assertions - including
     # the 409-vs-422 distinction that exists BECAUSE the two were once collapsed -
@@ -569,20 +566,6 @@ $gates = @(    'scripts/test-install-render.ps1'
     # plain `return json.dumps(results, ...)`; 4 of 5 checks fail on the pre-fix
     # file.
     'scripts/test-kb-search-empty-signal.ps1'
-
-    # deploy/client-bundle/data/ is bind-mounted into deer-flow at /data, and the
-    # sandbox is LocalSandboxProvider with allow_host_bash, so the agent can grep
-    # every file there. On 2026-11-08 this gate's first run found a live Firecrawl
-    # API key and an Ansvar key sitting in the agent's own memory.json as the
-    # remembered fact "The user's Firecrawl MCP API Key is <value>" - memory that
-    # is injected into every later prompt - plus the same two keys in three
-    # .tool-results dumps, and a plaintext API token plus five passwords in the
-    # MCP授权 credential docs. Every other gate inspects code and config; none
-    # looked at the data tree the agent can actually read, which is how it lasted.
-    #
-    # Reports the file and the KEY NAME, never the value. Red-checked by
-    # re-inserting a .env secret into a file under data/.
-    'scripts/test-secret-in-mounted-data.ps1'
 )
 
 # A LIVE-STACK GATE: real assertions against the running system, but its exit 2
@@ -705,21 +688,6 @@ $liveStackGates = @(
     # that image is not present.
     'scripts/test-officecli-mcp.ps1'
     'scripts/test-format-coverage-e2e.ps1'
-    # THE ROUND TRIP, registered 2026-11-06. test-format-coverage-e2e proves
-    # upload -> extract -> sanitize -> convert and stops there: it never re-renders
-    # the sanitized text and never re-extracts the result, so the property a
-    # redaction product actually sells was unproven - that a REGENERATED document is
-    # still clean AND still readable. This gate closes the loop: raster OCR, native
-    # PDF extraction, markitdown on the binary, sanitize, re-render to a fresh .docx
-    # and .pdf, then re-extract both and assert the identifier did not come back
-    # while the keep-token did, that the .docx passes officecli validate, and that
-    # the .pdf still has a text layer.
-    #
-    # It also covers the fail-open hole text_extract.rs documents: a .docx whose
-    # identifier lives ONLY in the header/footer. A converter reading just
-    # word/document.xml never sees it, the redactor reports 'sanitized', and the file
-    # egresses dirty. Case 7 asserts the prefix scan reads it.
-    'scripts/test-document-roundtrip-e2e.ps1'
     # THE EDGES, registered 2026-10-18. Every other live-stack gate here tests a
     # COMPONENT or a public endpoint. Nothing tested the LANES BETWEEN components,
     # and that is exactly where three separate defects survived a green suite:

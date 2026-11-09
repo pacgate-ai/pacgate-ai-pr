@@ -40,25 +40,6 @@ nemotron-3.5-bolt:e4b-q8_0
 # machine with the VRAM, and set PACGATE_MODEL_MID in .env to match.
 # qwen3.8:27b-mtp-q4_K_M
 
-# --- CONTEXT-CAPPED DERIVATIVE (LOCAL-ONLY, retained for the Mid tier) ---
-# `qwen3.8-legal:27b-mid` is NOT a registry tag - `ollama pull` returns HTTP 404.
-# `ensure-context-capped-model.ps1` builds it with `ollama create` from the base
-# tag below (num_ctx 32768); install.ps1 rebuilds it idempotently on machines
-# whose .env names it.
-#
-# It is retained because qwen3.8:27b-mtp-q4_K_M declares a 262144 context, and
-# neither a per-request options.num_ctx (OpenAI-compat route) nor the server-wide
-# OLLAMA_CONTEXT_LENGTH default is honoured. At 262144 the KV cache does not fit
-# beside the 16.5 GB of weights, so Ollama splits the runner across CPU+GPU and
-# commits 18-27 GB of host RAM - the wall that stalled every session. A cap baked
-# into the TAG is route-independent and per-model.
-#
-# The gemma4 derivative (`gemma4-legal:12b-chat`) is GONE as of 2026-11-05:
-# gemma4 was retired in favour of `nemotron-3.5-bolt:e4b-q8_0`, which ships a
-# 65536 ceiling and needs no cap. Do not re-add it.
-qwen3.8:27b-mtp-q4_K_M
-qwen3.8-legal:27b-mid
-
 # --- Optional heavier local model (picket option, NOT a tier default) ---
 # 24.8 GB. Over the 16 GB card budget: Ollama keeps only ~3.1 GB resident and
 # pages the rest from disk. Measured 3.3x slower than the 7.5B on an identical

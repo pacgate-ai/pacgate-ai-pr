@@ -6,7 +6,7 @@
 
 *法律智能体链路与执行框架的语义、接口与能力*
 
-> CC-REF-LFAI-01 - rev 1.0 - 2026-10-21 - Internal reference - role names redacted / 内部参考 - 角色名替代
+> CC-REF-LFAI-01 - rev 1.0 - 2026-11-09 - Internal reference - role names redacted / 内部参考 - 角色名替代
 >
 > Role names replace every product, vendor and upstream runtime name; see Table 1.
 > 本文以角色名替代全部产品名、厂商名与上游运行时名，见表 1。
@@ -179,7 +179,7 @@ A harness is the part of an agent system that decides what the agent is allowed 
 
 | Layer / 层次 | Question it answers / 所回答的问题 | Mechanism / 机制 | Why it is code, not prompt / 为何落在代码而非提示 |
 | --- | --- | --- | --- |
-| Role overlay<br/>角色叠加 | Whose judgement is being represented, and with what standing authority<br/>代表谁的判断，以及其固有权限 | 10 identity overlays bound to a user record. Each carries 2 to 3 identity modes switched by document type, and explicit boundary rules each tied to an enforcement point: API middleware, workflow gate, or prompt<br/>10 个身份叠加，绑定到用户记录。每个含 2 至 3 种按文档类型切换的身份模式，以及逐条绑定强制点的边界规则：接口中间件、工作流闸门或提示层 | A rule enforced only by prompting is a rule the model can be talked out of. Boundary rules that matter are marked as middleware or gate rules, and those are the ones a run cannot cross<br/>仅靠提示执行的规则，模型可以被说服放弃。真正重要的边界规则被标注为中间件或闸门规则，运行无法越过 |
+| Role overlay<br/>角色叠加 | Whose judgement is being represented, and with what standing authority<br/>代表谁的判断，以及其固有权限 | 10 identity overlays bound to a user record. Each carries 2 to 3 identity modes switched by document type, and explicit boundary rules each tied to an enforcement point: API middleware, workflow gate, or prompt<br/>10 个身份叠加，绑定到用户记录。每个含 2 至 3 种按文档类型切换的身份模式，以及逐条绑定强制点的边界规则：接口中间件、工作流闸门或提示层 | A rule enforced only by prompting is a rule the model can be talked out of. Boundary rules are therefore split by enforcement point, and the platform reports per rule whether a check actually ran: a gate with no implementation is reported as not implemented rather than assumed to hold<br/>仅靠提示执行的规则，模型可以被说服放弃。因此边界规则按强制点分流，平台逐条报告检查是否真的执行：尚未实现的闸门会如实报告为未实现，而非假定其成立 |
 | Workflow template<br/>工作流模板 | What procedure this task follows, in what order, with which evidence at each step<br/>本任务遵循何种程序、何种顺序、每步需要何种依据 | 220 templates across 15 files and 46 categories. Each template is an ordered list of steps; each step names one tool from Table 4 and its parameters<br/>15 个文件、46 个分类、共 220 个模板。每个模板是有序的步骤列表；每步指定表 4 中的一项工具及其参数 | A template is a data structure the executor walks. It cannot skip a step because the model felt confident, and step order is reproducible across runs<br/>模板是执行器逐步遍历的数据结构。它不会因模型自信而跳步，且步骤顺序在不同运行间可复现 |
 | Tool boundary<br/>工具边界 | What this run may actually touch, and how much of it<br/>本次运行实际可触及何物，以及数量上限 | Eleven dispatchable tools with declared schemas. Hard caps where volume matters: 20 copies per replication call, 64 KiB per memory record, 50 MB per upload<br/>十一项可调度工具，均带声明式模式。涉量处设硬上限：单次复制 20 份、单条记忆 64 KiB、单次上传 50 MB | Schema plus scope means the blast radius of a bad run is bounded before it starts, not observed afterwards<br/>模式加作用域，使一次异常运行的影响半径在开始前即被限定，而非事后才发现 |
 
@@ -330,7 +330,8 @@ A reference document that lists only finished work is not usable for planning. T
 | Matter core service, auth, documents, workflows<br/>事项核心服务、鉴权、文档、工作流 | Running<br/>已运行 | Route table implemented end to end; health and build info answer without authentication<br/>路由表已端到端实现；健康与构建信息无需鉴权即可应答 | The spine a firm actually uses<br/>律所实际使用的主脊 |
 | Document engine with tracked edits<br/>具备修订留痕的文档引擎 | Running<br/>已运行 | Versioned writes and anchored replacement in the core service<br/>核心服务内的带版本写入与锚点替换 | Deliverables are produced, not promised<br/>成果文件是产出的，而非承诺的 |
 | De-identification pipeline<br/>去标识流水线 | Running<br/>已运行 | Five ordered stages, 19 entity types, ledger and restore path<br/>五个有序阶段、19 类实体、台账与还原路径 | The gate is real; T3 and T4 require review<br/>闸门确实生效；T3、T4 必须人工复核 |
-| Retrieval with class ceiling<br/>带密级上限的检索 | Running<br/>已运行 | Class, jurisdiction, matter and source filters all applied in one query path<br/>密级、法域、事项与来源四重过滤在同一查询路径上生效 | Retrieval cannot silently widen<br/>检索不会悄然放宽范围 |
+| Retrieval with class ceiling<br/>带密级上限的检索 | Running<br/>已运行 | Class, jurisdiction, matter and source filters all applied in one query path; an unparseable class ceiling is refused rather than replaced by the default<br/>密级、法域、事项与来源四重过滤在同一查询路径上生效；无法解析的密级上限将被拒绝，而非以默认值替代 | Retrieval cannot silently widen<br/>检索不会悄然放宽范围 |
+| Document body reads<br/>文档正文读取 | Running<br/>已运行 | One admission decision covers extraction and download; a document in 'pending' or 'blocked' yields its body to neither; every read and every refusal writes an audit row<br/>抽取与下载共用同一准入判断；处于“待处理”或“已拦截”的文档，两条路径均不返回正文；每次读取与每次拒绝均写入审计行 | Reading a document is a recorded event, and a blocked one is not readable through a second route<br/>读取文档属留痕事件，且被拦截的文档不能经由第二条路径读取 |
 | Legal connectors<br/>法律数据连接器 | Partial<br/>部分可用 | 27 catalogued, 11 implemented; two Chinese primary sources are the working ones, one needs a renewed token<br/>目录 27 项、已实现 11 项；两个中国一手数据源可用，其中一个需续期令牌 | Verify credentials at install, not at first use<br/>在安装时而非首次使用时校验凭据 |
 | Tabular review<br/>表格审阅 | Declared, not wired<br/>已声明，未接入 | Both routes answer with an explicit internal error rather than a fabricated result<br/>两条路由返回明确的内部错误，而非虚构结果 | Do not sell it as available<br/>不应将其作为可用能力对外承诺 |
 | Rule and validation engines<br/>规则与校验引擎 | Scaffolded<br/>骨架 | Fixed signatures returning constant values<br/>固定签名，返回常量值 | Blueprint work, outside the pilot scope<br/>属蓝图阶段工作，不在试点范围内 |
@@ -354,7 +355,7 @@ Taken together, the design answers four questions that a general-purpose assista
 
 | Question / 问题 | Where the answer lives / 答案所在 | What a reader should check / 读者应核查之处 |
 | --- | --- | --- |
-| Who is the agent speaking as, and with what authority?<br/>智能体以何种身份、何种权限发言？ | Role overlay with enforcement points, Table 7<br/>带强制点的角色叠加，表 7 | That boundary rules are marked as middleware or gate rules, not merely as instructions<br/>边界规则被标注为中间件或闸门规则，而非仅为指示 |
+| Who is the agent speaking as, and with what authority?<br/>智能体以何种身份、何种权限发言？ | Role overlay with enforcement points, Table 7<br/>带强制点的角色叠加，表 7 | That boundary rules are split by enforcement point, and that an unimplemented gate is reported as unimplemented rather than assumed to hold<br/>边界规则按强制点分流，且未实现的闸门如实报告为未实现，而非假定其成立 |
 | What may it touch, and how much?<br/>可触及何物，数量几何？ | Tool schemas and hard caps, Tables 4 and 7<br/>工具模式与硬上限，表 4、表 7 | That the caps are constants in code, not configuration a run can raise<br/>上限为代码常量，而非运行可自行提高的配置 |
 | What evidence survives the run?<br/>一次运行后留下何种证据？ | Lifecycle evidence column, Table 3; ledger and restore, Table 9<br/>生命周期中的证据列，表 3；台账与还原，表 9 | That every step leaves a named artefact rather than a log line<br/>每步留下的是具名产物，而非仅一行日志 |
 | What is honestly not finished?<br/>哪些确实尚未完成？ | State table with distinct words for distinct states, Table 13<br/>以不同措辞区分不同状态的状态表，表 13 | That failures are visible rather than silent<br/>失败是可见的，而非静默的 |

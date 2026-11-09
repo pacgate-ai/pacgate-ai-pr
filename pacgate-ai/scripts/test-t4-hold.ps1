@@ -72,9 +72,29 @@ $upload = Invoke-RestMethod -Uri "$BaseUrl/api/documents" -Method Post -Headers 
 $docId = $upload.id
 Check 'upload ok' ([bool]$docId) "doc=$docId"
 
-$null = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/extract" -Method Post -Headers $H `
-    -ContentType 'application/json' -Body '{}' -TimeoutSec 300
-Check 'extract ok' $true
+# Extract BEFORE sanitize must be REFUSED.
+#
+# The 0.2.33 egress chokepoint (egress.rs) makes /extract and /download return the
+# SAME body for the same document state. Before it, the extract handler checked the
+# tenant and nothing else, so it served the body of a `pending` document - content
+# nobody had redacted and which /download already refused by design. That asymmetry
+# WAS the leak, and this gate used to demand it.
+#
+# Asserting the refusal is the stronger check: a silent "return empty" would pass
+# the old assertion and fail this one.
+$extractRefused = $false
+$extractMsg = ''
+try {
+    $null = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/extract" -Method Post -Headers $H `
+        -ContentType 'application/json' -Body '{}' -TimeoutSec 300
+} catch {
+    $extractRefused = $true
+    $extractMsg = $_.ErrorDetails.Message
+}
+Check 'extract REFUSES a pending document body' $extractRefused `
+    'a pending document must not yield text from either endpoint'
+Check 'the refusal names sanitization as what unblocks it' `
+    ($extractMsg -match 'sanitiz|pending|conflict') "refusal said: $extractMsg"
 
 # ── T4: must be held ─────────────────────────────────────────────────────────
 $job = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/sanitize" -Method Post -Headers $H `

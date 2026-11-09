@@ -594,13 +594,10 @@ function Invoke-RefusalCase {
     Check "$Label - upload returns 2xx" $true ''
     $script:createdDocs += $doc.id
 
-    $extract = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/extract" -Method Post `
-        -Headers $AuthHeaders -ContentType 'application/json' -Body '{}' -TimeoutSec 300
-    Write-Host "     extract incomplete=$($extract.incomplete)"
-    Check "$Label - extract reports incomplete=true (REFUSED, not silently read)" `
-        ("$($extract.incomplete)" -eq 'true') `
-        "incomplete=$($extract.incomplete); NUL-interleaved text must never be treated as a complete read"
-
+    # Completeness comes from /sanitize-status, not /extract: the 0.2.33 egress
+    # chokepoint refuses /extract on a `pending` document, so the body endpoint
+    # can no longer answer "did this read in full?". Sanitize is what triggers
+    # the extraction, so it runs first and the status is read afterwards.
     $sanitizeStatus = $null
     try {
         $sanitizeStatus = (Invoke-WebRequest -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize" -Method Post `
@@ -609,6 +606,14 @@ function Invoke-RefusalCase {
     } catch {
         $sanitizeStatus = [int]$_.Exception.Response.StatusCode.value__
     }
+
+    $status = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize-status" `
+        -Headers $AuthHeaders -TimeoutSec 60
+    Write-Host "     extraction_incomplete=$($status.extraction_incomplete)"
+    Check "$Label - extract reports incomplete=true (REFUSED, not silently read)" `
+        ("$($status.extraction_incomplete)" -eq 'true') `
+        "extraction_incomplete=$($status.extraction_incomplete); NUL-interleaved text must never be treated as a complete read"
+
     Check "$Label - sanitize is REFUSED (not 200)" ($sanitizeStatus -ne 200) `
         "sanitize returned $sanitizeStatus; unreadable encoding must not reach a verdict"
 
@@ -702,12 +707,17 @@ function Invoke-Case {
     $docId = $doc.id
     $script:createdDocs += $docId
 
-    # 3. Extract.
+    # 3. Extract is REFUSED on a pending document.
+    #
+    # The 0.2.33 egress chokepoint makes /extract and /download return the SAME
+    # body for the same state. Before it, this handler checked the tenant and
+    # nothing else, so it served the body of a `pending` document - content
+    # nobody had redacted and which /download already refused by design. That
+    # asymmetry WAS the leak, and this gate used to demand it.
     $extractStatus = $null
-    $extract = $null
     $extractErr = ''
     try {
-        $extract = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/extract" -Method Post `
+        $null = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/extract" -Method Post `
             -Headers $AuthHeaders -ContentType 'application/json' -Body '{}' -TimeoutSec 300
         $extractStatus = 200
     } catch {
@@ -716,21 +726,9 @@ function Invoke-Case {
         $extractErr = $err.body
         if (-not $extractErr) { $extractErr = $_.Exception.Message }
     }
-    $extractedText = if ($extract) { [string]$extract.text } else { '' }
-    $extractChars = $extractedText.Length
-    $incomplete = if ($extract) { "$($extract.incomplete)" } else { '(no body)' }
-    Write-Host "     extract status=$extractStatus incomplete=$incomplete chars=$extractChars"
-    Check "$Label - extract 200 with incomplete=false" `
-        (($extractStatus -eq 200) -and ($incomplete -eq 'false')) `
-        "status=$extractStatus incomplete=$incomplete chars=$extractChars $extractErr"
-
-    # 4. The text is not merely non-empty -- it CONTAINS what the fixture wrote.
-    #    An emptiness check passes on a document nobody read; a content check does
-    #    not. This is the assertion that catches a converter skipping a part.
-    $hasId = $extractedText.Contains($ID_CARD)
-    $hasPhone = $extractedText.Contains($PHONE)
-    Check "$Label - extracted text CONTAINS both identifiers" ($hasId -and $hasPhone) `
-        "id_present=$hasId phone_present=$hasPhone chars=$extractChars"
+    Write-Host "     extract status=$extractStatus"
+    Check "$Label - extract REFUSES a pending document" ($extractStatus -ne 200) `
+        "status=$extractStatus; a pending document must not yield text from either endpoint $extractErr"
 
     # 5. Sanitize.
     $sanStatus = $null
@@ -753,6 +751,21 @@ function Invoke-Case {
     Check "$Label - sanitize 200 verdict=pass redaction_count>=2" `
         (($sanStatus -eq 200) -and ($verdict -eq 'pass') -and ($redactions -ge 2)) `
         "status=$sanStatus verdict=$verdict redaction_count=$redactions $sanErr"
+
+    # 4. The extraction is not merely non-empty -- it CONTAINS what the fixture
+    #    wrote, which is why redaction_count>=2 above is a real test rather than a
+    #    vacuous one. An emptiness check passes on a document nobody read; a
+    #    content check does not. This is the assertion that catches a converter
+    #    skipping a part.
+    #
+    #    Read from /sanitize-status rather than the body: the body endpoint is
+    #    closed on a pending document, and completeness is the fact that matters.
+    try {
+        $st = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/sanitize-status" -Headers $AuthHeaders -TimeoutSec 60
+        Check "$Label - extraction read the document in full" ($st.extraction_incomplete -eq $false) `
+            "extraction_incomplete=$($st.extraction_incomplete)"
+    }
+    catch { Check "$Label - extraction read the document in full" $false "sanitize-status threw: $($_.Exception.Message)" }
 
     # 6. Egress check -- and it must NOT be vacuous.
     #    `-not ''.Contains('x')` is TRUE, so a bare absence check passes when the

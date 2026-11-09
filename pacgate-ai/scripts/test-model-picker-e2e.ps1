@@ -130,23 +130,8 @@ $list = Join-Path $repoRoot 'deploy/client-bundle/ollama-models.txt'
 if ((Test-Path $cfg) -and (Test-Path $list)) {
     # Active picker entries only: a commented-out model is not offered, and a
     # bare string must not be mistaken for a model tag.
-    #
-    # Pacgate 2026-11-06: scan the `models:` BLOCK, not every line of the file.
-    # The previous matcher `^\s*-?\s*model:\s*(\S+)` over the whole YAML also
-    # collected the `subagents:` block's `model:` KEY NAMES (e.g.
-    # `nemotron-bolt-7b-local`, `ornith-1.5-9b-local`) as if they were loadable
-    # tags, so this check failed on a correct config - measured live 2026-11-06.
-    # Same defect audit-model-tags.ps1 fixed on 2026-10-30; the two matchers had
-    # drifted apart. A subagent's `model:` is a KEY into `models:`, never a tag.
     $picker = @()
-    $inModels = $false
     foreach ($line in (Get-Content $cfg)) {
-        if ($line -match '^[A-Za-z_][A-Za-z0-9_-]*\s*:') {
-            # A new top-level key ends the models block.
-            $inModels = ($line -match '^models\s*:')
-            continue
-        }
-        if (-not $inModels) { continue }
         if ($line -match '^\s*#' -or $line -notmatch '^\s*-?\s*model:\s*(\S+)') { continue }
         $picker += $matches[1]
     }

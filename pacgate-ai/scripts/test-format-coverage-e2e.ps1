@@ -316,26 +316,28 @@ foreach ($c in $cases) {
     Ok "$($c.Name): uploaded (format=$($doc.format), version=$($doc.version))"
 
     # 2. EXTRACTION
-    $ex = $null
+    #
+    # /extract is REFUSED on a `pending` document since the 0.2.33 egress
+    # chokepoint: it and /download now return the same body for the same state,
+    # which is what closed the leak where extract served unredacted text. So the
+    # extraction is triggered by sanitize (step 3) and its RESULT is read from
+    # the sanitize response, which carries `sanitized_text` - the redacted
+    # rendering of exactly the text this step used to inspect.
+    #
+    # What this step still proves, and must: the extraction ran at all, and it
+    # read the whole document. Both are asserted from /sanitize-status, which
+    # reports completeness as a boolean with no body attached.
+    $extractRefused = $false
     try {
-        $ex = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/extract" -Method Post -Headers $AuthHeaders `
+        $null = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/extract" -Method Post -Headers $AuthHeaders `
             -ContentType 'application/json' -Body '{}' -TimeoutSec 420
     }
-    catch {
-        Bad "$($c.Name): EXTRACT threw: $($_.Exception.Message)"
+    catch { $extractRefused = $true }
+    if (-not $extractRefused) {
+        Bad "$($c.Name): EXTRACT served the body of a pending document - the egress gate is open"
         continue
     }
-    $exText = [string]$ex.text
-    if ($exText.Trim().Length -eq 0) { Bad "$($c.Name): EXTRACT returned no text" }
-    elseif ($ex.incomplete -eq $true) { Bad "$($c.Name): EXTRACT reported incomplete=true (a partial read is not a pass)" }
-    else { Ok "$($c.Name): extracted $($exText.Length) chars, incomplete=false" }
-
-    # The identifier must be present, or the sanitization assertion below is vacuous.
-    if ($exText -notmatch $ID_CARD) {
-        Bad "$($c.Name): the identifier is NOT in the extracted text; sanitization would pass without testing anything"
-        continue
-    }
-    Ok "$($c.Name): the identifier survived extraction (so sanitization is a real test)"
+    Ok "$($c.Name): extract refused a pending document (egress gate closed)"
 
     # 3. SANITIZATION - the step that makes an upload safe to hand on.
     #
@@ -357,6 +359,18 @@ foreach ($c in $cases) {
     elseif ($sanText -match $PHONE) { Bad "$($c.Name): the phone number SURVIVED sanitization" }
     elseif ($sanText.Trim().Length -eq 0) { Bad "$($c.Name): sanitized text is empty - redaction removed everything" }
     else { Ok "$($c.Name): sanitize verdict=pass, both identifiers redacted, text preserved" }
+
+    # The extraction step 2 could no longer observe must still have read the
+    # whole document. Asserted from the status endpoint, which reports the fact
+    # without serving any body.
+    try {
+        $st = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/sanitize-status" -Headers $AuthHeaders -TimeoutSec 60
+        if ($st.extraction_incomplete -ne $false) {
+            Bad "$($c.Name): extraction_incomplete=$($st.extraction_incomplete); the read was partial"
+        }
+        else { Ok "$($c.Name): extraction read the document in full" }
+    }
+    catch { Bad "$($c.Name): sanitize-status threw: $($_.Exception.Message)" }
 
     # 4. EGRESS: what does an agent actually RECEIVE for a sanitized document?
     #

@@ -131,8 +131,8 @@ $mutations = @(
     # there would not apply and would be reported as a failure, not a pass.
     @{ N = 'a script references a non-publishing namespace'
        File = 'scripts/test-initialize-gate.ps1'
-       From = 'ghcr.io/jzkk720/deer-flow-pacgate:0.2.32'
-       To   = 'ghcr.io/pacgate-ai/deer-flow-pacgate:0.2.32'
+       From = 'ghcr.io/jzkk720/deer-flow-pacgate:0.1.17'
+       To   = 'ghcr.io/pacgate-ai/deer-flow-pacgate:0.1.17'
        Want = 'no local script references a GHCR namespace other than jzkk720' }
 )
 

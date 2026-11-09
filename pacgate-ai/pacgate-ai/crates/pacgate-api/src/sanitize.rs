@@ -104,19 +104,6 @@ const AUDIT_RESET: &str = "document.sanitize-reset";
 /// itself evidence, and a scan that found nothing must not look like an audit
 /// that was never run.
 const AUDIT_RESCAN: &str = "document.sanitize-rescan";
-/// A body was released to a caller (download or extract).
-///
-/// The operator manual promises `doc_id / principal / channel / data_level /
-/// bytes` for every body fetch. Until 2026-11-09 no code existed for either
-/// path, so the promise was unimplemented - a body could leave the system with
-/// no record that it had.
-pub(crate) const AUDIT_EGRESS: &str = "document.egress";
-/// A body fetch was REFUSED by the egress gate.
-///
-/// Recorded separately from `AUDIT_EGRESS` because a refusal is the evidence
-/// that the gate ran. Without it, "no egress row" is ambiguous between "nobody
-/// asked" and "the gate blocked it".
-pub(crate) const AUDIT_EGRESS_REFUSED: &str = "document.egress-refused";
 
 #[derive(Debug, Serialize)]
 pub struct JobOutcome {
@@ -221,7 +208,7 @@ fn sanitizer_key_for(
     )
 }
 
-pub(crate) async fn audit_row(
+async fn audit_row(
     state: &AppState,
     tenant_id: &TenantId,
     user_id: Option<&UserId>,
@@ -1269,6 +1256,18 @@ pub struct SanitizeStatusResponse {
     /// truth to drift: if the ledger says pass and the document is still
     /// pending, it is held, by construction.
     pub held_for_review: bool,
+    /// Whether the stored extraction read the whole document.
+    ///
+    /// `None` means no extraction has been cached yet. This exists because the
+    /// 0.2.33 egress chokepoint refuses `/extract` on a `pending` document, so
+    /// the completeness of an extraction is no longer observable from the body
+    /// endpoint - and "did the OCR read this scan in full?" is exactly the
+    /// question an operator needs answered BEFORE deciding to sanitize. Without
+    /// it, the only way to find out was to attempt a sanitize and read the 409.
+    ///
+    /// Reported as a fact about the stored extraction, never as body content:
+    /// it carries no text, so it cannot leak what the gate protects.
+    pub extraction_incomplete: Option<bool>,
 }
 
 pub async fn sanitize_status_handler(
@@ -1331,11 +1330,25 @@ pub async fn sanitize_status_handler(
         .map_err(|e| ApiError::internal(e.to_string()))?
         .is_some();
 
+    // Completeness of the stored extraction, as a fact rather than as body
+    // content. `extract_document` is cache-first, so this reads the cached
+    // record when one exists and reports `None` when none does - it never
+    // triggers an extraction, so asking cannot be used to force work.
+    let extraction_incomplete = crate::extract::cached_extraction_completeness(
+        &state,
+        &tenant_id,
+        &doc.matter_id,
+        &document_id,
+    )
+    .await
+    .map_err(|e| ApiError::internal(format!("extraction completeness lookup failed: {e:?}")))?;
+
     Ok(axum::Json(SanitizeStatusResponse {
         document_state: doc_state,
         chunk_states,
         latest_job,
         held_for_review,
+        extraction_incomplete,
     }))
 }
 

@@ -58,39 +58,11 @@ Write-Host '=== the qm stack (not refreshed by -Update) is not stale ==='
 $tracked = if ([System.IO.Path]::IsPathRooted($TrackedDir)) { $TrackedDir } else { Join-Path $repoRoot $TrackedDir }
 $staged  = if ([System.IO.Path]::IsPathRooted($StagedDir))  { $StagedDir }  else { Join-Path $repoRoot $StagedDir }
 
-# The staged copy is only ONE of the two supported layouts. A machine can also run
-# qm straight from the tracked source dir (deploy/qm-pacgate), which is what the
-# live container reports in its compose working_dir label. In that layout there is
-# nothing to stage and nothing to drift, so Q1 is vacuous - but Q3 (live env vs
-# .env) is still meaningful and must run. Resolve the directory qm ACTUALLY runs
-# from before deciding the gate cannot check anything.
 if (-not (Test-Path -LiteralPath $staged)) {
-    $liveDir = $null
-    $core = @(docker ps --filter 'name=qm-pacgate-core' --format '{{.Names}}' 2>$null)
-    if ($core.Count -gt 0) {
-        # NOT `docker inspect -f '{{index .Config.Labels "com.docker..."}}'`: Windows
-        # PowerShell 5.1 mangles the nested quotes and docker then parses the label
-        # name as a template function ("function \"com\" not defined"). Read the JSON
-        # and index it in PowerShell instead.
-        $wd = $null
-        try {
-            $info = docker inspect qm-pacgate-core 2>$null | ConvertFrom-Json
-            $wd = $info[0].Config.Labels.'com.docker.compose.project.working_dir'
-        }
-        catch { $wd = $null }
-        if ($wd -and (Test-Path -LiteralPath $wd)) { $liveDir = $wd }
-    }
-    if ($liveDir) {
-        Write-Host ''
-        Write-Host "  note  qm runs from $liveDir (tracked source, not a staged copy) - Q1 is vacuous here" -ForegroundColor DarkGray
-        $staged = $liveDir
-    }
-    else {
-        Write-Host ''
-        Write-Host "CANNOT CHECK: qm is not staged at $StagedDir and no qm container is running." -ForegroundColor Yellow
-        Write-Host '  Normal on a machine that does not run the co-working stack. setup-qm.ps1 stages it.' -ForegroundColor DarkGray
-        exit 2
-    }
+    Write-Host ''
+    Write-Host "CANNOT CHECK: qm is not staged at $StagedDir." -ForegroundColor Yellow
+    Write-Host '  Normal on a machine that does not run the co-working stack. setup-qm.ps1 stages it.' -ForegroundColor DarkGray
+    exit 2
 }
 
 # ---------------------------------------------------------------------------

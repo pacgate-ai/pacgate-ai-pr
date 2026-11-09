@@ -41,7 +41,7 @@ services:
     restart: unless-stopped
 
   pacgate-api:
-    image: ghcr.io/jzkk720/pacgate-api:0.2.32
+    image: ghcr.io/jzkk720/pacgate-api:0.2.33
     healthcheck:
       # No curl and no wget in this image (measured 2026-10-14), so the probe
       # uses bash's /dev/tcp. /health is the one route that needs no auth
@@ -137,7 +137,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/jzkk720/deer-flow-pacgate:0.2.32
+    image: ghcr.io/jzkk720/deer-flow-pacgate:0.2.33
     healthcheck:
       # :8001 is the gateway nginx proxies to; /health verified 200.
       test:
@@ -158,17 +158,6 @@ services:
       PACGATE_MATTER_ID: ${PACGATE_MATTER_ID}
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       DEER_FLOW_EXTENSIONS_CONFIG_PATH: /app/deer-flow-extensions-config.json
-      # Pacgate 2026-10-30: ceiling for the lead-agent recursion budget, and the
-      # DEFAULT for callers that send no config (the API/IM path).
-      # LangGraph charges ~9.8 super-steps per LLM call in this graph (nine
-      # middleware after_model/before_model hooks are each their own node), so a
-      # step budget is NOT a call budget. Measured deepest NON-looping workloads:
-      # d35307ec 5767, f7f240f6 3154, dcced4b5 1589 super-steps. A 500 ceiling is
-      # below all three and cut thread 4de2965b off after its work was done.
-      # 4000 clears the deepest observed run with ~2.5x headroom; real loops are
-      # stopped by LoopDetectionMiddleware layer 1/2 and the idle/stall detectors,
-      # which are independent of this number. Raise only with a new measurement.
-      DEERFLOW_MAX_RECURSION_LIMIT: "4000"
       # Allow the browser (via the frontend proxy) to call auth routes. The
       # gateway rejects cross-site auth POSTs unless the Origin is same-origin or
       # explicitly allowlisted; the frontend proxies /api/* internally so the
@@ -200,24 +189,6 @@ services:
     volumes:
       - ./data:/data
       - ./deer-flow-config.yaml:/app/backend/config.yaml:ro
-      # Pacgate 2026-10-08: serve the skills tree (60 dirs: 37 PacGate legal + 23
-      # upstream) from the merged pacgate-layer working copy. The published image
-      # has NO /app/skills - re-verified against 0.2.6 on 2026-10-25. Without it the
-      # gateway resolves its skills root to a missing dir and /api/skills returns [].
-      - ../../../deer-flow/skills/public:/app/skills/public:ro
-      # Pacgate 2026-11-05: ALSO mount the shipped seed corpus into the writable
-      # skills root, as upstream does. This is NOT redundant with the line above:
-      # they have different destinations.
-      #   /app/skills/public               <- the 60-skill merged tree (gateway root)
-      #   /app/backend/.deer-flow/skills/public <- the 5 seeded skills, over the
-      #       directory the agent's `skill_manage` writes custom skills into
-      # Dropping it (a local delta from the 0.2.x port) meant `skill_evolution`
-      # had no seed to load on a client install, while this machine passed only
-      # because the merged tree happens to contain the same 5 names. Measured
-      # 2026-11-05: test-skill-evolution.ps1 E3 failed on BOTH lanes without it.
-      # Read-only: a seeded skill is changed by copying into `custom/`, never by
-      # mutating the seed.
-      - ./deer-flow-skills:/app/backend/.deer-flow/skills/public:ro
       - ./deer-flow-extensions-config.json:/app/deer-flow-extensions-config.json:ro
       # Pacgate: add a unified generated-outputs listing endpoint
       # (GET /api/threads/{id}/outputs). Mounted so it survives container
@@ -231,13 +202,19 @@ services:
       # response and enrich the upload listing with markdown metadata + original
       # filename, so clients can read/analyze converted docs reliably.
       - ./patches/deer-flow-uploads.py:/app/backend/app/gateway/routers/uploads.py:ro
-      # Pacgate (2026-10-10): strengthen the <uploaded_files> block so the model
-      # actually calls read_file (30B MoE tool-choice variance buried the softer
-      # instruction under 64k of tool/system context).
-      - ./patches/deer-flow-uploads-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/uploads_middleware.py:ro
       # Pacgate: gate self-registration (mirrors upstream 2.1.0 auth.local.allow_registration)
       - ./patches/deer-flow-auth.py:/app/backend/app/gateway/routers/auth.py:ro
       - ./patches/deer-flow-auth-errors.py:/app/backend/app/gateway/auth/errors.py:ro
+      # Pacgate: gate self-registration on the uploads middleware too (mirrors
+      # upstream 2.1.0 auth.local.allow_registration). A5 parity: both files mount it.
+      - ./patches/deer-flow-uploads-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/uploads_middleware.py:ro
+      # Pacgate: gate self-registration (mirrors upstream 2.1.0 auth.local.allow_registration)
+      # on thread 4de2965b: the detour cost ~75 super-steps after the work was done.
+      - ./patches/deer-flow-sandbox-tools.py:/app/backend/packages/harness/deerflow/sandbox/tools.py:ro
+      # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets
+      # on essentially every turn of a research run. Person and organisation NAMES
+      # stay permitted by design. See deer-flow-memory-updater.py.
+      - ./patches/deer-flow-memory-updater.py:/app/backend/packages/harness/deerflow/agents/memory/updater.py:ro
       # Pacgate: require `description` on write_file/str_replace in the agent
       # system prompt, so the model never drops a required arg and loops on
       # "description: Field required".
@@ -269,12 +246,6 @@ services:
       # (default 2000, DEERFLOW_MIN_RECURSION_LIMIT) that a client cannot undercut.
       # Details and measurements are in compose.prod.yaml beside the same mount.
       - ./patches/deer-flow-run-recursion-cap.py:/app/backend/app/gateway/services.py:ro
-      # Pacgate 2026-10-30: replace the binary-file read error's misrouting hint.
-      # read_file on a finished .docx returned "use bash/pandoc", so the model
-      # rebuilt the document with pandoc and shipped one that fails officecli
-      # validate (16 schema errors). The hint now points at officecli. Measured
-      # on thread 4de2965b: the detour cost ~75 super-steps after the work was done.
-      - ./patches/deer-flow-sandbox-tools.py:/app/backend/packages/harness/deerflow/sandbox/tools.py:ro
       # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets
       # (langchain-openai renames it to max_completion_tokens, which Ollama's
       # /v1 endpoint ignores - background calls then generate to EOS and hog
@@ -341,12 +312,6 @@ services:
       # exception, which would move matter memory off the pacgate-api
       # sanitization gate while every health check still reports green.
       - ./patches/deer-flow-memory-storage.py:/app/backend/packages/harness/deerflow/agents/memory/storage.py:ro
-      # Pacgate 2026-10-26: redact direct identifiers (USCC / 韬唤璇?/ 鎵嬫満鍙?/
-      # 閾惰鍗?/ email) from the memory lane input AND its outgoing payload.
-      # pacgate-api refuses a payload containing one (HTTP 422), so the save failed
-      # on essentially every turn of a research run. Person and organisation NAMES
-      # stay permitted by design. See deer-flow-memory-updater.py.
-      - ./patches/deer-flow-memory-updater.py:/app/backend/packages/harness/deerflow/agents/memory/updater.py:ro
       # Pacgate 2026-10-26: bound the memory lane's input and stabilize its
       # prompt prefix. The template put the volatile `{current_memory}` block
       # ahead of the conversation, so the prefix changed on every update and
@@ -384,6 +349,10 @@ services:
       # frontend's formatTimeAgo("") threw RangeError: Invalid time value,
       # killing the settings memory card. Bind-mounted until upstreamed.
       - ./patches/pacgate-adapter-storage.py:/app/adapters/pacgate_deerflow_adapter/storage.py:ro
+      # Pacgate 2026-10-30: seeded legal skills (see compose.prod.yaml for the
+      # rationale). Read-only; the agent writes its own skills to custom/ via the
+      # scanned `skill_manage` path, never by editing a seed.
+      - ./deer-flow-skills:/app/backend/.deer-flow/skills/public:ro
       # Pacgate 2026-10-30: MCP tool ARGUMENTS were never path-translated
       # (see compose.prod.yaml for the measured failure and the two-layer cause).
       # Kept in lockstep with compose.prod.yaml - A5 of
@@ -398,7 +367,7 @@ services:
     restart: unless-stopped
 
   deer-flow-frontend:
-    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.32
+    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.33
     healthcheck:
       # NO bash in this image (only sh), so /dev/tcp is unavailable. It does have
       # node v22, so the probe uses fetch. Verified: exits 0 against :3000 and 1
@@ -435,7 +404,7 @@ services:
     restart: unless-stopped
 
   pacgate-mcp:
-    image: ghcr.io/jzkk720/pacgate-mcp:0.2.32
+    image: ghcr.io/jzkk720/pacgate-mcp:0.2.33
     healthcheck:
       # A real MCP `initialize` handshake, not a TCP connect. The image has no
       # curl; it does have python3, so the probe speaks the protocol and
@@ -512,7 +481,7 @@ services:
     # Models are pre-staged, never downloaded at runtime: HF_HUB_OFFLINE=1 plus a
     # mounted model directory. A client machine must not reach huggingface.co.
     profiles: ["laya"]
-    image: ${LAYA_IMAGE:-ghcr.io/jzkk720/laya-serve:0.2.32}
+    image: ${LAYA_IMAGE:-ghcr.io/jzkk720/laya-serve:0.2.33}
     healthcheck:
       # /health is documented by laya. start_period is long because with
       # LAYA_PRELOAD=1 the first boot loads a 1.2 GB checkpoint into memory, and a
@@ -560,7 +529,7 @@ services:
     restart: unless-stopped
 
   ocr-service:
-    image: ghcr.io/jzkk720/ocr-service:0.2.32
+    image: ghcr.io/jzkk720/ocr-service:0.2.33
     healthcheck:
       # /health verified 200. python3, not curl - the image has no curl.
       # start_period is long on purpose: this service downloads its model on

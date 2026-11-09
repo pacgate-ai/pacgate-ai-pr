@@ -2,6 +2,7 @@
 //!
 //! Every other crate in the workspace depends on this crate. Keep it dependency-light.
 
+pub mod enforcement;
 pub mod http;
 
 use chrono::{DateTime, Utc};
@@ -425,28 +426,6 @@ impl DocumentFormat {
             _ => Self::Txt,
         }
     }
-
-    /// The inverse of `from_storage_key`: the value written to `documents.format`.
-    ///
-    /// Needed by the egress audit, which records the format a caller received.
-    /// Kept beside `from_storage_key` so the two cannot drift - the same
-    /// duplication that made every image report as `Txt` (see above).
-    pub fn storage_key(&self) -> &'static str {
-        match self {
-            Self::Docx => "docx",
-            Self::Pdf => "pdf",
-            Self::Markdown => "markdown",
-            Self::Xlsx => "xlsx",
-            Self::Pptx => "pptx",
-            Self::Html => "html",
-            Self::ImagePng => "png",
-            Self::ImageJpeg => "jpeg",
-            Self::ImageTiff => "tiff",
-            Self::ImageBmp => "bmp",
-            Self::ImageWebp => "webp",
-            Self::Txt => "txt",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -701,7 +680,11 @@ pub struct BoundaryRule {
 }
 
 /// Where a boundary rule is enforced.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+///
+/// `PartialEq`/`Eq` were added on 2026-11-09 so `enforcement::evaluate_turn` can
+/// branch on the declared point. Before that the variant was only ever written,
+/// never compared - which is the same fact the `enforcement` module documents.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum EnforcementPoint {
     /// Enforced by pacgate-auth middleware before/after API calls

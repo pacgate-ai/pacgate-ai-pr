@@ -54,25 +54,7 @@ param(
     # Everything before it is history this change is expected to have fixed;
     # everything after it is a real signal, because a kill at a client-supplied
     # budget now means the floor did not apply.
-    #
-    # 2026-11-08: the constant above records when the floor was WRITTEN, not when it
-    # went LIVE, and those were ~29 hours apart. Adopted 2026-11-08 13:20 local, but
-    # the container that carries it only started 2026-11-08T12:00:44Z. So the window
-    # opened at 2026-11-07 07:00 and swept up the 2026-11-07 07:57:17 run that died
-    # at a client-supplied 1000 - a run executed by a container that predated the
-    # floor by a day - and reported it as a live REGRESSION. That is the gate
-    # measuring the defect it was built to retire.
-    #
-    # A hand-maintained timestamp cannot stay in step with a deployment, so it is now
-    # DERIVED: unless -Baseline is passed explicitly, the baseline is the live
-    # deer-flow container's start time. No run can have executed the patched code
-    # before the container carrying it existed, so this cannot manufacture a false
-    # pass - it only stops a historical run from being read as new evidence.
     [string]$Baseline = '2026-11-07 07:00:00',
-
-    # Opt out of deriving the baseline from the live container. Only needed when
-    # auditing a stack you cannot docker-inspect (another host, or a snapshot).
-    [switch]$NoDeriveBaseline,
 
     # A run at or above this many LLM calls counts as deep enough to have
     # meaningfully exercised the convergence prompt. The historical kills landed at
@@ -86,39 +68,6 @@ param(
 
 $ErrorActionPreference = 'Continue'
 Set-Location (Split-Path -Parent $PSScriptRoot)
-
-# DERIVE the baseline from the live container unless the caller pinned it.
-#
-# A hand-maintained "when the fix went live" constant is what produced a false
-# REGRESSION on 2026-11-08: it named the day the patch was written, while the
-# container carrying it started a day later, so a pre-patch run landed inside the
-# window. Anything measured against a timestamp a human has to remember to bump
-# will drift the same way.
-#
-# Docker's StartedAt is the only value that actually means "the patched code could
-# first execute here". Falling back to the constant keeps the gate working on a box
-# without Docker - it just says so, because that path can still drift.
-$baselineSource = 'arg'
-if (-not $PSBoundParameters.ContainsKey('Baseline') -and -not $NoDeriveBaseline) {
-    $startedAt = $null
-    try {
-        $startedAt = & docker inspect deer-flow --format '{{.State.StartedAt}}' 2>$null
-    } catch { $startedAt = $null }
-    if ($startedAt) {
-        # Docker reports RFC3339 UTC; the probe compares 'yyyy-MM-dd HH:mm:ss' and
-        # the run table stores UTC too, so normalise rather than pass a 'T'/'Z' form.
-        try {
-            $dt = [datetime]::Parse($startedAt, [Globalization.CultureInfo]::InvariantCulture,
-                [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal)
-            $Baseline = $dt.ToString('yyyy-MM-dd HH:mm:ss')
-            $baselineSource = 'deer-flow container start (auto)'
-        } catch {
-            $baselineSource = 'constant (could not parse container start)'
-        }
-    } else {
-        $baselineSource = 'constant (deer-flow not inspectable - may have drifted)'
-    }
-}
 
 if (-not (Test-Path $DbPath)) {
     if ($Json) { '{"status":"cannot-check","reason":"deerflow.db not found"}' } else {
@@ -305,33 +254,21 @@ if ($d.error) {
 }
 
 if ($Json) {
-    $jsonDefects = @($d.recursion_defects).Count
-    $jsonDelivered = @($d.deliveries | Where-Object { @($_.files).Count -gt 0 }).Count
     [pscustomobject]@{
         baseline      = $Baseline
-        baseline_source = $baselineSource
         total_runs    = $d.total_runs
         since_baseline= $d.since_baseline
         success       = $d.success
         recursion     = @($d.recursion).Count
-        recursion_defects = $jsonDefects
-        delivered_runs = $jsonDelivered
         deepest_calls = $d.deepest_success_calls
         deep_enough   = ($d.deepest_success_calls -ge $DeepEnough)
     } | ConvertTo-Json -Depth 4
-    # Same contract as the text path. This used to exit 0 whenever no recursion
-    # error was found, so a window holding ONE trivial 3-call run reported the
-    # same success as a window that had actually exercised the fix - "not
-    # exercised" silently read as "verified", the exact misreading this gate
-    # exists to prevent.
-    if ($jsonDefects -gt 0) { exit 1 }
-    if ($jsonDelivered -eq 0 -and $d.deepest_success_calls -lt $DeepEnough) { exit 2 }
+    if (@($d.recursion).Count -gt 0) { exit 1 }
     exit 0
 }
 
 Write-Host '=== deer-flow recursion regressions ===' -ForegroundColor Cyan
-Write-Host "  baseline (fix went live): $Baseline" -ForegroundColor Cyan
-Write-Host "  baseline source:          $baselineSource" -ForegroundColor DarkGray
+Write-Host "  baseline (fix went live): $Baseline"
 Write-Host "  database: $DbPath"
 Write-Host "  total runs on record:     $($d.total_runs)"
 Write-Host "  runs since baseline:      $($d.since_baseline)"

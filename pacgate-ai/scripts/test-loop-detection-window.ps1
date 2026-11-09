@@ -48,6 +48,28 @@ function Assert-That {
     else { Write-Host "  [FAIL] $Name" -ForegroundColor Red; $script:Failed++ }
 }
 
+# Capture a native command's stdout while tolerating stderr under 5.1.
+#
+# WHY THIS EXISTS (found 2026-10-27). This file sets
+# $ErrorActionPreference = 'Stop', and on Windows PowerShell 5.1 a native
+# command that writes to stderr raises NativeCommandError as a TERMINATING
+# error the moment stderr is redirected. `2>$null` does not help - it is the
+# redirection itself that triggers the conversion.
+#
+# Measured: `powershell -File scripts/test-loop-detection-window.ps1` died at
+# the live-container step on LangChain's PendingDeprecationWarning, exited 1,
+# and never evaluated the five live assertions - the whole reason this gate
+# exists. Under pwsh 7 the same file reported 33 passed. `run-all-checks.ps1`
+# prefers pwsh but falls back to powershell.exe, which is the normal case on a
+# client machine, so this would have been a false failure there.
+function Invoke-NativeCapture {
+    param([Parameter(Mandatory = $true)][scriptblock]$Script)
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { return (& $Script | Out-String).Trim() }
+    finally { $ErrorActionPreference = $previous }
+}
+
 $config  = 'deploy/client-bundle/deer-flow-config.yaml'
 $patch   = 'deploy/client-bundle/patches/deer-flow-loop-detection.py'
 $compose = 'deploy/client-bundle/compose.prod.yaml'
@@ -115,7 +137,50 @@ Assert-That ($src -notmatch 'from deerflow\.agents\.middlewares\._bounded_dict i
 $df = 'deploy/deer-flow-pacgate/Dockerfile'
 $dsrc = if (Test-Path $df) { Get-Content -LiteralPath $df -Raw } else { '' }
 Assert-That ($dsrc -match 'COPY deploy/client-bundle/patches/deer-flow-loop-detection\.py /app/backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware\.py') `
-    'the published image bakes the patched middleware (standalone runs are covered too)'
+    'the Dockerfile recipe bakes the patched middleware (standalone runs are covered too)'
+
+# The recipe above only proves what a FUTURE build would contain. It says nothing
+# about the image clients actually pull.
+#
+# Measured 2026-10-27: this assertion used to be the only check in section 1 and
+# its name claimed "the published image bakes the patched middleware", but it
+# only regex-matched the Dockerfile text. The published 0.2.6 image does NOT
+# contain the patch (grep -c _tool_name_counter => 0, PacGate header absent,
+# created 2026-10-25, before this fix existed), so the name was false and the
+# gate would have stayed green through any amount of staleness.
+#
+# The real check inspects the image. Staleness is NOT asserted as a failure here,
+# because the fix reaches clients by bind-mount and the baked copy is a fallback
+# that only a non-git install would exercise - a hard failure would leave the
+# suite red for a correct tree. It is reported, attributed to the only consumer
+# it affects, and scripts/test-release-provenance.ps1 remains the gate that
+# fails on it at release time.
+$dfImages = (Select-String -Path 'deploy/client-bundle/compose.prod.yaml' `
+        -Pattern 'image:\s*(ghcr\.io/\S*deer-flow-pacgate:\S+)' | Select-Object -First 1)
+$dfImage = if ($dfImages) { $dfImages.Matches[0].Groups[1].Value } else { '' }
+if (-not $dfImage) {
+    Write-Host '  [WARN] could not read the deer-flow-pacgate pin from compose.prod.yaml' -ForegroundColor Yellow
+} else {
+    $imgId = ''
+    try { $imgId = (& docker image inspect $dfImage --format '{{.Id}}' 2>$null | Out-String).Trim() } catch { $imgId = '' }
+    if (-not $imgId) {
+        Write-Host "  [ .. ] $dfImage is not pulled locally - the baked copy is unverified here" -ForegroundColor DarkGray
+    } else {
+        $mw = '/app/backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware.py'
+        $imgHit = 0
+        try { $imgHit = [int]((& docker run --rm --entrypoint grep $dfImage -c _tool_name_counter $mw 2>$null | Out-String).Trim()) } catch { $imgHit = 0 }
+        if ($imgHit -gt 0) {
+            Write-Host "  [PASS] the published image ($dfImage) bakes the windowed middleware" -ForegroundColor Green
+            $script:Passed++
+        } else {
+            Write-Host "  [ .. ] $dfImage predates the fix and still bakes the MONOTONIC guard." -ForegroundColor DarkGray
+            Write-Host '         This affects ONLY a run that reaches the image-baked config: every' -ForegroundColor DarkGray
+            Write-Host '         compose lane bind-mounts both the patch and deer-flow-config.yaml,' -ForegroundColor DarkGray
+            Write-Host '         so clients are unaffected. A standalone `docker run` or a non-git' -ForegroundColor DarkGray
+            Write-Host '         install would still trap at 50. Closed by cutting a release.' -ForegroundColor DarkGray
+        }
+    }
+}
 Write-Output ''
 
 # ── 2. the ceiling has real headroom, not a theoretical one ─────────────────
@@ -241,19 +306,10 @@ print("TIGHT_TRIP=%s" % play(tight))
 same = [("bash", {"command": "python3 build.py"}) for _ in range(8)]
 print("REPEAT_TRIP=%s" % play(same))
 '@
-    # Pacgate 2026-10-27: the container python emits a LangChainPendingDeprecation
-    # Warning on STDERR when it imports deerflow. Under $ErrorActionPreference =
-    # 'Stop' (set at the top of this gate) PowerShell 5.1 promotes a native
-    # command's stderr to a TERMINATING error, so the gate aborted before it could
-    # read the verdict it had just produced - permanently red on every AIPC, which
-    # ships 5.1. Scope the preference down for this one call. Same defect already
-    # fixed twice in test-memory-lane.ps1 (d1ed509, 86a9feb).
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        $out = $py | & docker exec -i deer-flow /app/backend/.venv/bin/python 2>&1
-    }
-    finally { $ErrorActionPreference = $prevEap }
+    # Invoke-NativeCapture, not a bare redirect: this file sets
+    # $ErrorActionPreference = 'Stop', and 5.1 turns any native stderr write into
+    # a terminating NativeCommandError once stderr is redirected. See the helper.
+    $out = Invoke-NativeCapture { $py | & docker exec -i deer-flow /app/backend/.venv/bin/python }
     $text = ($out | Out-String)
     $window = if ($text -match 'WINDOW=(\d+)') { [int]$Matches[1] } else { 0 }
     $liveHard = if ($text -match 'HARD=(\d+)') { [int]$Matches[1] } else { 0 }

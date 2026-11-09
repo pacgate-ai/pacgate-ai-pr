@@ -211,13 +211,16 @@ $exempt = @('scripts/test-workflow-mutations.ps1')
 foreach ($dir in @('scripts', 'deploy')) {
     $dirPath = Join-Path $repoRoot $dir
     if (-not (Test-Path -LiteralPath $dirPath)) { continue }
-    # `deploy/client-bundle/data/` is deer-flow's gitignored RUNTIME state. Its
-    # sandbox workspace holds a full copy of this repo from whenever an agent last
-    # cloned it, so scanning it flags the stale snapshot's own scripts - a false
-    # positive that appears on every machine that has ever run deer-flow.
     $files = @(Get-ChildItem -LiteralPath $dirPath -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object { $_.Extension -in @('.ps1', '.psm1', '.py', '.sh') } |
-        Where-Object { $_.FullName -notmatch '\\deploy\\client-bundle\\data\\' })
+        # `deploy/client-bundle/data/` is RUNTIME STATE, not source: it is
+        # gitignored and holds per-user deer-flow workspaces, which include full
+        # checkouts of this repo. Scanning them reports the namespace used by a
+        # snapshot from whenever that user last synced - a false positive that
+        # grows with the age of the snapshot and cannot be fixed by editing this
+        # repo. Measured 2026-11-09: one stale copy of test-workflow-mutations.ps1
+        # failed this check on its own text.
+        Where-Object { $_.FullName -notmatch '\\client-bundle\\data\\' })
     foreach ($f in $files) {
         $rel = $f.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
         if ($exempt -contains $rel) { continue }

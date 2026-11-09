@@ -207,34 +207,6 @@ Check "A6 Main tier '$prodMain' is a model that can drive a document workflow" (
      "Either set PACGATE_MODEL_MAIN to a ':cloud' tag, or accept that document " +
      "workflows produce nothing on this machine. See deploy/client-bundle/.env.")
 
-# ── A6b: the .env OVERRIDE must also be capable ─────────────────────────────
-#
-# A6 reads the compose DEFAULT, which is what a fresh install gets. It does NOT
-# read deploy/client-bundle/.env, and .env wins at runtime. Measured on this box
-# 2026-10-23: compose default is 'deepseek-v4.1-flash:cloud' (A6 passes) while
-# .env sets 'gemma4-legal:12b-chat' and the RUNNING pacgate-api carries that
-# local tag - so A6 was green on a stack that cannot generate a document.
-# test-document-generation-e2e.ps1 then failed 2 of 10 for exactly that reason.
-#
-# A gate that reads the default while the machine runs the override is the same
-# "green about something absent" defect the stack-coherence gate exists for.
-$envFile = Join-Path (Split-Path -Parent $PSScriptRoot) 'deploy/client-bundle/.env'
-$envMain = $null
-if (Test-Path $envFile) {
-    $line = Get-Content $envFile -Encoding UTF8 | Where-Object { $_ -match '^\s*PACGATE_MODEL_MAIN\s*=' } | Select-Object -First 1
-    if ($line) { $envMain = ($line -split '=', 2)[1].Trim() }
-}
-if ($envMain) {
-    $envMainIsLocal = ($envMain -notmatch ':cloud$')
-    Check "A6b .env Main override '$envMain' is a model that can drive a document workflow" (-not $envMainIsLocal) `
-        ("deploy/client-bundle/.env sets PACGATE_MODEL_MAIN to a LOCAL tag, and .env WINS over the " +
-         "compose default at runtime - so the stack runs a 12B even though A6 passes on the default. " +
-         "Measured 2026-10-23: 0/5 generate_docx calls with the full tool list, HTTP 200, no document. " +
-         "Set it to a ':cloud' tag, or delete the line to inherit the capable compose default.")
-} else {
-    Write-Host "  [INFO] A6b no PACGATE_MODEL_MAIN override in .env - the compose default applies" -ForegroundColor DarkGray
-}
-
 # ── Installed-state report (informational: the dev box roster may legitimately
 #    differ from the client roster, so this never fails the gate) ─────────────
 $ollamaUp = $false

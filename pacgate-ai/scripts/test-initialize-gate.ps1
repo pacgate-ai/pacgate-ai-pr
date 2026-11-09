@@ -31,7 +31,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$Image  = 'ghcr.io/jzkk720/deer-flow-pacgate:0.2.32',
+    [string]$Image  = 'ghcr.io/jzkk720/deer-flow-pacgate:0.1.17',
     [string]$Network = 'client-bundle_default',
     [string]$DbFrom = 'pacgate-api',
     [string]$Token  = 'test-gate-token-abc123'

@@ -107,9 +107,6 @@ $patchMap = [ordered]@{
     'deer-flow-sync.py'        = 'backend/packages/harness/deerflow/tools/sync.py'
     'deer-flow-thread-runs.py' = 'backend/app/gateway/routers/thread_runs.py'
     'deer-flow-uploads.py'     = 'backend/app/gateway/routers/uploads.py'
-    # Restored 2026-11-08: this entry was dropped by a local edit and its absence
-    # made test-run-recursion-cap.ps1 fail on the rebase-audit assertion. The
-    # patch is baked into the image AND bind-mounted, so it must be rebaseable.
     'deer-flow-run-recursion-cap.py' = 'backend/app/gateway/services.py'
     'deer-flow-worker.py'      = 'backend/packages/harness/deerflow/runtime/runs/worker.py'
     # Pacgate 2026-11-06: heading titles rendered into the agent's prompt carried

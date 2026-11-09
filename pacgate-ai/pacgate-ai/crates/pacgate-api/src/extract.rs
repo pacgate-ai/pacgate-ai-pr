@@ -369,6 +369,58 @@ pub async fn extract_document(
     })
 }
 
+/// Report whether the STORED extraction for a document read it in full.
+///
+/// `None` means no extraction has been cached yet - which is not "complete", it
+/// is "not attempted", and the caller must not read it as either.
+///
+/// This exists because the 0.2.33 egress chokepoint refuses `/extract` on a
+/// `pending` document, so extraction completeness stopped being observable from
+/// the body endpoint. "Did the OCR read this scan in full?" is exactly what an
+/// operator needs answered BEFORE deciding to sanitize; without this the only
+/// way to find out was to attempt a sanitize and read the 409.
+///
+/// Deliberately reads the cache and never triggers an extraction: asking must
+/// not be a way to force work, and a status endpoint that OCRs is a status
+/// endpoint that can time out.
+///
+/// Applies the same reconciliation as the cache branch of `extract_document`: a
+/// record claiming completeness while holding no text is NOT complete. Keeping
+/// the two in step matters, because a status that says "complete" while
+/// `sanitize` refuses with "extraction is incomplete" is worse than no status.
+pub(crate) async fn cached_extraction_completeness(
+    state: &AppState,
+    tenant_id: &TenantId,
+    matter_id: &MatterId,
+    document_id: &DocumentId,
+) -> Result<Option<bool>, ApiError> {
+    let row = sqlx::query(
+        "SELECT e.incomplete, e.pages FROM document_extractions e \
+         JOIN documents d ON d.id = e.document_id AND d.version = e.document_version \
+         WHERE e.tenant_id = $1 AND e.matter_id = $2 AND e.document_id = $3 \
+         LIMIT 1",
+    )
+    .bind(tenant_id.0)
+    .bind(matter_id.0)
+    .bind(document_id.0)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    let Some(record) = row else {
+        return Ok(None);
+    };
+
+    let stored: bool = record.get("incomplete");
+    if stored {
+        return Ok(Some(true));
+    }
+
+    // The flag says complete; confirm the text it describes is actually there.
+    let text = load_cached_text(state, tenant_id, matter_id, document_id).await?;
+    Ok(Some(text.trim().is_empty()))
+}
+
 /// Record extraction completeness for a document version.
 ///
 /// Upsert on `(document_id, document_version)` so a re-extraction of the same
