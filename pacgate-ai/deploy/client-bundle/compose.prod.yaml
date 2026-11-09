@@ -34,7 +34,7 @@ services:
     restart: unless-stopped
 
   pacgate-api:
-    image: ghcr.io/jzkk720/pacgate-api:0.2.33
+    image: ghcr.io/jzkk720/pacgate-api:0.2.34
     healthcheck:
       # No curl and no wget in this image (measured 2026-10-14), so the probe
       # uses bash's /dev/tcp. /health is the one route that needs no auth
@@ -190,7 +190,7 @@ services:
     restart: unless-stopped
 
   deer-flow:
-    image: ghcr.io/jzkk720/deer-flow-pacgate:0.2.33
+    image: ghcr.io/jzkk720/deer-flow-pacgate:0.2.34
     healthcheck:
       # :8001 is the gateway nginx proxies to; /health verified 200.
       test:
@@ -301,16 +301,15 @@ services:
       - ./patches/deer-flow-auth.py:/app/backend/app/gateway/routers/auth.py:ro
       - ./patches/deer-flow-auth-errors.py:/app/backend/app/gateway/auth/errors.py:ro
       # Pacgate: gate self-registration on the uploads middleware too (mirrors
-      # upstream 2.1.0 auth.local.allow_registration). See compose.bundle.yaml
-      # for the rationale. A5 parity: both files mount it.
+      # upstream 2.1.0 auth.local.allow_registration). A5 parity: both files mount it.
       - ./patches/deer-flow-uploads-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/uploads_middleware.py:ro
-      # Pacgate: gate self-registration. See compose.bundle.yaml for the
-      # measurement. A5 parity: both files mount it.
+      # Pacgate: gate self-registration (mirrors upstream 2.1.0 auth.local.allow_registration)
+      # on thread 4de2965b: the detour cost ~75 super-steps after the work was done.
       - ./patches/deer-flow-sandbox-tools.py:/app/backend/packages/harness/deerflow/sandbox/tools.py:ro
-      # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets.
-      # (see compose.bundle.yaml for the rationale).
-      - ./patches/deer-flow-memory-updater.py:/app/backend/packages/harness/deerflow/agents/memory/updater.py:ro
-      # Pacgate: require `description` on write_file/str_replace in the agent
+      # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets
+      # on essentially every turn of a research run. Person and organisation NAMES
+      # stay permitted by design. See deer-flow-memory-updater.py.
+      - ./patches/deer-flow-memory-updater.py:/app/backend/packages/harness/deerflow/agents/memory/updater.py:ro      # Pacgate: require `description` on write_file/str_replace in the agent
       # system prompt, so the model never drops a required arg and loops on
       # "description: Field required".
       - ./patches/deer-flow-prompt.py:/app/backend/packages/harness/deerflow/agents/lead_agent/prompt.py:ro
@@ -498,7 +497,7 @@ services:
   # correct without a runtime patch. Published to GHCR by the build-ghcr.yml
   # workflow; pushed on every release tag so both AIPCs stay in sync.
   deer-flow-frontend:
-    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.33
+    image: ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.34
     healthcheck:
       # NO bash in this image (only sh), so /dev/tcp is unavailable. It does have
       # node v22, so the probe uses fetch. Verified: exits 0 against :3000 and 1
@@ -550,7 +549,7 @@ services:
     restart: unless-stopped
 
   pacgate-mcp:
-    image: ghcr.io/jzkk720/pacgate-mcp:0.2.33
+    image: ghcr.io/jzkk720/pacgate-mcp:0.2.34
     healthcheck:
       # A real MCP `initialize` handshake, not a TCP connect. The image has no
       # curl; it does have python3, so the probe speaks the protocol and
@@ -638,7 +637,7 @@ services:
     # Models are pre-staged, never downloaded at runtime: HF_HUB_OFFLINE=1 plus a
     # mounted model directory. A client machine must not reach huggingface.co.
     profiles: ["laya"]
-    image: ${LAYA_IMAGE:-ghcr.io/jzkk720/laya-serve:0.2.33}
+    image: ${LAYA_IMAGE:-ghcr.io/jzkk720/laya-serve:0.2.34}
     healthcheck:
       # /health is documented by laya. start_period is long because with
       # LAYA_PRELOAD=1 the first boot loads a 1.2 GB checkpoint into memory, and a
@@ -686,7 +685,7 @@ services:
     restart: unless-stopped
 
   ocr-service:
-    image: ghcr.io/jzkk720/ocr-service:0.2.33
+    image: ghcr.io/jzkk720/ocr-service:0.2.34
     healthcheck:
       # /health verified 200. python3, not curl - the image has no curl.
       # start_period is long on purpose: this service downloads its model on

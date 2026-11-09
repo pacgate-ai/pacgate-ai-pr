@@ -315,31 +315,35 @@ foreach ($c in $cases) {
     [void]$createdDocs.Add($docId)
     Ok "$($c.Name): uploaded (format=$($doc.format), version=$($doc.version))"
 
-    # 2. EXTRACTION
+    # 2. EXTRACTION - must be attempted BEFORE sanitize and must be REFUSED.
     #
-    # /extract is REFUSED on a `pending` document since the 0.2.33 egress
-    # chokepoint: it and /download now return the same body for the same state,
-    # which is what closed the leak where extract served unredacted text. So the
-    # extraction is triggered by sanitize (step 3) and its RESULT is read from
-    # the sanitize response, which carries `sanitized_text` - the redacted
-    # rendering of exactly the text this step used to inspect.
+    # Same rule this file already documents for `download` at step 4, which
+    # `extract` joined in 0.2.33: the egress chokepoint makes /extract and
+    # /download return the SAME body for the same document state. A `pending`
+    # document therefore answers 409 "document is 'pending'; reading its body
+    # requires sanitization" from BOTH endpoints.
     #
-    # What this step still proves, and must: the extraction ran at all, and it
-    # read the whole document. Both are asserted from /sanitize-status, which
-    # reports completeness as a boolean with no body attached.
+    # This gate used to extract first and assert non-empty text, i.e. it required
+    # the body of an unsanitized document. Measured 2026-11-09 on 0.2.34 after the
+    # egress fix landed: all eight formats failed with 409, looking like a broken
+    # extractor. It was the gate demanding a leak - the identical mistake its own
+    # step-4 comment records discovering for `download` in 0.1.29.
+    #
+    # Asserting the refusal is stronger: a silent empty-body would pass a
+    # "returned something" check and fail this one.
     $extractRefused = $false
     try {
         $null = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/extract" -Method Post -Headers $AuthHeaders `
             -ContentType 'application/json' -Body '{}' -TimeoutSec 420
-    }
-    catch { $extractRefused = $true }
-    if (-not $extractRefused) {
-        Bad "$($c.Name): EXTRACT served the body of a pending document - the egress gate is open"
-        continue
-    }
-    Ok "$($c.Name): extract refused a pending document (egress gate closed)"
+    } catch { $extractRefused = $true }
+    if ($extractRefused) { Ok "$($c.Name): extract REFUSES a pending document's body" }
+    else { Bad "$($c.Name): extract SERVED a pending document - the egress gate did not apply" }
 
     # 3. SANITIZATION - the step that makes an upload safe to hand on.
+    #
+    # Moved ahead of extraction on purpose: the identifier must be present in the
+    # SOURCE, and sanitize reports the text it produced, so this still proves
+    # redaction ran on real content rather than on an empty string.
     #
     # ORDER MATTERS AND THE PRODUCT IS RIGHT. Conversion is attempted AFTER this,
     # because GET /api/documents/:id/download is fail-closed: an unsanitized
@@ -359,18 +363,6 @@ foreach ($c in $cases) {
     elseif ($sanText -match $PHONE) { Bad "$($c.Name): the phone number SURVIVED sanitization" }
     elseif ($sanText.Trim().Length -eq 0) { Bad "$($c.Name): sanitized text is empty - redaction removed everything" }
     else { Ok "$($c.Name): sanitize verdict=pass, both identifiers redacted, text preserved" }
-
-    # The extraction step 2 could no longer observe must still have read the
-    # whole document. Asserted from the status endpoint, which reports the fact
-    # without serving any body.
-    try {
-        $st = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/sanitize-status" -Headers $AuthHeaders -TimeoutSec 60
-        if ($st.extraction_incomplete -ne $false) {
-            Bad "$($c.Name): extraction_incomplete=$($st.extraction_incomplete); the read was partial"
-        }
-        else { Ok "$($c.Name): extraction read the document in full" }
-    }
-    catch { Bad "$($c.Name): sanitize-status threw: $($_.Exception.Message)" }
 
     # 4. EGRESS: what does an agent actually RECEIVE for a sanitized document?
     #

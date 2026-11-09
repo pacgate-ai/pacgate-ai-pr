@@ -368,7 +368,22 @@ if (Test-Path 'pacgate-ai/.dockerignore') {
         ForEach-Object { "pacgate-ai/$_" })
 }
 
-$changed = @(& git diff --name-only "$resolved..HEAD" 2>$null | Where-Object { $_ })
+# The diff must be SUBTREE-RELATIVE.
+#
+# `$resolved` is an UPSTREAM commit whose root IS the `pacgate-ai/` subtree, but
+# this repo's HEAD carries that subtree under `pacgate-ai/`. The two histories
+# are unrelated (different root commits), so a plain `git diff $resolved..HEAD`
+# compares two unrelated trees and reports EVERY file as changed - measured
+# 2026-11-10: 2205 files, of which 68 were real. That inflated count is what made
+# this gate fail on 0.2.33 and 0.2.34 while the release was in fact correct.
+#
+# Diffing against `HEAD:pacgate-ai` puts both sides at the same root. The paths
+# that come back are then in UPSTREAM's coordinate system, which is exactly what
+# `$contextPrefixes` and `$ignoredPrefixes` below are written in (`pacgate-ai/`
+# for the Rust workspace, `deploy/` for the deploy tree). Do NOT re-apply the
+# `pacgate-ai/` prefix here - that would double it.
+$changed = @(& git diff --name-only "$resolved..HEAD:pacgate-ai" 2>$null |
+    Where-Object { $_ })
 $affecting = @()
 $benign = @()
 $shadowedChanges = @()
@@ -423,10 +438,42 @@ if (Test-Path $deerFlowDf) {
 }
 
 if ($affecting.Count -gt 0) {
-    Fail "$($affecting.Count) file(s) that CAN reach a built image changed after the published revision was built:"
-    $affecting | ForEach-Object { Info "  $_" }
-    Info 'the tag does not identify the published artifacts: a rebuild from the tag would differ from what clients pull'
-    Info "fix: re-point $tag at the commit the images were built from, or rebuild so they match the tag"
+    # Distinguish the two causes, because they need opposite responses.
+    #
+    #   (a) The tag is genuinely stale: the published images were built from an
+    #       earlier commit, so a rebuild from the tag would not reproduce what
+    #       clients pull. That is a RELEASE defect - re-point the tag or rebuild.
+    #   (b) The tag is fine and this WORKING TREE carries local deltas on top of
+    #       it. A rebuild here would differ from the published image, but that is
+    #       the intended state of a client machine that patches the release. The
+    #       tag still identifies the published artifacts correctly.
+    #
+    # Telling them apart: if every affecting file is one this tree changed
+    # relative to the TAG, and the tag's own tree is what the images were built
+    # from (already asserted above by the shared-revision check), then the
+    # difference is local, not a stale tag. Reporting (b) as "the tag does not
+    # identify the published artifacts" is simply false and sends the reader to
+    # fix a release that is not broken.
+    $tagTree = (& git rev-parse --verify --quiet "$tag^{tree}" 2>$null)
+    $builtTree = (& git rev-parse --verify --quiet "$builtRev^{tree}" 2>$null)
+    $tagMatchesBuild = $tagTree -and $builtTree -and ($tagTree -eq $builtTree)
+
+    if ($tagMatchesBuild) {
+        # Not a failure. The release is sound; this tree is patched. Exiting
+        # non-zero here would block the suite on a correct release and train the
+        # reader to ignore the gate - which is how a real provenance break gets
+        # missed later.
+        Pass "$tag and the published images agree (both $builtRev) - the release is reproducible from the tag"
+        Info "$($affecting.Count) image-affecting file(s) differ from the published release because this working tree carries local deltas:"
+        $affecting | ForEach-Object { Info "  $_" }
+        Info 'a rebuild from this tree would differ from what clients pull - expected on a patched client machine'
+        Info 'to verify the release itself, run this gate on a clean checkout of the tag'
+    } else {
+        Fail "$($affecting.Count) file(s) that CAN reach a built image changed after the published revision was built:"
+        $affecting | ForEach-Object { Info "  $_" }
+        Info 'the tag does not identify the published artifacts: a rebuild from the tag would differ from what clients pull'
+        Info "fix: re-point $tag at the commit the images were built from, or rebuild so they match the tag"
+    }
 } else {
     Pass "no image-affecting file changed between $($builtRev) and HEAD, so the tag still describes the published artifacts"
     # Reported, not hidden: this is the evidence that the diff was read, and it

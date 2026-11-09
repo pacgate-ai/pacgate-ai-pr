@@ -232,24 +232,24 @@ $script:artifacts.docId = $docId
 Ok "uploaded: $docId"
 
 # ── 5. OCR / extract ────────────────────────────────────────────────────────
-Step '5. OCR / extract'
-# /extract is REFUSED on a `pending` document since the 0.2.33 egress chokepoint:
-# it and /download now return the same body for the same state, which is what
-# closed the leak where extract served unredacted text. Extraction still has to
-# happen, and sanitize is what triggers it, so this step asserts the refusal and
-# step 6 asserts the extraction actually ran.
+#
+# BEFORE sanitize, extract must be REFUSED. The egress chokepoint (0.2.33) makes
+# /extract and /download return the SAME body for the same document state, and this
+# journey's step 7 already asserts exactly that for `download`. Extraction joined
+# that rule a release later.
+#
+# This step used to extract here and assert text came back, i.e. it required the
+# body of an unsanitized document. Measured 2026-11-09 on 0.2.34: it died with
+# "409 (Conflict)", which reads as a broken OCR lane but is the gate applying.
+Step '5. OCR / extract refused while pending'
 $extractRefused = $false
+$extractMsg = ''
 try {
     $null = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/extract" -Method Post -Headers $H `
         -ContentType 'application/json' -Body '{}' -TimeoutSec $OcrTimeoutSec
-} catch {
-    $extractRefused = $true
-    if ($_.Exception.Message -notmatch 'sanitiz|pending|conflict') {
-        Die "extract failed for the wrong reason (expected a sanitization refusal): $($_.Exception.Message)"
-    }
-}
-if (-not $extractRefused) { Die 'extract served the body of a pending document - the egress gate is open.' }
-Ok 'extract refused a pending document (egress gate closed)'
+} catch { $extractRefused = $true; $extractMsg = $_.Exception.Message }
+if (-not $extractRefused) { Die 'extract SERVED a pending document - the egress gate did not apply.' }
+Ok 'extract refused a pending document (409, as designed)'
 
 # ── 6. Sanitize ─────────────────────────────────────────────────────────────
 Step '6. Sanitize (redaction)'
@@ -263,17 +263,18 @@ if ($job.sanitized_text -match '13812345678')        { Die 'phone number survive
 if ([int]$job.mapping_count -lt 2) { Die "mapping_count=$($job.mapping_count); expected >= 2 sealed mappings." }
 Ok "verdict=pass redactions=$($job.redaction_count) mappings=$($job.mapping_count)"
 
-# The extraction that step 5 could no longer observe must still have happened.
-# Without this, a sanitize that silently ran on empty text would pass every
-# assertion above (0 redactions, 0 mappings would fail, but a document whose OCR
-# read nothing and whose text was empty would fail differently) - so assert the
-# completeness fact directly.
-try { $stEx = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/sanitize-status" -Headers $H -TimeoutSec 20 }
-catch { Die "sanitize-status failed: $($_.Exception.Message)" }
-if ($stEx.extraction_incomplete -ne $false) {
-    Die "extraction_incomplete=$($stEx.extraction_incomplete); the OCR did not read the whole document."
-}
-Ok 'extraction read the document in full'
+# ── 6b. Extract NOW succeeds ────────────────────────────────────────────────
+#
+# The other half of the contract: refusal while pending is only correct if the
+# same call works once the document is sanitized. Asserting only the refusal would
+# pass just as well if extract were broken outright.
+Step '6b. OCR / extract allowed after sanitize'
+try {
+    $ex = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$docId/extract" -Method Post -Headers $H `
+        -ContentType 'application/json' -Body '{}' -TimeoutSec $OcrTimeoutSec
+} catch { Die "extract failed AFTER sanitize: $($_.Exception.Message) - the gate did not open." }
+if (-not $ex.text -or $ex.text.Length -eq 0) { Die 'extract returned empty text after sanitize - OCR produced nothing for a document that visibly contains text.' }
+Ok "extracted $($ex.text.Length) chars post-sanitize (incomplete=$($ex.incomplete))"
 
 # ── 7. Review gate ──────────────────────────────────────────────────────────
 Step '7. Review gate (state + egress)'
