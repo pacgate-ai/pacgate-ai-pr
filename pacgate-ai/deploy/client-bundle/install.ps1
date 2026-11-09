@@ -1857,6 +1857,53 @@ function Invoke-Bootstrap {
         Write-Host "         Verify manually: SELECT email, role, system_role FROM users;" -ForegroundColor Yellow
     }
 
+    # (4) ENSURE THE ADMIN HOLDS THE TENANT ROLE THAT GATES APPROVE/RESTORE.
+    #
+    # `system_role` and `role` are DIFFERENT columns and gate DIFFERENT things.
+    # Step (3) above only repairs `system_role`, which gates account provisioning
+    # (`POST /api/auth/users`). It does NOT gate the document review actions:
+    # `sanitize.rs::role_may_approve` / `role_may_restore` read `claims.role` -
+    # the WITHIN-TENANT role - and accept only 'admin' or 'partner'.
+    #
+    # MEASURED 2026-11-09 on this box: `admin@pacgate-law.com` read
+    # `role='attorney', system_role='admin'`, so
+    #   POST /api/documents/<id>/approve -> 401 "approval requires the admin or
+    #   partner role"
+    # even though the installer had just reported "[OK] holds the platform admin
+    # role". The account could create users but could not approve a document.
+    #
+    # The cause is `bootstrap_roles(is_first)`: only the FIRST account on a fresh
+    # deployment gets `(admin, admin)`. This installer registers with
+    # `{email, password}` and no role, so on any box where a user already existed
+    # the service account lands as `attorney`. Repairing it here is the same
+    # trusted-actor argument as step (3): promoting requires an admin, and on an
+    # upgrade there is none.
+    #
+    # Guarded to the configured service account only, and it reports what it did.
+    $tenantRoleBefore = Invoke-WithNativeStderr { (docker exec pacgate-db psql -U pacgate -d pacgate -t -A -c `
+        "SELECT role FROM users WHERE email = '$emailLiteral';" 2>$null | Out-String).Trim() }
+
+    if ($tenantRoleBefore -eq 'admin' -or $tenantRoleBefore -eq 'partner') {
+        Write-Host "  [OK] '$apiEmail' holds the tenant role '$tenantRoleBefore' (may approve/restore)" -ForegroundColor Green
+    }
+    elseif ($tenantRoleBefore) {
+        Write-Host "  [INFO] '$apiEmail' has tenant role '$tenantRoleBefore', which cannot approve or" -ForegroundColor Yellow
+        Write-Host "         restore redacted text (only 'admin'/'partner' may). Promoting to 'admin'." -ForegroundColor Yellow
+        $updRole = Invoke-WithNativeStderr { docker exec pacgate-db psql -U pacgate -d pacgate -t -A -c `
+            "UPDATE users SET role = 'admin' WHERE email = '$emailLiteral' RETURNING email;" 2>$null | Out-String }
+        if ($updRole -match [regex]::Escape($apiEmail)) {
+            Write-Host "  [OK] '$apiEmail' tenant role set to 'admin'" -ForegroundColor Green
+        }
+        else {
+            Write-Host "  [WARN] could not set the tenant role for '$apiEmail': $($updRole.Trim())" -ForegroundColor Yellow
+            Write-Host "         Run by hand: UPDATE users SET role='admin' WHERE email='$apiEmail';" -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "  [WARN] could not read '$apiEmail's tenant role (got '$tenantRoleBefore')." -ForegroundColor Yellow
+        Write-Host "         Verify manually: SELECT email, role, system_role FROM users;" -ForegroundColor Yellow
+    }
+
     return $true
 }
 
