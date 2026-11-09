@@ -44,7 +44,12 @@ Check 'matter created' ([bool]$matterId) "matter=$matterId"
 # real pass-with-redactions rather than a vacuous empty document.
 $fixture = Join-Path $env:TEMP 'pacgate-t4-hold.pdf'
 if (Test-Path $fixture) { Remove-Item $fixture -Force }
-$ocrImage = 'ghcr.io/jzkk720/ocr-service:0.2.2'
+# Use the ocr-service image the stack is ACTUALLY running, not a hardcoded tag.
+# The pinned '0.2.2' is not present on a 0.2.32 box, so the fixture step failed
+# with "Unable to find image ... locally" and the gate aborted before asserting
+# anything. Reading the live image keeps the gate honest across releases.
+$ocrImage = (docker inspect ocr-service --format '{{.Config.Image}}' 2>$null)
+if (-not $ocrImage) { $ocrImage = 'ghcr.io/jzkk720/ocr-service:0.2.32' }
 docker run --rm -v "${env:TEMP}:/fix" --entrypoint python3 $ocrImage -c "from PIL import Image, ImageDraw, ImageFont
 img = Image.new('RGB',(900,300),'white')
 d = ImageDraw.Draw(img)

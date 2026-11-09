@@ -148,6 +148,24 @@ Check 'A6 the mount is read-only' `
 # The probe is written to a file rather than passed with -c: nesting Python
 # quotes inside `sh -c` inside PowerShell is where a gate starts failing on a
 # healthy stack, which is how a runner earns being ignored.
+#
+# RETRIED, because `get_mcp_tools()` is not deterministic and this assertion was
+# reading a transient network fault as a broken patch.
+#
+# MEASURED 2026-11-09: the gate failed 3 runs in a row with `COUNT 0`, then
+# passed 4 runs in a row, on an unchanged container. The cause is in the module
+# under test, not in the patch: `get_mcp_tools` wraps its whole body in
+# `except Exception: logger.error(...); return []`, so ONE MCP server dropping a
+# connection (`httpx.RemoteProtocolError: Server disconnected without sending a
+# response`) makes it return an EMPTY LIST rather than raising. The gate then
+# reported "the patched module loads the MCP tool surface" as FAILED - a red gate
+# on a healthy stack, which is the failure mode this suite's own header warns
+# about.
+#
+# A retry is the right shape here rather than a looser assertion: the property
+# being gated is "the patch does not break the import or the surface", and a
+# transient disconnect says nothing about that. A genuinely broken patch fails
+# every attempt, so the retry cannot mask a real defect.
 $probeDir = Join-Path $env:TEMP ("mcp-args-gate-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $probeDir -Force | Out-Null
 $probeFile = Join-Path $probeDir 'probe.py'
@@ -158,7 +176,15 @@ from deerflow.mcp.tools import get_mcp_tools
 print("COUNT", len(asyncio.run(get_mcp_tools())))
 '@ | Out-File -FilePath $probeFile -Encoding utf8
 docker cp $probeFile "${Container}:/tmp/mcp_args_gate_probe.py" 2>$null | Out-Null
-$probe = docker exec $Container sh -c "cd /app/backend && .venv/bin/python /tmp/mcp_args_gate_probe.py" 2>$null
+$probe = $null
+for ($attempt = 1; $attempt -le 3; $attempt++) {
+    $probe = docker exec $Container sh -c "cd /app/backend && .venv/bin/python /tmp/mcp_args_gate_probe.py" 2>$null
+    if ($probe -and $probe -match 'COUNT ([1-9][0-9]*)') { break }
+    if ($attempt -lt 3) {
+        Write-Host "         attempt $attempt returned no tools (transient MCP disconnect); retrying" -ForegroundColor DarkGray
+        Start-Sleep -Seconds 5
+    }
+}
 Remove-Item $probeDir -Recurse -Force -ErrorAction SilentlyContinue
 Check 'A6 the patched module loads the MCP tool surface' `
       ($probe -and $probe -match 'COUNT ([1-9][0-9]*)') `
