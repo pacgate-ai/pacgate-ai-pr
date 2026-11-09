@@ -425,6 +425,28 @@ impl DocumentFormat {
             _ => Self::Txt,
         }
     }
+
+    /// The inverse of `from_storage_key`: the value written to `documents.format`.
+    ///
+    /// Needed by the egress audit, which records the format a caller received.
+    /// Kept beside `from_storage_key` so the two cannot drift - the same
+    /// duplication that made every image report as `Txt` (see above).
+    pub fn storage_key(&self) -> &'static str {
+        match self {
+            Self::Docx => "docx",
+            Self::Pdf => "pdf",
+            Self::Markdown => "markdown",
+            Self::Xlsx => "xlsx",
+            Self::Pptx => "pptx",
+            Self::Html => "html",
+            Self::ImagePng => "png",
+            Self::ImageJpeg => "jpeg",
+            Self::ImageTiff => "tiff",
+            Self::ImageBmp => "bmp",
+            Self::ImageWebp => "webp",
+            Self::Txt => "txt",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

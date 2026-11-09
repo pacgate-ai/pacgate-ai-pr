@@ -60,6 +60,182 @@ pub(crate) async fn fetch_document_for_tenant(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// The egress gate - ONE place, every body-returning path
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// What a caller intends to do with a document body.
+///
+/// The distinction is not cosmetic: `Download` releases the artifact as a file,
+/// `Extract` releases the plain text. They are the two egress paths, and they do
+/// not share a policy - see `state_permits_egress`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Purpose {
+    /// `GET /download` - the artifact leaves as a file.
+    Download,
+    /// `POST /extract` - the plain text leaves as JSON.
+    Extract,
+}
+
+impl Purpose {
+    fn as_str(self) -> &'static str {
+        match self {
+            Purpose::Download => "download",
+            Purpose::Extract => "extract",
+        }
+    }
+}
+
+/// The pure half of the egress decision: may a body leave in this state, for
+/// this purpose?
+///
+/// The two purposes are NOT the same policy, and conflating them is what made
+/// the original defect invisible:
+///
+///   * `Download` is the RELEASE path - the artifact leaves as a file. Only
+///     `sanitized` (verified redaction) or `never` (owner-authored publication)
+///     may be released.
+///   * `Extract` is the PERCEPTION path - it is the input to sanitization, so it
+///     must work on a `pending` document or the pipeline is impossible
+///     (`run_job_inner` calls `extract_document` itself). But a `blocked`
+///     document is a DELIBERATE REFUSAL: the redaction could not be verified, so
+///     its raw text must not be readable through a second door.
+///
+/// MEASURED 2026-11-09: `blocked` was readable via `/extract` (200, 466 chars,
+/// two raw USCCs) while `/download` refused it (409). Refusing `blocked` here is
+/// the fix; refusing `pending` would have broken every gate that extracts before
+/// sanitizing, which is the normal order.
+fn state_permits_egress(doc_state: &str, purpose: Purpose) -> bool {
+    match purpose {
+        Purpose::Download => matches!(doc_state, "sanitized" | "never"),
+        Purpose::Extract => matches!(doc_state, "sanitized" | "never" | "pending"),
+    }
+}
+
+/// The single egress decision for every path that returns document text or bytes.
+///
+/// MEASURED 2026-11-09: `GET /download` refused a `blocked` document with 409
+/// while `POST /extract` returned the SAME document's full unredacted text with
+/// 200 - 466 characters, zero redaction markers, including two raw USCCs and
+/// three full organisation names. The gate existed on one handler and not the
+/// other, so the refusal was decorative: the agent simply called the other
+/// endpoint.
+///
+/// The root cause was not "extract forgot to check". It was that each handler
+/// remembered its own check, so a new handler starts ungated by default. This
+/// function is the fix: the decision lives here, and every body-returning
+/// handler calls it before it reads a byte.
+pub(crate) async fn assert_readable(
+    state: &AppState,
+    tenant_id: &TenantId,
+    user_id: &UserId,
+    doc: &Document,
+    purpose: Purpose,
+) -> Result<(), ApiError> {
+    let doc_state: String =
+        sqlx::query("SELECT sanitization_state FROM documents WHERE id = $1 AND tenant_id = $2")
+            .bind(doc.id.0)
+            .bind(tenant_id.0)
+            .fetch_one(&state.db)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?
+            .get("sanitization_state");
+
+    if state_permits_egress(&doc_state, purpose) {
+        return Ok(());
+    }
+
+    // Refused. Record it: a refused egress is evidence, and the manual promises
+    // an audit trail for body access. Best-effort, like the other audit writes -
+    // a failed audit row must not turn a 409 into a 500.
+    let _ = crate::sanitize::audit_row(
+        state,
+        tenant_id,
+        Some(user_id),
+        &doc.matter_id,
+        &doc.id,
+        crate::sanitize::AUDIT_EGRESS_REFUSED,
+        serde_json::json!({
+            "purpose": purpose.as_str(),
+            "document_state": doc_state,
+            "format": doc.format.storage_key(),
+        }),
+    )
+    .await;
+
+    // A Block is the one state with no self-service way out, so the message says
+    // what actually clears it rather than repeating the state name.
+    let remediation = if doc_state == "blocked" {
+        format!(
+            "The redaction could not be verified, so the raw text is not readable. \
+             Re-run POST /api/documents/{}/sanitize to re-examine it.",
+            doc.id.0
+        )
+    } else {
+        format!(
+            "Run POST /api/documents/{}/sanitize first.",
+            doc.id.0
+        )
+    };
+
+    Err(ApiError::conflict(format!(
+        "document is '{doc_state}'; {} requires sanitization (or explicit 'never'). {remediation}",
+        purpose.as_str(),
+    )))
+}
+
+/// Record a successful body release.
+///
+/// The manual promises `doc_id / principal / channel / data_level / bytes` for
+/// every body fetch, and until 2026-11-09 no audit code existed for either
+/// download or extract - so the promise was unimplemented. Best-effort: an audit
+/// failure must not fail a read the caller is entitled to.
+///
+/// `doc_id` and `principal` are not in the metadata because `audit_row` already
+/// writes them as `resource` and `user_id`; duplicating them would let the two
+/// copies disagree.
+pub(crate) async fn audit_egress(
+    state: &AppState,
+    tenant_id: &TenantId,
+    user_id: &UserId,
+    doc: &Document,
+    purpose: Purpose,
+    bytes: usize,
+) {
+    // The level the chunks actually carry, which is what governs retrieval. Read
+    // rather than assumed: `extract` writes T3 and a sanitize job may re-label it
+    // (see `reingest_sanitized_chunks_at`), so the audit must record the value in
+    // force at release time, not a constant.
+    let data_level: Option<String> = sqlx::query_scalar(
+        "SELECT data_level FROM kb_chunks \
+         WHERE tenant_id = $1 AND matter_id = $2 AND document_id = $3 \
+         ORDER BY chunk_index LIMIT 1",
+    )
+    .bind(tenant_id.0)
+    .bind(doc.matter_id.0)
+    .bind(doc.id.0)
+    .fetch_optional(&state.db)
+    .await
+    .unwrap_or(None);
+
+    let _ = crate::sanitize::audit_row(
+        state,
+        tenant_id,
+        Some(user_id),
+        &doc.matter_id,
+        &doc.id,
+        crate::sanitize::AUDIT_EGRESS,
+        serde_json::json!({
+            "purpose": purpose.as_str(),
+            "bytes": bytes,
+            "format": doc.format.storage_key(),
+            "document_version": doc.version,
+            "data_level": data_level,
+        }),
+    )
+    .await;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Upload
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -138,7 +314,7 @@ pub async fn extract_document_handler(
     Extension(claims): Extension<Claims>,
     Path(id): Path<String>,
 ) -> Result<Json<crate::extract::ExtractedDocument>, ApiError> {
-    let (tenant_id, _) = claims_to_ids(&claims)?;
+    let (tenant_id, user_id) = claims_to_ids(&claims)?;
     let document_id: DocumentId = id
         .parse()
         .map_err(|e| ApiError::bad_request(format!("invalid document id: {e}")))?;
@@ -146,6 +322,15 @@ pub async fn extract_document_handler(
     // The document's matter scopes the call; fetch it to enforce the tenant
     // boundary before extracting.
     let doc = fetch_document_for_tenant(&state, &tenant_id, &document_id).await?;
+
+    // EGRESS GATE. MEASURED 2026-11-09: this handler returned a `blocked`
+    // document's full unredacted text (466 chars, two raw USCCs, three org
+    // names) with 200 while `/download` refused the same document with 409.
+    // Extraction is the plain-perception lane and does not itself sanitize, but
+    // it is still an egress: the text leaves the system. A blocked document has
+    // no verified redaction, so its text must not leave through here either.
+    assert_readable(&state, &tenant_id, &user_id, &doc, Purpose::Extract).await?;
+
     let extracted = crate::extract::extract_document(
         &state,
         &tenant_id,
@@ -153,6 +338,17 @@ pub async fn extract_document_handler(
         &document_id,
     )
     .await?;
+
+    audit_egress(
+        &state,
+        &tenant_id,
+        &user_id,
+        &doc,
+        Purpose::Extract,
+        extracted.text.len(),
+    )
+    .await;
+
     Ok(Json(extracted))
 }
 
@@ -240,29 +436,31 @@ pub async fn download_document(
     Path(id):     Path<String>,
     Query(query): Query<DownloadQuery>,
 ) -> Result<Response, ApiError> {
-    let (tenant_id, _) = claims_to_ids(&claims)?;
+    let (tenant_id, user_id) = claims_to_ids(&claims)?;
     let doc_id: DocumentId = id
         .parse()
         .map_err(|e| ApiError::bad_request(format!("invalid document id: {e}")))?;
 
-    fetch_document_for_tenant(&state, &tenant_id, &doc_id).await?;
+    let doc = fetch_document_for_tenant(&state, &tenant_id, &doc_id).await?;
 
     // Egress gate (design 5.1): export/download refuses anything that is not
     // 'sanitized' or explicitly 'never'. 'pending' is the default state, so a
     // document nobody sanitized cannot leave through the download path.
+    //
+    // The decision lives in `assert_readable` so that every body-returning
+    // handler shares it - see the note there for the 2026-11-09 defect where
+    // `/extract` returned a blocked document's text while this endpoint refused
+    // it.
+    assert_readable(&state, &tenant_id, &user_id, &doc, Purpose::Download).await?;
     let doc_state: String = sqlx::query(
-        "SELECT sanitization_state FROM documents WHERE id = $1 LIMIT 1",
+        "SELECT sanitization_state FROM documents WHERE id = $1 AND tenant_id = $2",
     )
     .bind(doc_id.0)
+    .bind(tenant_id.0)
     .fetch_one(&state.db)
     .await
     .map_err(|e| ApiError::internal(e.to_string()))?
     .get("sanitization_state");
-    if doc_state != "sanitized" && doc_state != "never" {
-        return Err(ApiError::conflict(format!(
-            "document is '{doc_state}'; download requires sanitization (or explicit 'never')"
-        )));
-    }
 
     let (doc, raw_bytes) = state
         .doc_store
@@ -338,6 +536,15 @@ pub async fn download_document(
             }
 
             let text = rows.join("");
+            audit_egress(
+                &state,
+                &tenant_id,
+                &user_id,
+                &doc,
+                Purpose::Download,
+                text.len(),
+            )
+            .await;
             let mut resp = Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, "text/markdown; charset=utf-8")
@@ -357,6 +564,16 @@ pub async fn download_document(
         // `never` - explicitly never-sanitised, so the original IS the artifact.
         DownloadBody::OriginalBinary => raw_bytes,
     };
+
+    audit_egress(
+        &state,
+        &tenant_id,
+        &user_id,
+        &doc,
+        Purpose::Download,
+        bytes.len(),
+    )
+    .await;
 
     let content_type = match doc.format {
         DocumentFormat::Docx => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -590,5 +807,62 @@ mod download_tests {
                 "state {state:?} must not authorise a download"
             );
         }
+    }
+
+    /// The egress gate is ONE rule, and it is the same rule for every purpose.
+    ///
+    /// MEASURED 2026-11-09: `/download` refused a `blocked` document with 409
+    /// while `/extract` returned its full unredacted text with 200. The gate
+    /// existed on one handler and not the other, so the refusal was decorative.
+    /// This asserts the shared decision, which is what makes a future handler
+    /// gated by construction rather than by remembering.
+    #[test]
+    fn a_blocked_document_is_readable_by_no_purpose() {
+        for purpose in [Purpose::Download, Purpose::Extract] {
+            assert!(
+                !state_permits_egress("blocked", purpose),
+                "{purpose:?} must not read a blocked document - that is the 2026-11-09 leak"
+            );
+        }
+    }
+
+    /// A download is a RELEASE: only a verified redaction or an explicit
+    /// publication state may leave as a file.
+    #[test]
+    fn only_sanitized_and_never_permit_a_download() {
+        assert!(state_permits_egress("sanitized", Purpose::Download));
+        assert!(state_permits_egress("never", Purpose::Download));
+        for state in ["pending", "blocked", "", "SANITIZED", "Never"] {
+            assert!(
+                !state_permits_egress(state, Purpose::Download),
+                "state {state:?} must not permit a download"
+            );
+        }
+    }
+
+    /// An extract is the PERCEPTION path and must work on a `pending` document.
+    ///
+    /// This is the guard on the fix above: `run_job_inner` calls
+    /// `extract_document` itself, and every gate extracts before it sanitizes.
+    /// Refusing `pending` here would make the pipeline impossible - the
+    /// over-correction that a naive "gate extract like download" would produce.
+    #[test]
+    fn a_pending_document_is_still_extractable() {
+        assert!(
+            state_permits_egress("pending", Purpose::Extract),
+            "extraction is the input to sanitization; refusing 'pending' breaks the pipeline"
+        );
+        assert!(
+            !state_permits_egress("pending", Purpose::Download),
+            "but a pending document must still not be downloadable"
+        );
+    }
+
+    /// `Purpose` must name itself in the refusal, because the message is what the
+    /// operator and the agent both read.
+    #[test]
+    fn each_purpose_names_itself() {
+        assert_eq!(Purpose::Download.as_str(), "download");
+        assert_eq!(Purpose::Extract.as_str(), "extract");
     }
 }
