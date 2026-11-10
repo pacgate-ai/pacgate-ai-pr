@@ -185,65 +185,6 @@ if ($running.Count -eq 0) {
 }
 
 # ---------------------------------------------------------------------------
-# The portal signs in one kind of identity. The stack ships two, and they are
-# not interchangeable: the admin address is a staff login, the bridge address is
-# a machine credential for pacgate-api. Submitting the bridge address to the
-# portal is silently suppressed ("not on the permitted list") behind a
-# "Check your email" page, which reads as a mail problem rather than a refusal.
-Write-Host ''
-Write-Host 'qm identity kinds'
-$envFile = Join-Path $staged '.env'
-if (-not (Test-Path $envFile)) {
-    Write-Skip 'no qm .env, so the two identity kinds cannot be compared'
-} else {
-    $envLines = Get-Content $envFile
-    function Get-QmEnvValue([string]$name) {
-        $line = $envLines | Where-Object { $_ -match "^\s*$name\s*=" } | Select-Object -First 1
-        if (-not $line) { return $null }
-        return (($line -replace "^\s*$name\s*=", '') -replace '^["'']|["'']$', '').Trim()
-    }
-    $allowed = @((Get-QmEnvValue 'AUTH_ALLOWED_EMAILS') -split ',' | ForEach-Object { $_.Trim().ToLower() } | Where-Object { $_ })
-    $apiMail = Get-QmEnvValue 'PACGATE_API_EMAIL'
-
-    if (-not $allowed -or $allowed.Count -eq 0) {
-        Write-ConfigFail 'AUTH_ALLOWED_EMAILS is unset, so nobody can sign in to the portal'
-    } else {
-        Write-Pass "the portal accepts $($allowed.Count) allow-listed address(es): $($allowed -join ', ')"
-    }
-
-    if (-not $apiMail) {
-        Write-Skip 'no PACGATE_API_EMAIL, so there is no bridge identity to compare'
-    } elseif ($allowed -contains $apiMail.Trim().ToLower()) {
-        Write-ConfigFail "$apiMail is BOTH the pacgate-api bridge account (PACGATE_API_EMAIL) and a portal login (AUTH_ALLOWED_EMAILS). A machine credential must not hold interactive staff access. Remove it from AUTH_ALLOWED_EMAILS."
-    } else {
-        Write-Pass "$apiMail is a pacgate-api machine credential and is correctly absent from the portal allow-list"
-    }
-
-    # A GRANTED ADMIN WHO CANNOT SIGN IN IS NOT AN ADMIN.
-    #
-    # ADMIN_GRANTS seeds a ROLE in core; it does not admit anyone. The broker and
-    # portal gate sign-in on their own exact-match list, and core never reads it, so
-    # `x@y:org_admin` alone yields a role nobody can use. Nothing linked the two
-    # lists, so this passed every earlier check while the assigned admin was refused.
-    #
-    # Measured 2026-11-10: admin@pacgate-law.com held org_admin in core and the broker
-    # logged "sign-in link suppressed: admin@pacgate-law.com is not on the permitted
-    # list" behind a "Check your email" page - indistinguishable from a mail problem.
-    $grants = @((Get-QmEnvValue 'ADMIN_GRANTS') -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    $grantAdmins = @($grants | ForEach-Object { ($_ -split ':')[0].Trim().ToLower() } | Where-Object { $_ })
-    if ($grantAdmins.Count -eq 0) {
-        Write-Warn 'ADMIN_GRANTS names no org_admin, so this deployment has no administrator'
-    } else {
-        $locked = @($grantAdmins | Where-Object { $allowed -notcontains $_ })
-        if ($locked.Count -gt 0) {
-            Write-ConfigFail "ADMIN_GRANTS grants org_admin to $($locked -join ', '), but that address is NOT in AUTH_ALLOWED_EMAILS - the role exists and the person cannot sign in to use it. Add the PLAIN address (no ':role') to AUTH_ALLOWED_EMAILS."
-        } else {
-            Write-Pass "every granted org_admin ($($grantAdmins -join ', ')) can actually sign in"
-        }
-    }
-}
-
-# ---------------------------------------------------------------------------
 # SIGN-IN REACHABILITY
 #
 # WHY THIS EXISTS (measured 2026-11-10, on the live 0.2.34 stack)
@@ -305,29 +246,57 @@ if (-not $publicUrl) {
         # THE ASSERTION THAT MATTERS: does the host the INSTALLER PRINTS work?
         #
         # Checking QM_PUBLIC_URL against itself is circular - a hostname config is
-        # self-consistent and still refuses the operator, because install.ps1 used to
-        # say "Sign in at http://localhost:8181" unconditionally. Measured 2026-11-10:
-        # with QM_PUBLIC_URL=http://laptop-hh9v75mk:8181 the config-only check passed
-        # while a browser at localhost:8181 got 403 "cross-origin request refused".
+        # self-consistent and still refuses the operator, because install.ps1 says
+        # "Sign in at http://localhost:8181". Measured 2026-11-10: with
+        # QM_PUBLIC_URL=http://laptop-hh9v75mk:8181 the config-only check passed while
+        # a browser at localhost:8181 got 403 "cross-origin request refused".
         #
         # So ask the question the operator asks: open the printed URL and submit.
-        # `install.ps1` now PRINTS whatever QM_PUBLIC_URL names, so hardcoding localhost
-        # here would test a literal the installer no longer emits - and would fail this
-        # gate on a correct hostname deployment. Read the instruction from the script.
-        $printed = $publicUrl
-        $installer = Join-Path $repoRoot 'deploy/client-bundle/install.ps1'
-        if (Test-Path $installer) {
-            $mPrint = [regex]::Match((Get-Content $installer -Raw), 'Sign in at \$qmSignIn')
-            if ($mPrint.Success) {
-                Write-Pass 'install.ps1 prints the configured QM_PUBLIC_URL, not a hardcoded localhost'
-            } else {
-                $mHard = [regex]::Match((Get-Content $installer -Raw), 'Sign in at http://localhost:8181')
-                if ($mHard.Success) {
-                    $printed = 'http://localhost:8181'
-                    Write-Warn "install.ps1 still prints a hardcoded $printed; asserting against that literal"
+        #
+        # The printed URL is READ FROM THE PRINTER, not assumed. It was a hardcoded
+        # localhost literal here, and that made the assertion blind in the one case
+        # that still existed: setup-qm.ps1 derives QM_PUBLIC_URL from the hostname but
+        # printed "Portal: http://localhost:8181" in two places (the re-run path and
+        # the completion banner). A constant expectation and a constant message agree
+        # with each other by construction, so both were wrong together and the gate
+        # passed. Each printer is now read, and its output must survive a real POST.
+        # `if (` is avoided so this is one line per site and cannot drift.
+        $printers = @(
+            @{ Name = 'install.ps1';   File = Join-Path $repoRoot 'deploy/client-bundle/install.ps1' },
+            @{ Name = 'setup-qm.ps1';  File = Join-Path $repoRoot 'deploy/client-bundle/setup-qm.ps1' }
+        )
+        $printedUrls = @()
+        foreach ($pr in $printers) {
+            if (-not (Test-Path $pr.File)) { continue }
+            # Only executable lines: a comment explaining the bug must not be read as
+            # the bug. A derived print ($(...)) is trusted to follow QM_PUBLIC_URL and
+            # is skipped here; a literal is what this assertion exists to catch.
+            #
+            # Narrowed to the PORTAL ports (8181/8182/8183). The origin rule governs the
+            # auth service only; docs.docker.com, ollama.com, Mailpit:8025 and the
+            # pacgate-api:8089 banner are not sign-in surfaces and are not this gate's
+            # business. Requiring the port on the same line keeps that boundary honest.
+            $hits = Select-String -Path $pr.File -Pattern '^\s*Write-Host\s+.*:818[0-9]'
+            foreach ($h in $hits) {
+                $line = $h.Line.Trim()
+                if ($line.StartsWith('#')) { continue }
+                if ($line -match '\$\(') { continue }
+                $lit = [regex]::Match($line, 'https?://[^"''\s)]+:818[0-9]')
+                if ($lit.Success) {
+                    $printedUrls += [pscustomobject]@{ Site = "$($pr.Name):$($h.LineNumber)"; Url = $lit.Value.TrimEnd('/') }
                 }
             }
         }
+
+        if ($printedUrls.Count -gt 0) {
+            foreach ($p in $printedUrls) {
+                Write-Fail "$($p.Site) prints a hardcoded sign-in URL '$($p.Url)'. Derive it from QM_PUBLIC_URL instead; a literal is refused with 403 whenever it names a different host than the one the stack enforces."
+            }
+        } elseif ($publicUrl -eq '') {
+            Write-Skip 'no printer literal to compare'
+        }
+
+        $printed = $publicUrl
         $origin = $printed
         # Read the redirect with curl. Invoke-WebRequest's 302 handling differs by
         # PowerShell version (5.1 vs 7), and this gate must read the same status a
@@ -364,13 +333,73 @@ if (-not $publicUrl) {
                 $respBody = if (Test-Path $bodyFile) { Get-Content $bodyFile -Raw } else { '' }
                 Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue
                 if ($status -eq '403' -and $respBody -match 'cross-origin') {
-                    Write-Fail "a browser at $origin is REFUSED as cross-origin (the form lives at $formHost). install.ps1 prints '$printed', so the operator cannot sign in. Set QM_PUBLIC_URL=$printed in deploy/client-bundle/qm-pacgate/.env and recreate auth+portal."
+                    Write-Fail "a browser at $origin is REFUSED as cross-origin (the form lives at $formHost). QM_PUBLIC_URL names $publicUrl, so that is the host staff must type - set it to whatever staff actually use in deploy/client-bundle/qm-pacgate/.env, recreate auth+portal, and make sure the installer prints the same host rather than a literal."
                 } elseif ($status -eq '200') {
                     Write-Pass "a browser at $origin can submit the sign-in form (Origin: $origin)"
                 } else {
                     Write-Fail "a browser at $origin could not submit the sign-in form: HTTP $status $((($respBody -replace '\s+',' ').Trim()))"
                 }
             }
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# The portal signs in one kind of identity. The stack ships two, and they are
+# not interchangeable: the admin address is a staff login, the bridge address is
+# a machine credential for pacgate-api. Submitting the bridge address to the
+# portal is silently suppressed ("not on the permitted list") behind a
+# "Check your email" page, which reads as a mail problem rather than a refusal.
+Write-Host ''
+Write-Host 'qm identity kinds'
+$envFile = Join-Path $staged '.env'
+if (-not (Test-Path $envFile)) {
+    Write-Skip 'no qm .env, so the two identity kinds cannot be compared'
+} else {
+    $envLines = Get-Content $envFile
+    function Get-QmEnvValue([string]$name) {
+        $line = $envLines | Where-Object { $_ -match "^\s*$name\s*=" } | Select-Object -First 1
+        if (-not $line) { return $null }
+        return (($line -replace "^\s*$name\s*=", '') -replace '^["'']|["'']$', '').Trim()
+    }
+    $allowed = @((Get-QmEnvValue 'AUTH_ALLOWED_EMAILS') -split ',' | ForEach-Object { $_.Trim().ToLower() } | Where-Object { $_ })
+    $apiMail = Get-QmEnvValue 'PACGATE_API_EMAIL'
+
+    if (-not $allowed -or $allowed.Count -eq 0) {
+        Write-ConfigFail 'AUTH_ALLOWED_EMAILS is unset, so nobody can sign in to the portal'
+    } else {
+        Write-Pass "the portal accepts $($allowed.Count) allow-listed address(es): $($allowed -join ', ')"
+    }
+
+    if (-not $apiMail) {
+        Write-Skip 'no PACGATE_API_EMAIL, so there is no bridge identity to compare'
+    } elseif ($allowed -contains $apiMail.Trim().ToLower()) {
+        Write-ConfigFail "$apiMail is BOTH the pacgate-api bridge account (PACGATE_API_EMAIL) and a portal login (AUTH_ALLOWED_EMAILS). A machine credential must not hold interactive staff access. Remove it from AUTH_ALLOWED_EMAILS."
+    } else {
+        Write-Pass "$apiMail is a pacgate-api machine credential and is correctly absent from the portal allow-list"
+    }
+
+    # A GRANTED ADMIN WHO CANNOT SIGN IN IS NOT AN ADMIN.
+    #
+    # ADMIN_GRANTS seeds a ROLE in core; it does not admit anyone. The broker and
+    # portal gate sign-in on their own exact-match list, and core never reads it, so
+    # `x@y:org_admin` alone yields a role nobody can use. Nothing linked the two
+    # lists, so this passed every earlier check while the assigned admin was refused.
+    #
+    # Measured 2026-11-10: admin@pacgate-law.com held no grant here and was not on the
+    # allow-list either, and the broker logged "sign-in link suppressed: ... is not on
+    # the permitted list" behind a "Check your email" page - indistinguishable from a
+    # mail problem.
+    $grants = @((Get-QmEnvValue 'ADMIN_GRANTS') -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $grantAdmins = @($grants | ForEach-Object { ($_ -split ':')[0].Trim().ToLower() } | Where-Object { $_ })
+    if ($grantAdmins.Count -eq 0) {
+        Write-Warn 'ADMIN_GRANTS names no org_admin, so this deployment has no administrator'
+    } else {
+        $locked = @($grantAdmins | Where-Object { $allowed -notcontains $_ })
+        if ($locked.Count -gt 0) {
+            Write-ConfigFail "ADMIN_GRANTS grants org_admin to $($locked -join ', '), but that address is NOT in AUTH_ALLOWED_EMAILS - the role exists and the person cannot sign in to use it. Add the PLAIN address (no ':role') to AUTH_ALLOWED_EMAILS."
+        } else {
+            Write-Pass "every granted org_admin ($($grantAdmins -join ', ')) can actually sign in"
         }
     }
 }
