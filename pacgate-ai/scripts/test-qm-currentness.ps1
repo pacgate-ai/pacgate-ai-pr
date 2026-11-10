@@ -47,9 +47,14 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 
 $script:failures = 0
 $script:warnings = 0
+# Failures that a restart cannot fix. Kept separate because this gate's footer
+# used to offer one remedy for every failure, which sent config errors to a
+# container bounce that cannot possibly help.
+$script:configFailures = 0
 
 function Write-Pass([string]$m) { Write-Host "  [PASS] $m" -ForegroundColor Green }
 function Write-Fail([string]$m) { Write-Host "  [FAIL] $m" -ForegroundColor Red; $script:failures++ }
+function Write-ConfigFail([string]$m) { Write-Host "  [FAIL] $m" -ForegroundColor Red; $script:failures++; $script:configFailures++ }
 function Write-Warn([string]$m) { Write-Host "  [warn] $m" -ForegroundColor Yellow; $script:warnings++ }
 function Write-Skip([string]$m) { Write-Host "  [skip] $m" -ForegroundColor Yellow }
 
@@ -180,8 +185,206 @@ if ($running.Count -eq 0) {
 }
 
 # ---------------------------------------------------------------------------
+# The portal signs in one kind of identity. The stack ships two, and they are
+# not interchangeable: the admin address is a staff login, the bridge address is
+# a machine credential for pacgate-api. Submitting the bridge address to the
+# portal is silently suppressed ("not on the permitted list") behind a
+# "Check your email" page, which reads as a mail problem rather than a refusal.
+Write-Host ''
+Write-Host 'qm identity kinds'
+$envFile = Join-Path $staged '.env'
+if (-not (Test-Path $envFile)) {
+    Write-Skip 'no qm .env, so the two identity kinds cannot be compared'
+} else {
+    $envLines = Get-Content $envFile
+    function Get-QmEnvValue([string]$name) {
+        $line = $envLines | Where-Object { $_ -match "^\s*$name\s*=" } | Select-Object -First 1
+        if (-not $line) { return $null }
+        return (($line -replace "^\s*$name\s*=", '') -replace '^["'']|["'']$', '').Trim()
+    }
+    $allowed = @((Get-QmEnvValue 'AUTH_ALLOWED_EMAILS') -split ',' | ForEach-Object { $_.Trim().ToLower() } | Where-Object { $_ })
+    $apiMail = Get-QmEnvValue 'PACGATE_API_EMAIL'
+
+    if (-not $allowed -or $allowed.Count -eq 0) {
+        Write-ConfigFail 'AUTH_ALLOWED_EMAILS is unset, so nobody can sign in to the portal'
+    } else {
+        Write-Pass "the portal accepts $($allowed.Count) allow-listed address(es): $($allowed -join ', ')"
+    }
+
+    if (-not $apiMail) {
+        Write-Skip 'no PACGATE_API_EMAIL, so there is no bridge identity to compare'
+    } elseif ($allowed -contains $apiMail.Trim().ToLower()) {
+        Write-ConfigFail "$apiMail is BOTH the pacgate-api bridge account (PACGATE_API_EMAIL) and a portal login (AUTH_ALLOWED_EMAILS). A machine credential must not hold interactive staff access. Remove it from AUTH_ALLOWED_EMAILS."
+    } else {
+        Write-Pass "$apiMail is a pacgate-api machine credential and is correctly absent from the portal allow-list"
+    }
+
+    # A GRANTED ADMIN WHO CANNOT SIGN IN IS NOT AN ADMIN.
+    #
+    # ADMIN_GRANTS seeds a ROLE in core; it does not admit anyone. The broker and
+    # portal gate sign-in on their own exact-match list, and core never reads it, so
+    # `x@y:org_admin` alone yields a role nobody can use. Nothing linked the two
+    # lists, so this passed every earlier check while the assigned admin was refused.
+    #
+    # Measured 2026-11-10: admin@pacgate-law.com held org_admin in core and the broker
+    # logged "sign-in link suppressed: admin@pacgate-law.com is not on the permitted
+    # list" behind a "Check your email" page - indistinguishable from a mail problem.
+    $grants = @((Get-QmEnvValue 'ADMIN_GRANTS') -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $grantAdmins = @($grants | ForEach-Object { ($_ -split ':')[0].Trim().ToLower() } | Where-Object { $_ })
+    if ($grantAdmins.Count -eq 0) {
+        Write-Warn 'ADMIN_GRANTS names no org_admin, so this deployment has no administrator'
+    } else {
+        $locked = @($grantAdmins | Where-Object { $allowed -notcontains $_ })
+        if ($locked.Count -gt 0) {
+            Write-ConfigFail "ADMIN_GRANTS grants org_admin to $($locked -join ', '), but that address is NOT in AUTH_ALLOWED_EMAILS - the role exists and the person cannot sign in to use it. Add the PLAIN address (no ':role') to AUTH_ALLOWED_EMAILS."
+        } else {
+            Write-Pass "every granted org_admin ($($grantAdmins -join ', ')) can actually sign in"
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# SIGN-IN REACHABILITY
+#
+# WHY THIS EXISTS (measured 2026-11-10, on the live 0.2.34 stack)
+#
+# The portal authenticates by magic link, and the auth service refuses a form POST
+# whose Origin does not match the single host it derives from QM_PUBLIC_URL:
+#
+#     Origin: http://localhost:8181        -> 403 {"error":"forbidden",
+#                                                 "message":"cross-origin request refused"}
+#     Origin: http://laptop-hh9v75mk:8181  -> 200 (accepted)
+#
+# install.ps1 prints "Sign in at http://localhost:8181", so an operator following the
+# installer's own instruction is refused. This has now shipped broken in BOTH
+# directions: an older release hardcoded localhost and broke remote users, and the
+# -Update repair writes this machine's hostname and breaks local ones. One host string
+# cannot serve both, and nothing noticed either time.
+#
+# The assertion is deliberately about REACHABILITY, not about which host is chosen:
+# whatever QM_PUBLIC_URL names must actually serve the sign-in form, so the printed
+# instruction and the working instruction cannot diverge again.
+Write-Host ''
+Write-Host 'SIGN-IN reachability (the host the installer prints)' -ForegroundColor Cyan
+
+$qmEnvPath = Join-Path $repoRoot (Join-Path $StagedDir '.env')
+$publicUrl = $null
+if (Test-Path $qmEnvPath) {
+    $m = [regex]::Match((Get-Content $qmEnvPath -Raw), '(?m)^\s*QM_PUBLIC_URL\s*=\s*(\S+)')
+    if ($m.Success) { $publicUrl = $m.Groups[1].Value.Trim().TrimEnd('/') }
+}
+
+if (-not $publicUrl) {
+    Write-Skip 'QM_PUBLIC_URL is not set; the sign-in host cannot be derived'
+} else {
+    # Derive the authorize URL from the service itself so this tests the origin rule
+    # and not a hardcoded redirect_uri that goes stale when the host changes.
+    #
+    # Read the 302 with curl, NOT with `Invoke-WebRequest -MaximumRedirection 0`.
+    # Measured 2026-11-10 on this box, both PowerShell versions lose the Location:
+    #   5.1 raises MaximumRedirectExceeded as InvalidOperationException with NO
+    #       .Response attached, so there is nothing to read;
+    #   7.6 throws HttpResponseException WITH a Response, but
+    #       $resp.Headers['Location'] returns empty ($resp.Headers.Location works).
+    # The result was a hard FAIL - "gave no redirect to a sign-in form" - for a portal
+    # that redirects correctly. curl is already a dependency of this gate (used below)
+    # and reads the same status a browser sees, so use it for both reads.
+    $loginUrl = "$publicUrl/auth/login"
+    $landed = $null
+    $hdr = & curl.exe -s -i --max-time 15 $loginUrl 2>$null
+    foreach ($line in $hdr) {
+        if ($line -match '^(?i)location:\s*(\S+)') { $landed = $Matches[1].Trim(); break }
+    }
+    if ($landed -and $landed -notmatch '^https?://') { $landed = ([Uri]::new([Uri]$loginUrl, $landed)).AbsoluteUri }
+
+    if (-not $landed) {
+        Write-Fail "QM_PUBLIC_URL=$publicUrl but /auth/login gave no redirect to a sign-in form"
+    } else {
+        Write-Pass "/auth/login on $publicUrl redirects to a sign-in form"
+
+        # THE ASSERTION THAT MATTERS: does the host the INSTALLER PRINTS work?
+        #
+        # Checking QM_PUBLIC_URL against itself is circular - a hostname config is
+        # self-consistent and still refuses the operator, because install.ps1 used to
+        # say "Sign in at http://localhost:8181" unconditionally. Measured 2026-11-10:
+        # with QM_PUBLIC_URL=http://laptop-hh9v75mk:8181 the config-only check passed
+        # while a browser at localhost:8181 got 403 "cross-origin request refused".
+        #
+        # So ask the question the operator asks: open the printed URL and submit.
+        # `install.ps1` now PRINTS whatever QM_PUBLIC_URL names, so hardcoding localhost
+        # here would test a literal the installer no longer emits - and would fail this
+        # gate on a correct hostname deployment. Read the instruction from the script.
+        $printed = $publicUrl
+        $installer = Join-Path $repoRoot 'deploy/client-bundle/install.ps1'
+        if (Test-Path $installer) {
+            $mPrint = [regex]::Match((Get-Content $installer -Raw), 'Sign in at \$qmSignIn')
+            if ($mPrint.Success) {
+                Write-Pass 'install.ps1 prints the configured QM_PUBLIC_URL, not a hardcoded localhost'
+            } else {
+                $mHard = [regex]::Match((Get-Content $installer -Raw), 'Sign in at http://localhost:8181')
+                if ($mHard.Success) {
+                    $printed = 'http://localhost:8181'
+                    Write-Warn "install.ps1 still prints a hardcoded $printed; asserting against that literal"
+                }
+            }
+        }
+        $origin = $printed
+        # Read the redirect with curl. Invoke-WebRequest's 302 handling differs by
+        # PowerShell version (5.1 vs 7), and this gate must read the same status a
+        # browser would see. curl is already a dependency of this repo's gates.
+        $pLand = $null
+        $hdr = & curl.exe -s -i --max-time 15 "$printed/auth/login" 2>$null
+        foreach ($line in $hdr) {
+            if ($line -match '^(?i)location:\s*(\S+)') { $pLand = $Matches[1].Trim(); break }
+        }
+        if (-not $pLand) {
+            Write-Fail "the URL install.ps1 prints ($printed) does not redirect to a sign-in form"
+        } else {
+            $formHost = ([Uri]$pLand).Authority
+            try {
+                $page2 = (Invoke-WebRequest $pLand -UseBasicParsing -TimeoutSec 20).Content
+            } catch { $page2 = $null }
+            if (-not $page2 -or $page2 -notmatch 'name="request"\s+value="([^"]+)"') {
+                Write-Fail "the sign-in form at $pLand has no request token; sign-in cannot proceed"
+            } else {
+                $req2 = $Matches[1]
+                $post2 = ($pLand -split '\?')[0]
+                # Submit with curl so the HTTP STATUS is read directly instead of
+                # inferred from an exception. The previous try/catch treated any
+                # failure it did not recognise as a PASS, so a genuine refusal that
+                # arrived with a differently-worded body, or at a stage after the
+                # origin guard, was reported as "can submit the form" - the exact
+                # false pass this assertion exists to prevent. Measured 2026-11-10:
+                # a red-check with a deliberately hardcoded localhost still PASSed.
+                $bodyFile = Join-Path ([System.IO.Path]::GetTempPath()) "qm-signin-probe-$PID.txt"
+                $status = & curl.exe -s -o $bodyFile -w '%{http_code}' --max-time 25 `
+                    -H "Origin: $origin" -H "Referer: $pLand" `
+                    --data-urlencode "request=$req2" --data-urlencode 'email=probe@example.invalid' `
+                    $post2 2>$null
+                $respBody = if (Test-Path $bodyFile) { Get-Content $bodyFile -Raw } else { '' }
+                Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue
+                if ($status -eq '403' -and $respBody -match 'cross-origin') {
+                    Write-Fail "a browser at $origin is REFUSED as cross-origin (the form lives at $formHost). install.ps1 prints '$printed', so the operator cannot sign in. Set QM_PUBLIC_URL=$printed in deploy/client-bundle/qm-pacgate/.env and recreate auth+portal."
+                } elseif ($status -eq '200') {
+                    Write-Pass "a browser at $origin can submit the sign-in form (Origin: $origin)"
+                } else {
+                    Write-Fail "a browser at $origin could not submit the sign-in form: HTTP $status $((($respBody -replace '\s+',' ').Trim()))"
+                }
+            }
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
 Write-Host ''
 if ($script:failures -gt 0) {
+        if ($script:failures -eq $script:configFailures) {
+            Write-Host "CONFIG: $($script:failures) qm identity definition(s) are wrong. A restart cannot fix these." -ForegroundColor Red
+            Write-Host ''
+            Write-Host '  Edit deploy/client-bundle/qm-pacgate/.env, then recreate core:' -ForegroundColor DarkGray
+            Write-Host '    docker compose -f compose.qm.yaml up -d --force-recreate core' -ForegroundColor DarkGray
+            exit 1
+        }
     Write-Host "STALE: $($script:failures) qm dimension(s) are behind. The co-working stack needs a restart." -ForegroundColor Red
     Write-Host ''
     Write-Host '  -Update deliberately does NOT restart qm, because staff may be mid-session.' -ForegroundColor DarkGray
