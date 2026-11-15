@@ -1,0 +1,28 @@
+pacgate-db|pgvector/pgvector:pg16|Up 4 hours (healthy)
+odysseus-ntfy-1|binwiederhier/ntfy|Up 4 hours
+qm-pacgate-pg|postgres:16|Up 4 hours
+cloudflare|cloudflare/cloudflared:latest|Up 4 hours
+open-webui|ghcr.io/open-webui/open-webui:main|Up 5 hours (healthy)
+pacgate-api|ghcr.io/jzkk720/pacgate-api:0.2.34|Up 5 hours (healthy)
+deer-flow-frontend|ghcr.io/jzkk720/deer-flow-frontend-pacgate:0.2.34|Up 5 hours (healthy)
+deer-flow|ghcr.io/jzkk720/deer-flow-pacgate:0.2.34|Up 5 hours (healthy)
+pacgate-mcp|ghcr.io/jzkk720/pacgate-mcp:0.2.34|Up 5 hours (healthy)
+ocr-service|ghcr.io/jzkk720/ocr-service:0.2.34|Up 5 hours (healthy)
+dockhand|fnsys/dockhand:latest|Up 5 hours (healthy)
+openviking|46f9e34cd372|Up 5 hours (healthy)
+qm-pacgate-portal|e245dfc2c12a|Up 5 hours
+qm-pacgate-web-ui|f037834fd726|Up 5 hours
+qm-pacgate-admin|ec071338547e|Up 5 hours
+qm-pacgate-auth|27f2e1467adc|Up 5 hours
+qm-pacgate-core|bee03e7f2271|Up 5 hours
+qm-mailpit|axllent/mailpit:v1.24|Up 5 hours (healthy)
+pacgate-nginx|nginx:1.27-alpine|Up 5 hours (healthy)
+odysseus-odysseus-1|ghcr.io/jzkk720/odysseus:main|Up 5 hours
+odysseus-searxng-1|searxng/searxng:2026.5.31-7159b8aed|Up 5 hours (healthy)
+odysseus-chromadb-1|chromadb/chroma:latest|Up 5 hours
+ documents |   276
+ kb_chunks |  5599
+ matters   |    65
+ users     |     5
+ audit_log |  2001
+
