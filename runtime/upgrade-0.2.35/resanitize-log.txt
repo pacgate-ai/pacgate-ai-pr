@@ -1,0 +1,8 @@
+re-sanitizing 7 blocked document(s)
+cf2d5a49-2680-43f6-a7f9-1d36ae206c69 verdict=pass promoted=1 state=sanitized incomplete=False
+aaf4da00-2d7c-48a7-8f92-a299fed5c871 verdict=pass promoted=5 state=sanitized incomplete=False
+de7027a9-7d14-4c4d-a235-63beb8aa1b24 verdict=pass promoted=30 state=sanitized incomplete=False
+4e7beebc-9970-45ce-b016-ebc0bf5229eb verdict=pass promoted=5 state=sanitized incomplete=False
+b6ae1cbd-ebc0-41e5-8b5e-cd73d98dd6ad verdict=pass promoted=5 state=sanitized incomplete=False
+abe4704f-9afe-4ae4-bc30-ea6cf26c5315 verdict=block promoted=0 state=blocked incomplete=False
+7ac28fb1-1211-41e6-a7ff-5e601043d1b0 verdict=pass promoted=5 state=sanitized incomplete=False
