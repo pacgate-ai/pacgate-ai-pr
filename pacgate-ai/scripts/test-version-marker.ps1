@@ -1,4 +1,4 @@
-# Verify the /version staleness marker end-to-end against real containers.
+﻿# Verify the /version staleness marker end-to-end against real containers.
 #
 # Why this exists: the marker is the one artifact whose whole job is to be
 # reachable when something else is wrong. "nginx -t passes" does not prove that
@@ -144,8 +144,24 @@ http.server.HTTPServer(("0.0.0.0", 8080), H).serve_forever()
     }
     if (-not $nginxUp) { throw "nginx config did not pass inside the container" }
 
-    # Give nginx a moment to bind.
-    Start-Sleep -Seconds 2
+    # Poll for nginx to actually ANSWER, rather than sleeping a fixed 2 s.
+    #
+    # `nginx -t` above only proves the config PARSES; it does not prove the
+    # worker has bound :80. A fixed sleep is a race: measured 2026-10-23, this
+    # gate failed once inside run-all-checks.ps1 and passed 3/3 standalone, and
+    # the only difference is how much else the machine was doing. The stub
+    # upstream above already polls for readiness; this is the same pattern, so
+    # both halves of the harness now fail for the same reason or not at all.
+    #
+    # Probes /version, not /: this fixture has no UI root, so / answers 404 and
+    # wget exits non-zero even when nginx is perfectly up.
+    $bound = $false
+    foreach ($i in 1..20) {
+        $probe = Invoke-Native { docker exec $nginxCtr wget -q -O /dev/null http://127.0.0.1/version }
+        if ($probe.Exit -eq 0) { $bound = $true; break }
+        Start-Sleep -Milliseconds 500
+    }
+    if (-not $bound) { throw "nginx never answered on :80 inside the container" }
 
     # --- the actual assertions -------------------------------------------
     # `wget -S` writes the response headers to stderr, so this call needs the
@@ -173,8 +189,19 @@ http.server.HTTPServer(("0.0.0.0", 8080), H).serve_forever()
     Assert-True ($root.Text -notmatch '404') '/ is unaffected by the new location'
 }
 catch {
-    Write-Host ("  [FAIL] harness error: {0}" -f $_.Exception.Message) -ForegroundColor Red
-    $failed++
+    # A missing HARNESS IMAGE is not a product defect. This gate needs
+    # python:3.12-alpine (the stub upstream) and nginx:1.27-alpine; on a host that
+    # cannot reach docker.io the run dies before a single assertion and used to
+    # report "0 passed, 1 FAILED" with a registry error buried in the message -
+    # indistinguishable, in `run-all-checks.ps1`, from nginx being wired wrong.
+    # Absent tooling is NOT YET ASSERTABLE (exit 2 = SKIP), never a failure.
+    if ($_.Exception.Message -match 'Unable to find image|failed to resolve reference|no matching manifest|pull access denied|proxyconnect|dial tcp') {
+        Write-Host ("  [skip] CANNOT CHECK: a harness image is unavailable ({0})" -f ($_.Exception.Message -replace '\s+', ' ')) -ForegroundColor Yellow
+    }
+    else {
+        Write-Host ("  [FAIL] harness error: {0}" -f $_.Exception.Message) -ForegroundColor Red
+        $failed++
+    }
 }
 finally {
     Cleanup
@@ -184,6 +211,13 @@ finally {
 Write-Host ''
 Write-Host '=== Results ===' -ForegroundColor Cyan
 if ($failed -eq 0) {
+    # $passed -eq 0 means the harness never got as far as an assertion (the skip
+    # path above). Reporting that as a green would be the same "green on no
+    # evidence" failure this gate's header warns about.
+    if ($passed -eq 0) {
+        Write-Host '  CANNOT CHECK - nothing was asserted' -ForegroundColor Yellow
+        exit 2
+    }
     Write-Host ("  {0} passed, 0 failed" -f $passed) -ForegroundColor Green
     exit 0
 }

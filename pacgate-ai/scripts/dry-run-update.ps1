@@ -103,21 +103,23 @@ $repoTop = (git rev-parse --show-toplevel).Trim()
 $dirty = @(git -C $repoTop status --porcelain)
 Pop-Location
 
-# The installer's guard is `$dirty = git status --porcelain; if ($dirty)`. That
-# means it treats UNTRACKED files as dirty too, and skips the repo refresh on a
-# tree git itself would happily fast-forward. This is a real behaviour worth
-# knowing before a client update: an operator who left a scratch file behind
-# gets "skipping the repo update" and only images move. It is a WARN in the
-# installer, not a failure - but the repo silently stays behind.
+# The installer's guard is `git status --porcelain --untracked-files=no`, so it
+# blocks only on TRACKED edits. Untracked files are reported and kept, and the
+# refresh proceeds - unless one of them collides with a path the incoming commit
+# adds, which git itself refuses and the installer pre-checks.
 #
-# Counted separately so the report distinguishes the two cases.
+# This note used to claim the opposite ("the installer's guard skips the repo
+# pull for these"). That was true of an older bare `git status --porcelain`
+# guard and stopped being true when it was narrowed; a stale note here is worse
+# than none, because it tells an operator their update is image-only when the
+# repo is in fact refreshing.
 $untracked = @($dirty | Where-Object { $_ -match '^\?\?' })
 $tracked = @($dirty | Where-Object { $_ -notmatch '^\?\?' })
 Check 'no TRACKED local edits (which would truly block a fast-forward)' ($tracked.Count -eq 0) `
     ("{0} tracked change(s)" -f $tracked.Count)
 if ($untracked.Count -gt 0) {
-    Note "$($untracked.Count) untracked file(s) present - the installer's guard skips the repo pull for these" `
-        'harmless for git --ff-only, but it means ONLY images update; commit or remove them for a full refresh'
+    Note "$($untracked.Count) untracked file(s) present - kept, and they do NOT block the repo refresh" `
+        'the installer narrows its guard to tracked state; only a name collision with an incoming path blocks'
 }
 
 # ── 3. The repo is already at origin/main (pull would be a no-op) ──────────
@@ -126,8 +128,28 @@ Write-Host '--- 3. repo refresh would be a no-op ---' -ForegroundColor Cyan
 $head = (git rev-parse HEAD).Trim()
 $remote = ''
 try { $remote = (git ls-remote origin refs/heads/main 2>$null | ForEach-Object { $_.Split()[0] }).Trim() } catch { }
-Check 'local HEAD equals origin/main' ($remote -and $head -eq $remote) `
-    ("local {0} vs origin {1}" -f $head.Substring(0, 7), $(if ($remote) { $remote.Substring(0, 7) } else { 'unreachable' }))
+
+# The property is "a pull would change nothing", not "HEAD is byte-identical to
+# origin/main". A machine that carries local commits ahead of origin is ALSO a
+# no-op for `git pull --ff-only` - it fast-forwards nothing and exits 0 - and
+# that is the normal state of a dev box that has committed a local fix. Testing
+# equality instead reported a healthy ahead-by-N tree as a failure, which is the
+# same class of defect as a gate that can never fail: it trains the reader to
+# ignore the line.
+$behind = 0
+if ($remote) {
+    # Compare against the LOCAL remote-tracking ref, not the ls-remote SHA.
+    # `git pull --ff-only` fast-forwards to origin/main, so that ref is the
+    # authority; the ls-remote SHA may not exist in this clone yet (a fetch
+    # that has not run), and `rev-list HEAD...<unknown-sha>` exits 128 with
+    # "Invalid symmetric difference expression". That is what made this line
+    # fail under Windows PowerShell 5.1, where native stderr becomes a
+    # terminating error (see test-ps51-native-stderr.ps1).
+    $counts = (git rev-list --left-right --count 'HEAD...origin/main' 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $counts -match '^\s*(\d+)\s+(\d+)\s*$') { $behind = [int]$Matches[2] }
+}
+Check 'a pull would be a no-op (local is not behind origin/main)' ($remote -and $behind -eq 0) `
+    ("local {0} vs origin {1}; behind by {2} commit(s)" -f $head.Substring(0, 7), $(if ($remote) { $remote.Substring(0, 7) } else { 'unreachable' }), $behind)
 
 # ── 4. The staleness probe (step 7e) reports the TRUE state ────────────────
 Write-Output ''
@@ -209,30 +231,46 @@ Write-Host '--- 5. qm re-stage (installer step 7f) ---' -ForegroundColor Cyan
 $qmSrc = 'deploy/qm-pacgate'
 $qmDst = 'deploy/client-bundle/qm-pacgate'
 if ((Test-Path $qmSrc) -and (Test-Path $qmDst)) {
-    # `git diff --no-index` writes warnings to STDERR and exits 1 WHENEVER the
-    # trees differ - which is the normal case it exists to report. Under
-    # $ErrorActionPreference='Stop' in PS 5.1 a native stderr write is a
-    # terminating error, so the whole script aborted here and the final
-    # "nothing moved" proof in section 6 never ran. Same defect class the
-    # installer already solves with Invoke-WithNativeStderr, so use that shape:
-    # lower the preference for the duration of the call and treat the output as
-    # text.
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        $qmRaw = & git diff --no-index --name-only $qmSrc $qmDst 2>&1 | ForEach-Object { "$_" }
-    }
-    finally { $ErrorActionPreference = $prevEap }
-
-    $qmDiff = @($qmRaw | Where-Object {
-        # __pycache__ is interpreter output, not content: the sandbox writes .pyc
-        # beside the sources on first import, so it always "differs" from the
-        # tracked tree and would make this check permanently red. It is gitignored
-        # for the same reason.
-        $_ -and $_ -notmatch '^(warning|At line|git :|\s*$)|LF will be replaced|^time Git touches|\.env$|node_modules|__pycache__|\.pyc$|\.generated|\.bak\.'
+    # Compare in the SAME DIRECTION the installer copies.
+    #
+    # This check used to run `git diff --no-index --name-only $qmSrc $qmDst`, a
+    # SYMMETRIC tree diff, while step 7f is asymmetric: it enumerates files under
+    # the SOURCE and copies those. A file that exists only in the runtime copy is
+    # never read, never overwritten, and never deleted - so a symmetric diff
+    # reports it as "re-stage needed" and the check can never pass.
+    #
+    # Measured 2026-11-14: the only differing path was
+    # deploy/client-bundle/qm-pacgate/patch/docker-cli/docker, a 42 MB docker CLI
+    # the sandbox fetches at run time. The tracked source has that directory EMPTY
+    # (`git ls-files deploy/qm-pacgate/patch/docker-cli` returns nothing), so step
+    # 7f copies zero files and has nothing to converge. The verdict was a false
+    # positive that made every dry run end red, which is the failure mode this
+    # whole script exists to avoid: a red that a reader learns to ignore.
+    $qmExcludeTop = @('.env', 'node_modules', '.generated')
+    $qmDiff = @()
+    # Same filter as step 7f, and the same DIRECTION: source -> runtime. Because
+    # only SOURCE files are enumerated, interpreter output the sandbox writes into
+    # the runtime copy (__pycache__/*.pyc) can no longer appear here at all - the
+    # old symmetric diff needed an exclusion list for it. No exclusion is needed
+    # now, and adding one would let a real source change slip through.
+    $srcFiles = @(Get-ChildItem -LiteralPath $qmSrc -Recurse -File -Force | Where-Object {
+        $rel = $_.FullName.Substring((Resolve-Path $qmSrc).Path.Length).TrimStart('\', '/')
+        $top = ($rel -split '[\\/]')[0]
+        ($qmExcludeTop -notcontains $top) -and ($_.Name -notmatch '\.bak\.')
     })
-    Check 'the qm runtime copy already matches the tracked source (no re-stage needed)' ($qmDiff.Count -eq 0) `
-        ("{0} differing file(s) outside the excluded set{1}" -f $qmDiff.Count, $(if ($qmDiff.Count) { ': ' + (($qmDiff | Select-Object -First 5) -join ', ') } else { '' }))
+    foreach ($f in $srcFiles) {
+        $rel = $f.FullName.Substring((Resolve-Path $qmSrc).Path.Length).TrimStart('\', '/')
+        $destPath = Join-Path $qmDst $rel
+        if (-not (Test-Path -LiteralPath $destPath)) { $qmDiff += "$rel (missing from the runtime copy)"; continue }
+        # Hash, not mtime: a git checkout rewrites mtimes on byte-identical files.
+        $a = (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash
+        $b = (Get-FileHash -LiteralPath $destPath -Algorithm SHA256).Hash
+        if ($a -ne $b) { $qmDiff += $rel }
+    }
+    Check 'step 7f would find nothing to re-stage (the files it copies already match)' ($qmDiff.Count -eq 0) `
+        ("{0} of {1} source file(s) differ{2}" -f $qmDiff.Count, $srcFiles.Count, $(if ($qmDiff.Count) { ': ' + (($qmDiff | Select-Object -First 5) -join ', ') } else { '' }))
+    Note 'files present ONLY in the runtime copy are not compared' `
+        'step 7f copies source -> runtime and never deletes, so such a file cannot be re-staged'
 }
 elseif (-not (Test-Path $qmDst)) {
     # Expected on a box where setup-qm.ps1 has not been run: the runtime copy is

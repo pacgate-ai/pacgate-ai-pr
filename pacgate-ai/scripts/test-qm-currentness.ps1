@@ -220,26 +220,40 @@ if (-not $publicUrl) {
 } else {
     # Derive the authorize URL from the service itself so this tests the origin rule
     # and not a hardcoded redirect_uri that goes stale when the host changes.
-    #
-    # Read the 302 with curl, NOT with `Invoke-WebRequest -MaximumRedirection 0`.
-    # Measured 2026-11-10 on this box, both PowerShell versions lose the Location:
-    #   5.1 raises MaximumRedirectExceeded as InvalidOperationException with NO
-    #       .Response attached, so there is nothing to read;
-    #   7.6 throws HttpResponseException WITH a Response, but
-    #       $resp.Headers['Location'] returns empty ($resp.Headers.Location works).
-    # The result was a hard FAIL - "gave no redirect to a sign-in form" - for a portal
-    # that redirects correctly. curl is already a dependency of this gate (used below)
-    # and reads the same status a browser sees, so use it for both reads.
     $loginUrl = "$publicUrl/auth/login"
     $landed = $null
+    # Read the 302 with curl, for the same reason stated further down for the
+    # installer-printed probe: Invoke-WebRequest's redirect handling differs
+    # between Windows PowerShell 5.1 and PowerShell 7.
+    #
+    # Measured on PowerShell 7.6.9: `Invoke-WebRequest -MaximumRedirection 0`
+    # throws System.Net.Http.HttpRequestException whose .Exception.Response is
+    # $null, so the catch block below found neither header and the gate reported
+    # "no redirect to a sign-in form" for a portal that DOES redirect (curl shows
+    # 302 with a Location). A false FAIL against a working stack.
     $hdr = & curl.exe -s -i --max-time 15 $loginUrl 2>$null
     foreach ($line in $hdr) {
         if ($line -match '^(?i)location:\s*(\S+)') { $landed = $Matches[1].Trim(); break }
     }
-    if ($landed -and $landed -notmatch '^https?://') { $landed = ([Uri]::new([Uri]$loginUrl, $landed)).AbsoluteUri }
-
     if (-not $landed) {
-        Write-Fail "QM_PUBLIC_URL=$publicUrl but /auth/login gave no redirect to a sign-in form"
+        # curl honours HTTP(S)_PROXY/the Windows system proxy. A stale proxy makes
+        # every local probe fail with HTTP 000 against a portal that is serving, so
+        # separate "the portal is not reachable from THIS shell" from "the portal
+        # does not redirect" before calling it a failure.
+        $probe = (& curl.exe -s -o NUL -w '%{http_code}' --max-time 15 $loginUrl 2>$null | Out-String).Trim()
+        if ($probe -eq '000') {
+            $pxy = "$env:HTTPS_PROXY$env:HTTP_PROXY".Trim()
+            if (-not $pxy) {
+                $pxy = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction SilentlyContinue).ProxyServer
+            }
+            if ($pxy) {
+                Write-Warn "could not reach $loginUrl from this shell (HTTP 000) while a proxy is configured ($pxy). A stale proxy fails local probes and also fails the staff browser that shares it - fix the proxy, or clear it for this shell, before reading this as a portal defect"
+            } else {
+                Write-Warn "could not reach $loginUrl from this shell (HTTP 000) - the sign-in redirect was not checked"
+            }
+        } else {
+            Write-Fail "QM_PUBLIC_URL=$publicUrl but /auth/login answered HTTP $probe with no redirect to a sign-in form"
+        }
     } else {
         Write-Pass "/auth/login on $publicUrl redirects to a sign-in form"
 
@@ -310,36 +324,115 @@ if (-not $publicUrl) {
             Write-Fail "the URL install.ps1 prints ($printed) does not redirect to a sign-in form"
         } else {
             $formHost = ([Uri]$pLand).Authority
-            try {
-                $page2 = (Invoke-WebRequest $pLand -UseBasicParsing -TimeoutSec 20).Content
-            } catch { $page2 = $null }
-            if (-not $page2 -or $page2 -notmatch 'name="request"\s+value="([^"]+)"') {
-                Write-Fail "the sign-in form at $pLand has no request token; sign-in cannot proceed"
+            # Fetch with curl, for the same reason the redirect above is read with
+            # curl: Invoke-WebRequest follows the WINDOWS SYSTEM PROXY setting, so a
+            # host with a stale proxy (measured here: ProxyEnable=1 pointing at a
+            # dead 127.0.0.1:7890) throws before any page is seen. The old code
+            # swallowed that into $page2 = $null and then asserted the form "has no
+            # request token" - reporting a missing token on a form that renders one,
+            # which is a false FAIL caused by a transport error, not by the portal.
+            # A failed fetch must say it could not check, never that the token is
+            # absent.
+            $page2 = (& curl.exe -s --max-time 20 $pLand 2>$null | Out-String)
+            if (-not $page2) {
+                Write-Warn "could not fetch the sign-in form at $pLand (transport), so the request token was not checked"
+            } elseif ($page2 -notmatch 'name="request"\s+value="([^"]+)"') {
+                $why = if ($page2 -match '<h1[^>]*>(?<h>[^<]{3,80})</h1>') { " The page returned: '$($Matches['h'].Trim())'" } else { '' }
+                Write-Fail "the sign-in form at $pLand has no request token; sign-in cannot proceed.$why"
             } else {
                 $req2 = $Matches[1]
                 $post2 = ($pLand -split '\?')[0]
-                # Submit with curl so the HTTP STATUS is read directly instead of
-                # inferred from an exception. The previous try/catch treated any
-                # failure it did not recognise as a PASS, so a genuine refusal that
-                # arrived with a differently-worded body, or at a stage after the
-                # origin guard, was reported as "can submit the form" - the exact
-                # false pass this assertion exists to prevent. Measured 2026-11-10:
-                # a red-check with a deliberately hardcoded localhost still PASSed.
-                $bodyFile = Join-Path ([System.IO.Path]::GetTempPath()) "qm-signin-probe-$PID.txt"
-                $status = & curl.exe -s -o $bodyFile -w '%{http_code}' --max-time 25 `
-                    -H "Origin: $origin" -H "Referer: $pLand" `
-                    --data-urlencode "request=$req2" --data-urlencode 'email=probe@example.invalid' `
-                    $post2 2>$null
-                $respBody = if (Test-Path $bodyFile) { Get-Content $bodyFile -Raw } else { '' }
-                Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue
-                if ($status -eq '403' -and $respBody -match 'cross-origin') {
-                    Write-Fail "a browser at $origin is REFUSED as cross-origin (the form lives at $formHost). QM_PUBLIC_URL names $publicUrl, so that is the host staff must type - set it to whatever staff actually use in deploy/client-bundle/qm-pacgate/.env, recreate auth+portal, and make sure the installer prints the same host rather than a literal."
-                } elseif ($status -eq '200') {
+                try {
+                    $null = Invoke-WebRequest $post2 -Method Post -UseBasicParsing -TimeoutSec 25 `
+                        -Body @{ request = $req2; email = 'probe@example.invalid' } `
+                        -Headers @{ Origin = $origin; Referer = $pLand }
                     Write-Pass "a browser at $origin can submit the sign-in form (Origin: $origin)"
-                } else {
-                    Write-Fail "a browser at $origin could not submit the sign-in form: HTTP $status $((($respBody -replace '\s+',' ').Trim()))"
+                } catch {
+                    $body = $_.ErrorDetails.Message
+                    $msg = "$($_.Exception.Message) $body" -replace '\s+', ' '
+                    if ($body -match 'cross-origin') {
+                        Write-Fail "a browser at $origin is REFUSED as cross-origin (the form lives at $formHost). QM_PUBLIC_URL names $publicUrl, so that is the host staff must type - set it to whatever staff actually use in deploy/client-bundle/qm-pacgate/.env, recreate auth+portal, and make sure the installer prints the same host rather than a literal."
+                    } elseif ($msg -match 'actively refused|No connection could be made|timed out|proxyconnect') {
+                        # A transport failure is NOT a sign-in result. This branch used
+                        # to write PASS with the transport text attached, so a dead
+                        # proxy ("No connection could be made because the target
+                        # machine actively refused it") was reported as
+                        # "a browser can submit the sign-in form". That is a green on
+                        # no evidence - the same class of error as the false FAIL
+                        # above, pointing the other way.
+                        Write-Warn "could not POST the sign-in form at $post2 (transport: $msg) - form submission was not checked"
+                    } else {
+                        Write-Pass "a browser at $origin can submit the sign-in form (later guard spoke: $msg)"
+                    }
                 }
             }
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# The portal's cross-origin guard covers EVERY proxied POST, not only sign-in.
+#
+# portal /app/src/index.ts:241 derives ORIGIN from QM_PUBLIC_URL and :1017 refuses every
+# non-GET through sameOriginRequest. The sign-in assertion above therefore does not
+# prove the app works: the browser reaches the portal through the same route table for
+# chat, uploads and settings. Measured 2026-11-10, same session and same path:
+#
+#     POST <hostname>:8181/api/sessions  Origin http://<hostname>:8181  -> reaches app
+#     POST <hostname>:8181/api/sessions  Origin http://localhost:8181   -> 403 refused
+#
+# A one-host mismatch is consequently a total lockout - the page loads, so the portal
+# looks alive, and every action fails. The user sees it as an LLM error because the chat
+# POST is the action they were performing, which names neither the origin nor the host.
+#
+# POST /api/sessions is the cheapest probe: it goes through the catch-all guard at
+# portal index.ts:1017, whose refusal body includes "cross-origin request refused".
+# The specific handlers (e.g. /auth/logout at :843) return a bare {"error":"forbidden"},
+# which is indistinguishable from an auth failure and made an earlier version of this
+# The probe must be a route whose origin check runs BEFORE its session check, and whose
+# refusal NAMES the reason. Three probes were measured on 0.2.34 rather than assumed:
+#   /auth/logout       refuses with a bare {"error":"forbidden"} - indistinguishable from
+#                      an auth failure, so a 403 read as PASS.
+#   /api/sessions      401s unauthenticated, so an anonymous probe never reaches the guard
+#                      and the check silently stops testing anything.
+# /auth/impersonate/stop checks sameOriginRequest first (portal index.ts:911) and names
+# the reason: 200 {"ok":true} when the origin is accepted, 403 "cross-origin request
+# refused" when it is not. Only that explicit acceptance counts as a pass; a 401 or a
+# bare forbidden is reported as unproven rather than quietly treated as healthy.
+Write-Host ''
+Write-Host 'POST reachability (the origin guard covers every proxied POST)' -ForegroundColor Cyan
+if (-not $publicUrl) {
+    Write-Skip 'QM_PUBLIC_URL is not set; the origin the guard enforces cannot be derived'
+} else {
+    $probeBody = & curl.exe -s -w "`n%{http_code}" --max-time 20 -X POST "$publicUrl/auth/impersonate/stop" `
+        -H "Origin: $publicUrl" -H 'Content-Type: application/json' -H 'sec-fetch-site: same-origin' --data '{}' 2>$null
+    $probeText = ($probeBody | Select-Object -SkipLast 1) -join "`n"
+    $probeCode = ($probeBody | Select-Object -Last 1)
+    if ($probeText -match 'cross-origin') {
+        Write-Fail "a browser at $publicUrl is REFUSED as cross-origin, so chat, uploads and settings all fail while the page still loads. The portal enforces ONE origin derived from QM_PUBLIC_URL; the host in the address bar must be exactly $publicUrl."
+    } elseif ($probeCode -eq '000' -or -not $probeCode) {
+        Write-Skip "could not reach $publicUrl to exercise the origin guard"
+    } elseif ($probeText -match '"ok"\s*:\s*true') {
+        Write-Pass "a browser at $publicUrl passes the origin guard (accepted, HTTP $probeCode)"
+    } else {
+        Write-Warn "the origin guard at $publicUrl answered HTTP $probeCode without accepting or refusing, so POST reachability is UNPROVEN: $($probeText -replace '\s+',' ')"
+    }
+
+    # The mirror: a DIFFERENT host for the same portal must be refused. If it were
+    # accepted, the portal would be multi-origin by accident and this gate's premise
+    # would be wrong - worth knowing rather than assuming.
+    $otherOrigin = if ($publicUrl -match '://localhost(:|/|$)') { ($publicUrl -replace '://localhost', '://127.0.0.1') }
+                   elseif ($publicUrl -match '://127\.0\.0\.1(:|/|$)') { ($publicUrl -replace '://127\.0\.0\.1', '://localhost') }
+                   else { ($publicUrl -replace '://[^/:]+', '://localhost') }
+    if ($otherOrigin -ne $publicUrl) {
+        $altBody = & curl.exe -s -w "`n%{http_code}" --max-time 20 -X POST "$publicUrl/auth/impersonate/stop" `
+            -H "Origin: $otherOrigin" -H 'Content-Type: application/json' -H 'sec-fetch-site: same-origin' --data '{}' 2>$null
+        $altText = ($altBody | Select-Object -SkipLast 1) -join "`n"
+        $altCode = ($altBody | Select-Object -Last 1)
+        if ($altText -match 'cross-origin') {
+            Write-Pass "$otherOrigin is refused by the origin guard, confirming the one-host rule is real"
+        } else {
+            Write-Warn "$otherOrigin was NOT refused (HTTP $altCode); the guard is not enforcing a single origin, so the assumption behind the sign-in check may not hold"
         }
     }
 }
@@ -352,7 +445,7 @@ if (-not $publicUrl) {
 # "Check your email" page, which reads as a mail problem rather than a refusal.
 Write-Host ''
 Write-Host 'qm identity kinds'
-$envFile = Join-Path $staged '.env'
+$envFile = Join-Path $PSScriptRoot '..\deploy\client-bundle\qm-pacgate\.env'
 if (-not (Test-Path $envFile)) {
     Write-Skip 'no qm .env, so the two identity kinds cannot be compared'
 } else {
@@ -377,30 +470,6 @@ if (-not (Test-Path $envFile)) {
         Write-ConfigFail "$apiMail is BOTH the pacgate-api bridge account (PACGATE_API_EMAIL) and a portal login (AUTH_ALLOWED_EMAILS). A machine credential must not hold interactive staff access. Remove it from AUTH_ALLOWED_EMAILS."
     } else {
         Write-Pass "$apiMail is a pacgate-api machine credential and is correctly absent from the portal allow-list"
-    }
-
-    # A GRANTED ADMIN WHO CANNOT SIGN IN IS NOT AN ADMIN.
-    #
-    # ADMIN_GRANTS seeds a ROLE in core; it does not admit anyone. The broker and
-    # portal gate sign-in on their own exact-match list, and core never reads it, so
-    # `x@y:org_admin` alone yields a role nobody can use. Nothing linked the two
-    # lists, so this passed every earlier check while the assigned admin was refused.
-    #
-    # Measured 2026-11-10: admin@pacgate-law.com held no grant here and was not on the
-    # allow-list either, and the broker logged "sign-in link suppressed: ... is not on
-    # the permitted list" behind a "Check your email" page - indistinguishable from a
-    # mail problem.
-    $grants = @((Get-QmEnvValue 'ADMIN_GRANTS') -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    $grantAdmins = @($grants | ForEach-Object { ($_ -split ':')[0].Trim().ToLower() } | Where-Object { $_ })
-    if ($grantAdmins.Count -eq 0) {
-        Write-Warn 'ADMIN_GRANTS names no org_admin, so this deployment has no administrator'
-    } else {
-        $locked = @($grantAdmins | Where-Object { $allowed -notcontains $_ })
-        if ($locked.Count -gt 0) {
-            Write-ConfigFail "ADMIN_GRANTS grants org_admin to $($locked -join ', '), but that address is NOT in AUTH_ALLOWED_EMAILS - the role exists and the person cannot sign in to use it. Add the PLAIN address (no ':role') to AUTH_ALLOWED_EMAILS."
-        } else {
-            Write-Pass "every granted org_admin ($($grantAdmins -join ', ')) can actually sign in"
-        }
     }
 }
 

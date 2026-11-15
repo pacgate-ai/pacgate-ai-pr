@@ -1,4 +1,4 @@
-# Pacgate-ai Client Bundle v0.2.34
+# Pacgate-ai Client Bundle v0.2.35
 
 ## Quick start
 
@@ -198,6 +198,30 @@ the configured URL cannot actually submit the form, so the two cannot drift apar
 > transport the link lands in **Mailpit at `http://localhost:8025`**, not a real inbox,
 > and Mailpit has no volume, so links are lost whenever the qm stack restarts.
 
+### A wrong host breaks more than sign-in - it breaks every action
+
+The portal compares the request's `Origin` against the single value it derived from
+`QM_PUBLIC_URL` on **every proxied POST**, not only on the sign-in form
+(`portal /app/src/index.ts:241`, enforced at `:1017`). One host mismatch therefore fails
+chat, uploads, keychain writes and settings, while the page itself keeps loading - so
+the portal looks alive. The failure surfaces as an **LLM error**, because the chat POST
+is what the user was doing; it names neither the origin nor the host, which makes it
+read as a model problem.
+
+Measured 2026-11-10 on 0.2.34, same session and same path:
+
+```
+POST <hostname>:8181/api/sessions   Origin http://<hostname>:8181  -> reaches the app
+POST <hostname>:8181/api/sessions   Origin http://localhost:8181   -> 403 cross-origin request refused
+```
+
+`setup-qm.ps1` also used to hardcode `PUBLIC_API_URL=http://localhost:8180` while
+deriving `QM_PUBLIC_URL` from the hostname, putting the page and its API on different
+hosts. Both keys now take their host from `QM_PUBLIC_URL`; only the port differs
+(core stays on 8180, or `QM_CORE_PORT`). `scripts/test-qm-currentness.ps1` fails if a
+POST from the configured host is refused, and warns if a *different* host is
+accepted - the latter would mean the one-host rule is not really being enforced.
+
 After `-Update`, recreate the affected services so they pick the new values up:
 
 ```powershell
@@ -257,6 +281,23 @@ Notes worth knowing before you run it:
 - **Documents that are not sanitized are not copied.** The API refuses to export
   unsanitized material, and the tool reports which documents were held back
   rather than working around it. Sanitize them first if they need to travel.
+- **Sanitization is on demand - nothing sweeps the backlog.** A newly ingested
+  document starts at `sanitization_state = 'pending'`, and until someone calls
+  `POST /api/documents/{id}/sanitize` with a `data_level`, it is **not
+  retrievable**: `kb_search` joins on `sanitization_state = 'sanitized'`, so a
+  pending document is silently absent from every search while still being listed
+  in the matter. There is no worker, cron or retry loop - the only triggers are
+  the HTTP handlers (`sanitize`, `restore`, `approve`).
+  This is quiet by design (the privacy gate must fail closed) but it means
+  "uploaded" does not imply "searchable". Measured on 0.2.34: 40 of 57 documents
+  pending, oldest 28 days, while the search index held 142 chunks - so a lawyer
+  searching a matter could see roughly a third of it and get no warning that the
+  rest existed. If search results look thin, check the state first:
+
+  ```sql
+  SELECT sanitization_state, count(*) FROM documents GROUP BY 1;
+  ```
+
 - **Passwords do not travel.** Accounts that do not exist on the target are not
   created. Create them there, or the imported matters will be owned by a
   different account.

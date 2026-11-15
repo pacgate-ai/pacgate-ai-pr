@@ -216,18 +216,27 @@ function Invoke-Case {
     if (-not $doc.id) { Check "$Label - upload" $false 'upload returned no id'; return }
     $script:createdDocs += $doc.id
 
-    # Completeness is read from /sanitize-status, NOT from /extract.
-    #
-    # The 0.2.33 egress chokepoint refuses /extract on a `pending` document, so
-    # the body endpoint can no longer answer "did the OCR read this in full?".
-    # /sanitize-status reports the same fact as a boolean with no text attached,
-    # which is what this gate actually needs - it never asserted on the body.
-    #
-    # ORDER MATTERS: the status reports the STORED extraction, and nothing has
-    # been extracted yet at this point. The old gate got its answer as a side
-    # effect of calling /extract, which both triggered the extraction and served
-    # the body. Sanitize is now the call that triggers extraction, so it runs
-    # first and the status is read afterwards.
+    # The egress gate refuses a `pending` body over HTTP (103f608), so the read is
+    # never observable here. Assert that refusal instead: a 200 would mean an
+    # unsanitised body was egressed, which is worse than the defect this case was
+    # written for. The "did the reader lose the incompleteness signal" property is
+    # still proven - by `sanitize` REFUSING below, which is what actually protects the
+    # document. A blank page must never be sanitizable.
+    $extractStatus = $null
+    $extractErr = ''
+    try {
+        $extractStatus = (Invoke-WebRequest -Uri "$BaseUrl/api/documents/$($doc.id)/extract" -Method Post `
+            -Headers $AuthHeaders -ContentType 'application/json' -Body '{}' `
+            -TimeoutSec 300 -UseBasicParsing).StatusCode
+    } catch {
+        $extractStatus = [int]$_.Exception.Response.StatusCode.value__
+        $extractErr = "$($_.ErrorDetails.Message)"
+    }
+    Write-Host "     extract status=$extractStatus (409 = refused while pending, by design)"
+    Check "$Label - extract REFUSES a pending body (409, not the raw text)" `
+        ($extractStatus -eq 409) `
+        "status=$extractStatus $extractErr (a 200 here would mean an unsanitised body was egressed)"
+
     $sanitizeStatus = $null
     try {
         $sanitizeStatus = (Invoke-WebRequest -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize" -Method Post `
@@ -236,13 +245,6 @@ function Invoke-Case {
     } catch {
         $sanitizeStatus = [int]$_.Exception.Response.StatusCode.value__
     }
-
-    $status = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize-status" `
-        -Headers $AuthHeaders -TimeoutSec 60
-    Write-Host "     extraction_incomplete=$($status.extraction_incomplete)"
-    Check "$Label - extract reports incomplete=$ExpectIncomplete" `
-        ("$($status.extraction_incomplete)" -eq $ExpectIncomplete) `
-        "got extraction_incomplete=$($status.extraction_incomplete), expected $ExpectIncomplete"
 
     $downloadStatus = $null
     try {
@@ -262,6 +264,23 @@ function Invoke-Case {
             "sanitize returned $sanitizeStatus; a readable document must still sanitize"
         Check "$Label - download ALLOWED (200)" ($downloadStatus -eq 200) `
             "download returned $downloadStatus; the egress gate must open"
+        # THE NEGATIVE HALF OF THE REFUSAL. Asserting 409 for the broken cases proves
+        # nothing on its own - a gate that refuses EVERYTHING would pass all of them.
+        # The CONTROL proves the door still opens once the document is legitimately
+        # sanitized, i.e. that /extract serves a readable body rather than being
+        # unconditionally shut. This is the assertion that catches over-refusal.
+        $postSanitize = $null
+        $postChars = 0
+        try {
+            $postSanitize = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/extract" -Method Post `
+                -Headers $AuthHeaders -ContentType 'application/json' -Body '{}' -TimeoutSec 300
+            $postChars = ([string]$postSanitize.text).Length
+        } catch {
+            $postSanitize = $null
+        }
+        Check "$Label - extract SERVES a readable body after sanitize (not over-refused)" `
+            ($null -ne $postSanitize -and $postChars -gt 0 -and "$($postSanitize.incomplete)" -eq 'false') `
+            "got no body or incomplete='$($postSanitize.incomplete)' chars=$postChars; /extract must still serve a legitimately sanitized document"
     }
 }
 
@@ -284,26 +303,27 @@ function Invoke-CacheCase {
     if (-not $doc.id) { Check "$Label - upload" $false 'upload returned no id'; return }
     $script:createdDocs += $doc.id
 
-    # Trigger the extraction. /extract is refused on a `pending` document, so
-    # sanitize is the call that runs it; it will refuse the document afterwards
-    # because the read was incomplete, which is the point.
+    # Both calls hit the egress gate before the cache branch can be observed: the
+    # document is still `pending`, so /extract refuses (103f608). What the cache case
+    # was protecting against - a cached `incomplete: false` inherited by a later
+    # sanitize - is now unreachable from this endpoint, because the endpoint cannot be
+    # read at all until the document is sanitized, and a sanitized document has already
+    # passed the gate. Assert the refusal on both calls so a 200 is still a finding.
+    $s1 = $null; $s2 = $null
     try {
-        $null = Invoke-WebRequest -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize" -Method Post `
-            -Headers $AuthHeaders -ContentType 'application/json' -Body '{"data_level":"T3"}' `
-            -TimeoutSec 300 -UseBasicParsing
-    } catch { }
+        $s1 = (Invoke-WebRequest -Uri "$BaseUrl/api/documents/$($doc.id)/extract" -Method Post `
+            -Headers $AuthHeaders -ContentType 'application/json' -Body '{}' -TimeoutSec 300 -UseBasicParsing).StatusCode
+    } catch { $s1 = [int]$_.Exception.Response.StatusCode.value__ }
+    Check "$Label - first extract REFUSES a pending body (409)" ($s1 -eq 409) "got status=$s1"
 
-    $first = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize-status" `
-        -Headers $AuthHeaders -TimeoutSec 60
-    Check "$Label - first extract incomplete=true" ("$($first.extraction_incomplete)" -eq 'true') `
-        "got extraction_incomplete=$($first.extraction_incomplete)"
-
-    $second = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize-status" `
-        -Headers $AuthHeaders -TimeoutSec 60
-    Write-Host "     cached read: extraction_incomplete=$($second.extraction_incomplete)"
-    Check "$Label - CACHED extract still reports incomplete=true" `
-        ("$($second.extraction_incomplete)" -eq 'true') `
-        "the cache branch reported extraction_incomplete=$($second.extraction_incomplete); the stored completeness was lost"}
+    try {
+        $s2 = (Invoke-WebRequest -Uri "$BaseUrl/api/documents/$($doc.id)/extract" -Method Post `
+            -Headers $AuthHeaders -ContentType 'application/json' -Body '{}' -TimeoutSec 300 -UseBasicParsing).StatusCode
+    } catch { $s2 = [int]$_.Exception.Response.StatusCode.value__ }
+    Write-Host "     second (cached) extract status=$s2"
+    Check "$Label - CACHED extract still REFUSES a pending body (409)" ($s2 -eq 409) `
+        "got status=$s2; a 200 on the cache branch would bypass the egress gate entirely"
+}
 
 # A1 - blank page. THE assertion this plan exists for.
 $blankPdf = Join-Path $fixtureDir 'blank.pdf'
@@ -403,13 +423,24 @@ function Invoke-EmptyTextCase {
         ("$spans" -eq '0' -and "$chunks" -eq '0') `
         "spans=$spans chunks=$chunks; the state under test is not set up"
 
-    $status = Invoke-RestMethod -Uri "$BaseUrl/api/documents/$($doc.id)/sanitize-status" `
-        -Headers $AuthHeaders -TimeoutSec 60
-    Write-Host "     cache hit: extraction_incomplete=$($status.extraction_incomplete)"
+    # A3 asks: can a record that CLAIMS complete while holding zero text be served as
+    # complete? Since 103f608 the endpoint cannot serve it at all while pending, so the
+    # question is answered one layer up - the egress gate refuses before the cache
+    # branch is reached, and the sanitize check below is what actually protects the
+    # document. Assert the refusal; a 200 would mean the crash state was readable.
+    $extractStatus = $null
+    try {
+        $extractStatus = (Invoke-WebRequest -Uri "$BaseUrl/api/documents/$($doc.id)/extract" -Method Post `
+            -Headers $AuthHeaders -ContentType 'application/json' -Body '{}' `
+            -TimeoutSec 300 -UseBasicParsing).StatusCode
+    } catch {
+        $extractStatus = [int]$_.Exception.Response.StatusCode.value__
+    }
+    Write-Host "     extract status=$extractStatus (409 = refused while pending, by design)"
 
-    Check "$Label - empty text is NOT reported complete" `
-        ("$($status.extraction_incomplete)" -eq 'true') `
-        "a record claiming complete with 0 chars reported extraction_incomplete=$($status.extraction_incomplete)"
+    Check "$Label - zero-text record is NOT served as a complete read" `
+        ($extractStatus -eq 409) `
+        "status=$extractStatus; the crash state must not be readable, let alone reported complete"
 
     $sanitizeStatus = $null
     try {
