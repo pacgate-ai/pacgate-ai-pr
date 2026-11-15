@@ -143,6 +143,11 @@ runtime/*.pre-0.2.*/**
 runtime/upgrade-*/**/*.pre-*
 runtime/upgrade-*/**/extensions-config*.json
 runtime/upgrade-*/**/deer-flow-extensions-config*
+# Database dumps taken before an upgrade. These hold every client document,
+# chunk, matter and audit row in plaintext, so they are the single most
+# sensitive artifact an upgrade produces. Never commit them.
+runtime/upgrade-*/*.sql
+runtime/upgrade-*/*.dump
 
 # Pre-remediation backups for the 2026-11-08 credential redaction. These hold the
 # ORIGINAL plaintext credentials, kept only so the redaction can be reversed by an
