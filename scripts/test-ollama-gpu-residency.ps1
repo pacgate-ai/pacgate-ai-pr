@@ -33,7 +33,18 @@
 #   msg="inference compute" library=ROCm compute=gfx1102 \
 #       description="AMD Radeon RX 7600 XT" total="16.0 GiB"
 #   msg="dropping integrated GPU; to enable, set OLLAMA_IGPU_ENABLE=1" \
-#       (the 890M iGPU, correctly skipped)
+#       (the 890M iGPU, correctly skipped ON THAT BOX because a discrete
+#        RX 7600 XT was present)
+#
+# IMPORTANT: "correctly skipped" is only true when a DISCRETE GPU is also
+# present. On a box whose ONLY GPU is the integrated one - the AMD Radeon 890M
+# on the AIPC dev boxes - that same message means Ollama has NO GPU at all and
+# every model runs on the CPU. Measured 2026-11-16 on pacgate-ai02: a clean
+# restart did NOT fix it, because the cause was not the unpack race but the
+# iGPU filter. Setting OLLAMA_IGPU_ENABLE=1 before starting the app made the
+# 890M enumerate as library=ROCm compute=gfx1150 type=iGPU total="13.1 GiB",
+# and every runner then reported 100% GPU. Set it in the machine environment
+# permanently, or every boot silently returns to CPU-only.
 #
 # After restarting the app: gemma4 "Reply with exactly: OK" went from 377 s on CPU
 # to 7.4 s at 100% GPU, and the agent->MCP end-to-end run went from failing at the
