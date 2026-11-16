@@ -660,23 +660,31 @@ if ($Update -and -not $SkipRepoPull) {
                 # previous release. Measured 2026-10-27 on a clone with one edited
                 # tracked file: the update reported success and the loop-guard patch
                 # was never applied.
+                # Every git call here is wrapped: this script runs with
+                # $ErrorActionPreference = "Stop", and on Windows PowerShell 5.1 a
+                # native command that writes to stderr becomes a TERMINATING error
+                # as soon as a redirection is attached. `git rev-parse` on a
+                # detached HEAD or a missing remote writes to stderr, so the bare
+                # form would kill the installer at the exact moment it is trying to
+                # explain a skipped pull - the failure would replace the diagnosis.
                 $behindRef = $null
-                try {
+                # Same shape the update path above uses: resolve the branch first,
+                # then compare, and never nest a native call inside a string -
+                # `"origin/$(git ...)"` re-parses per invocation and silently yields
+                # "origin/" when the branch is detached.
+                $dirtyBranch = (Invoke-WithNativeStderr { git rev-parse --abbrev-ref HEAD 2>$null } | Out-String).Trim()
+                if ($dirtyBranch -and $dirtyBranch -ne 'HEAD') {
                     Invoke-WithNativeStderr { git fetch --quiet origin 2>$null }
                     if ($LASTEXITCODE -eq 0) {
-                        $remoteHead = (git rev-parse "origin/$((git rev-parse --abbrev-ref HEAD).Trim())" 2>$null | Out-String).Trim()
-                        $localHead = (git rev-parse HEAD).Trim()
-                        if ($remoteHead -and $remoteHead -ne $localHead) { $behindRef = $remoteHead.Substring(0, 7) }
+                        $remoteHead = (Invoke-WithNativeStderr { git rev-parse "origin/$dirtyBranch" 2>$null } | Out-String).Trim()
+                        $localHead = (Invoke-WithNativeStderr { git rev-parse HEAD 2>$null } | Out-String).Trim()
+                        if ($remoteHead -and $localHead -and $remoteHead -ne $localHead) {
+                            $behindRef = $remoteHead.Substring(0, 7)
+                        }
                     }
                 }
-                catch { }
-                # Pacgate 2026-10-27: wrap in the helper. A bare `2>$null` on a
-                # native call is the same PS 5.1 hazard as `2>&1` - under
-                # $ErrorActionPreference='Stop' the redirection itself can surface
-                # as a terminating error, and test-ps51-native-stderr.ps1 requires
-                # every redirection site to be inside Invoke-WithNativeStderr.
-                $cur = Invoke-WithNativeStderr { ((git rev-parse HEAD 2>$null | Out-String).Trim()) }
-                if ($cur) { $cur = $cur.Substring(0, 7) }
+                $cur = (Invoke-WithNativeStderr { git rev-parse HEAD 2>$null } | Out-String).Trim()
+                if ($cur -and $cur.Length -ge 7) { $cur = $cur.Substring(0, 7) } else { $cur = $null }
                 Write-Host ""
                 Write-Host "  CONSEQUENCE - this machine is running the OLD repo code, not the new release:" -ForegroundColor Yellow
                 Write-Host "    - bind-mounted patches and configs (deer-flow patches/*.py, deer-flow-config.yaml)" -ForegroundColor Yellow
@@ -1857,53 +1865,6 @@ function Invoke-Bootstrap {
         Write-Host "         Verify manually: SELECT email, role, system_role FROM users;" -ForegroundColor Yellow
     }
 
-    # (4) ENSURE THE ADMIN HOLDS THE TENANT ROLE THAT GATES APPROVE/RESTORE.
-    #
-    # `system_role` and `role` are DIFFERENT columns and gate DIFFERENT things.
-    # Step (3) above only repairs `system_role`, which gates account provisioning
-    # (`POST /api/auth/users`). It does NOT gate the document review actions:
-    # `sanitize.rs::role_may_approve` / `role_may_restore` read `claims.role` -
-    # the WITHIN-TENANT role - and accept only 'admin' or 'partner'.
-    #
-    # MEASURED 2026-11-09 on this box: `admin@pacgate-law.com` read
-    # `role='attorney', system_role='admin'`, so
-    #   POST /api/documents/<id>/approve -> 401 "approval requires the admin or
-    #   partner role"
-    # even though the installer had just reported "[OK] holds the platform admin
-    # role". The account could create users but could not approve a document.
-    #
-    # The cause is `bootstrap_roles(is_first)`: only the FIRST account on a fresh
-    # deployment gets `(admin, admin)`. This installer registers with
-    # `{email, password}` and no role, so on any box where a user already existed
-    # the service account lands as `attorney`. Repairing it here is the same
-    # trusted-actor argument as step (3): promoting requires an admin, and on an
-    # upgrade there is none.
-    #
-    # Guarded to the configured service account only, and it reports what it did.
-    $tenantRoleBefore = Invoke-WithNativeStderr { (docker exec pacgate-db psql -U pacgate -d pacgate -t -A -c `
-        "SELECT role FROM users WHERE email = '$emailLiteral';" 2>$null | Out-String).Trim() }
-
-    if ($tenantRoleBefore -eq 'admin' -or $tenantRoleBefore -eq 'partner') {
-        Write-Host "  [OK] '$apiEmail' holds the tenant role '$tenantRoleBefore' (may approve/restore)" -ForegroundColor Green
-    }
-    elseif ($tenantRoleBefore) {
-        Write-Host "  [INFO] '$apiEmail' has tenant role '$tenantRoleBefore', which cannot approve or" -ForegroundColor Yellow
-        Write-Host "         restore redacted text (only 'admin'/'partner' may). Promoting to 'admin'." -ForegroundColor Yellow
-        $updRole = Invoke-WithNativeStderr { docker exec pacgate-db psql -U pacgate -d pacgate -t -A -c `
-            "UPDATE users SET role = 'admin' WHERE email = '$emailLiteral' RETURNING email;" 2>$null | Out-String }
-        if ($updRole -match [regex]::Escape($apiEmail)) {
-            Write-Host "  [OK] '$apiEmail' tenant role set to 'admin'" -ForegroundColor Green
-        }
-        else {
-            Write-Host "  [WARN] could not set the tenant role for '$apiEmail': $($updRole.Trim())" -ForegroundColor Yellow
-            Write-Host "         Run by hand: UPDATE users SET role='admin' WHERE email='$apiEmail';" -ForegroundColor Yellow
-        }
-    }
-    else {
-        Write-Host "  [WARN] could not read '$apiEmail's tenant role (got '$tenantRoleBefore')." -ForegroundColor Yellow
-        Write-Host "         Verify manually: SELECT email, role, system_role FROM users;" -ForegroundColor Yellow
-    }
-
     return $true
 }
 
@@ -2090,16 +2051,13 @@ except Exception as e:
     print("LOOPGUARD=UNREADABLE %s" % e); raise SystemExit(0)
 print("LOOPGUARD=WINDOWED" if "_tool_name_counter" in src else "LOOPGUARD=MONOTONIC")
 '@
-        # Pacgate 2026-10-27: `2>$null` inside Invoke-WithNativeStderr, NOT `2>&1`.
-        # A bare `2>&1` is banned repo-wide in this file (see the note near the top
-        # and test-ps51-native-stderr.ps1, which caught this): PS 5.1 injects
-        # NativeCommandError decoration on `2>&1` even inside the helper, and under
-        # $ErrorActionPreference='Stop' it becomes a TERMINATING error - so the probe
-        # would abort the install instead of reporting. The probe's verdict goes to
-        # STDOUT, so discarding stderr loses nothing.
-        $lg = Invoke-WithNativeStderr {
-            ($probe | docker exec -i deer-flow /app/backend/.venv/bin/python 2>$null | Out-String)
-        }
+        # Convention in this file (and enforced by scripts/test-ps51-native-stderr.ps1):
+        # no executable `2>&1` anywhere - under PS 5.1 a native process writing to
+        # stderr raises while it is being redirected, and the pipeline dies. The
+        # helper flips ErrorActionPreference, and the redirect is `2>$null` so the
+        # probe's stderr cannot kill the update. Success is judged by the marker we
+        # asked for, not by exit code, so a missing marker falls through to WARN.
+        $lg = (Invoke-WithNativeStderr { $probe | docker exec -i deer-flow /app/backend/.venv/bin/python 2>$null } | Out-String)
         if ($lg -match 'LOOPGUARD=WINDOWED') {
             Write-Host "[OK] deer-flow loaded the windowed loop guard from the repo patch" -ForegroundColor Green
         }

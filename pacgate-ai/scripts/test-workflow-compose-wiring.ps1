@@ -104,14 +104,7 @@ function Get-PatchMounts {
 
 $candidates = @(Get-ChildItem -LiteralPath $RepoRoot -Recurse -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -like 'compose*.yaml' -or $_.Name -like 'compose*.yml' } |
-    # `deploy/client-bundle/data/` is RUNTIME STATE, not source: it is gitignored
-    # (.gitignore:112) and holds per-user deer-flow workspaces, which include
-    # full checkouts of this repo. Recursing into it compares the live compose
-    # files against a stale snapshot from whenever that user last synced, and
-    # reports every patch mount added since as "missing" - a false positive that
-    # grows with the age of the snapshot. Measured 2026-11-09: 12 mounts
-    # "missing" from a copy that predated them.
-    Where-Object { $_.FullName -notmatch '\\node_modules\\|\\target\\|\\\.git\\|\\client-bundle\\data\\' })
+    Where-Object { $_.FullName -notmatch '\\node_modules\\|\\target\\|\\\.git\\' })
 
 if ($candidates.Count -eq 0) {
     Write-Host 'RESULT: ERROR - no compose files found; check RepoRoot.' -ForegroundColor Red

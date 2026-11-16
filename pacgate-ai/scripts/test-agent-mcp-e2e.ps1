@@ -93,17 +93,7 @@ $extCfg = Join-Path (Split-Path -Parent $PSScriptRoot) 'deploy/client-bundle/dee
 $serverNames = @()
 if (Test-Path $extCfg) {
     try {
-        # ReadAllText, NOT Get-Content -Raw.
-        #
-        # This file is UTF-8 with Chinese descriptions. On a GBK-codepage box
-        # (chcp 936, the default on this machine) `Get-Content -Raw` decodes the
-        # bytes as GBK, and a multi-byte character whose trailing byte is 0x22
-        # swallows the closing quote of the JSON string. Measured 2026-11-16:
-        # `"检索"` became `"妫€绱?` - the quote was gone, ConvertFrom-Json failed
-        # with "Invalid array passed in, ',' expected", and this gate reported
-        # CANNOT CHECK on a perfectly valid config. ReadAllText honours the
-        # file's own encoding, so the parse is codepage-independent.
-        $srv = ([System.IO.File]::ReadAllText($extCfg) | ConvertFrom-Json).mcpServers
+        $srv = (Get-Content $extCfg -Raw | ConvertFrom-Json).mcpServers
         $serverNames = @($srv.PSObject.Properties.Name)
     } catch {
         CannotCheck "could not parse $extCfg ($($_.Exception.Message))"
