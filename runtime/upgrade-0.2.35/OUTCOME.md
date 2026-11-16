@@ -87,3 +87,41 @@ proof. Fixed with `[System.IO.File]::ReadAllText`.
   `docker compose -f compose.bundle.yaml up -d --force-recreate --no-deps pacgate-api deer-flow deer-flow-frontend pacgate-mcp ocr-service`
 
 The database needs no rollback: no migrations ran.
+## Correction: the stack runs the PUBLISHED images, and the deltas are a PR
+
+An earlier revision of this record described a locally built `pacgate-api`. That
+was wrong and has been reverted. A local build is invisible to upstream and
+unmaintainable, and it defeats the point of pinning to GHCR.
+
+The stack now runs the published image, verified by digest:
+
+    running : sha256:a154813306724ce9445c37e8f5dceafac8aadfc0e1135b81d1371ac42bfcbf4b
+    GHCR    : sha256:a154813306724ce9445c37e8f5dceafac8aadfc0e1135b81d1371ac42bfcbf4b
+
+The four deltas that were in the local build are now a PR against `fork/main`:
+
+    branch  pr/0.2.35-upstream-fixes  (3 commits, 4 files, +141/-8)
+    https://github.com/pacgate-ai/pacgate-ai-pr/pull/new/pr/0.2.35-upstream-fixes
+
+  1. `fix(docker)` - re-declare PAC_SOURCE_REVISION in the runtime stage
+  2. `fix(rag)`    - label sanitized chunks with the job's data_level
+  3. `feat(api)`   - report extraction completeness on /sanitize-status
+
+### The noise.rs place-name delta was dropped as redundant
+
+It was a symptom fix for the class `9f0e0c8` fixed at the root. Verified on the
+STOCK published image:
+
+    上海市浦东新区   verdict=pass
+    北京市朝阳区     verdict=pass
+    广州市天河区     verdict=pass   <- never covered by our suffix rule
+    杭州市西湖区     verdict=pass   <- never covered by our suffix rule
+
+and it is STRICTER, not looser: a document with a place name AND real
+identifiers redacts all five spans (both locations, person, ID, phone).
+
+### Final delta set: 14 files
+
+4 are in the PR (upstream needs them). 10 are local-only gate/config fixes
+upstream does not need: 7 gate fixes, 3 patch mounts, install.ps1 tenant-role
+repair.
