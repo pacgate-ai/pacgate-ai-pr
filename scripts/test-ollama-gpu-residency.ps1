@@ -46,6 +46,24 @@
 # and every runner then reported 100% GPU. Set it in the machine environment
 # permanently, or every boot silently returns to CPU-only.
 #
+# AND THE CONVERSE, measured the same day once the dGPU came up: with an
+# RX 7600 XT (gfx1102, 16 GiB) present, OLLAMA_IGPU_ENABLE=1 becomes WRONG. It
+# makes Ollama enumerate THREE devices - ROCm0 gfx1102, Vulkan1 890M, ROCm1
+# gfx1150 - and the scheduler can then place a runner on the 13 GiB iGPU
+# instead of the 16 GiB card. Removing the variable and restarting left exactly
+# one device:
+#
+#   msg="inference compute" library=ROCm compute=gfx1102 name=ROCm0
+#       description="AMD Radeon RX 7600 XT" type=discrete total="16.0 GiB"
+#   msg="dropping integrated GPU; to enable, set OLLAMA_IGPU_ENABLE=1"   (x2)
+#
+# and the same prompt went from 131.7 s (iGPU) to 17.6 s (dGPU) at 100% GPU.
+#
+# So the rule is conditional, and this gate cannot decide it for you: set the
+# flag ONLY when the integrated GPU is the only GPU. The check below is
+# deliberately "is a GPU enumerated", not "is the flag set", because either
+# answer to the flag can be correct depending on the hardware.
+#
 # After restarting the app: gemma4 "Reply with exactly: OK" went from 377 s on CPU
 # to 7.4 s at 100% GPU, and the agent->MCP end-to-end run went from failing at the
 # 120-300 s client timeout to 5/5 passing.
