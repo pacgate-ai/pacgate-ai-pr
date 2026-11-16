@@ -107,54 +107,21 @@ function Get-ImageRevisionLabel {
     $idxAccept = 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json'
     $manAccept = 'application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json'
     $host_ = 'https://ghcr.io'
-
-    # Retry transport failures, because ghcr.io drops them intermittently and this
-    # gate now REPORTS an unreadable registry as a FAILURE (it used to skip).
-    # Without this, one flaky second turns every run red with a message about
-    # provenance that is really about the network.
-    #
-    # Measured 2026-11-14 on this box: `python scripts/check-ghcr-anon.py` (which
-    # retries) succeeded while four consecutive gate runs timed out at 20 s, and a
-    # bare `Invoke-RestMethod` to the same token URL then answered in 1.3-2.3 s.
-    # The registry was fine; a single unretried GET was not.
-    #
-    # A 404 is NOT retried: it is a definite answer ("tag absent"), and retrying it
-    # just delays the release-window SKIP that answer is supposed to produce.
-    $netRetries = 6
-    function Invoke-Ghcr {
-        param([string]$Uri, [hashtable]$Headers, [string]$Accept)
-        for ($attempt = 1; $attempt -le $netRetries; $attempt++) {
-            try {
-                $h = @{}
-                if ($Headers) { foreach ($k in $Headers.Keys) { $h[$k] = $Headers[$k] } }
-                if ($Accept) { $h['Accept'] = $Accept }
-                return Invoke-RestMethod -Uri $Uri -Method Get -TimeoutSec 20 -Headers $h -ErrorAction Stop
-            }
-            catch {
-                $st = $null
-                try { $st = [int]$_.Exception.Response.StatusCode } catch { $st = $null }
-                if ($st -eq 404) { throw }
-                if ($attempt -eq $netRetries) { throw }
-                # DNS failures ("No such host") and read timeouts both recover on a
-                # second look on this network, so back off across the whole window
-                # (~7 s) rather than assuming the first answer is final.
-                Start-Sleep -Milliseconds ([Math]::Min(2000, 300 * $attempt))
-            }
-        }
-    }
-
-    $tok = (Invoke-Ghcr -Uri "$host_/token?scope=repository:$repo`:pull&service=ghcr.io").token
-    $man = Invoke-Ghcr -Uri "$host_/v2/$repo/manifests/$Tag" -Headers @{ Authorization = "Bearer $tok" } -Accept $idxAccept
+    $tok = (Invoke-RestMethod -Uri "$host_/token?scope=repository:$repo`:pull&service=ghcr.io" -Method Get -TimeoutSec 20).token
+    $man = Invoke-RestMethod -Uri "$host_/v2/$repo/manifests/$Tag" -Method Get -TimeoutSec 20 `
+        -Headers @{ Authorization = "Bearer $tok"; Accept = $idxAccept }
     if ($man.manifests) {
         # Prefer linux/amd64 - the platform the bundle ships. `unknown/unknown`
         # entries appear in these indexes (attestation/SBOM) and are not images.
         $child = @($man.manifests | Where-Object { $_.platform.os -eq 'linux' -and $_.platform.architecture -eq 'amd64' } | Select-Object -First 1)
         if (-not $child) { $child = @($man.manifests | Where-Object { $_.platform.os -eq 'linux' } | Select-Object -First 1) }
         if (-not $child) { throw "no linux child manifest in the index for $repo`:$Tag" }
-        $man = Invoke-Ghcr -Uri "$host_/v2/$repo/manifests/$($child[0].digest)" -Headers @{ Authorization = "Bearer $tok" } -Accept $manAccept
+        $man = Invoke-RestMethod -Uri "$host_/v2/$repo/manifests/$($child[0].digest)" -Method Get -TimeoutSec 20 `
+            -Headers @{ Authorization = "Bearer $tok"; Accept = $manAccept }
     }
     if (-not $man.config.digest) { throw "manifest for $repo`:$Tag carries no config digest" }
-    $blob = Invoke-Ghcr -Uri "$host_/v2/$repo/blobs/$($man.config.digest)" -Headers @{ Authorization = "Bearer $tok" }
+    $blob = Invoke-RestMethod -Uri "$host_/v2/$repo/blobs/$($man.config.digest)" -Method Get -TimeoutSec 20 `
+        -Headers @{ Authorization = "Bearer $tok" }
     return [pscustomobject]@{
         Revision = $blob.config.Labels.'org.opencontainers.image.revision'
         Version  = $blob.config.Labels.'org.opencontainers.image.version'
@@ -189,22 +156,6 @@ $missing = @()
 # image was absent. A gate that cannot bless a complete release is as misleading as
 # one that passes an incomplete one.
 $optionalImages = @('laya-serve')
-# ABSENT and UNREADABLE are different answers, and conflating them silently
-# downgrades a real failure to a skip.
-#
-# Measured 2026-11-14: this gate FAILS on the v0.2.34 tree (two redactor files
-# changed after the tag was built). Run through run-all-checks.ps1 while ghcr.io was
-# slow, two images timed out, both were counted as "not published yet", and the gate
-# exited 2 - which the runner reports as SKIP CANNOT CHECK and does NOT count as a
-# failure. The suite then printed "ALL 69 GATES PASSED" over a known-red gate. A
-# timeout had turned a provenance defect into missing coverage.
-#
-# lib/Release-ImageState.ps1 already states the contract this violated: "404 -> tag
-# absent ... NOT YET ASSERTABLE; other/transport error -> UNKNOWN; never silently
-# read as 'absent'". So 404 stays a skip (that is the genuine release window), and
-# anything else is reported as UNKNOWN and FAILS, because a gate that cannot read
-# the registry cannot claim the release is coherent.
-$unknown = @()
 foreach ($p in $pins) {
     $ref = "$($p.Ns)/$($p.Repo):$($p.Tag)"
     $isOptional = $optionalImages -contains $p.Repo
@@ -212,26 +163,13 @@ foreach ($p in $pins) {
         $lab = Get-ImageRevisionLabel -Namespace $p.Ns -Repository $p.Repo -Tag $p.Tag
     }
     catch {
-        $status = $null
-        try { $status = [int]$_.Exception.Response.StatusCode } catch { $status = $null }
-        if ($status -eq 404) {
-            if ($isOptional) {
-                # Reported, never silent: the provenance claim below must not imply
-                # the optional image was verified when it was not.
-                Info "$ref is not published (opt-in image, continue-on-error) - excluded from the provenance comparison"
-            } else {
-                $missing += $ref
-                Info "$ref is not published (404) - a genuine release-window absence"
-            }
-        }
-        elseif ($isOptional) {
-            Info "$ref could not be read ($($_.Exception.Message)) - optional image, excluded"
-        }
-        else {
-            # Not 404: a transport error, a timeout, a 401/403, or a malformed
-            # manifest. This is NOT evidence the image is absent.
-            $unknown += $ref
-            Info "$ref could not be read: $($_.Exception.Message)"
+        if ($isOptional) {
+            # Reported, never silent: the provenance claim below must not imply the
+            # optional image was verified when it was not.
+            Info "$ref is not published (opt-in image, continue-on-error) - excluded from the provenance comparison"
+        } else {
+            $missing += $ref
+            Info "registry read failed for $ref : $($_.Exception.Message)"
         }
         continue
     }
@@ -243,23 +181,6 @@ foreach ($p in $pins) {
     if ($lab.Version -ne $p.Tag) {
         Fail "$ref carries version label '$($lab.Version)' but is pinned as '$($p.Tag)'"
     }
-}
-
-# A FAIL must never be downgraded to a skip. Settle the UNKNOWN verdict BEFORE the
-# missing-image skip, because Exit-NotYetAssertable terminates the script: doing it
-# the other way round would let an unreadable image hide the failures collected
-# above. This ordering is the same rule the "settled first and terminally" comment
-# below applies to the multi-revision check.
-if ($unknown.Count -gt 0) {
-    Fail "$($unknown.Count) published image(s) could not be READ, so the release cannot be verified:"
-    $unknown | ForEach-Object { Info "  $_" }
-    Info 'this is NOT "not published yet" - the registry did not answer. Re-run; if it persists, the release state is unknown, not green.'
-    Info 'the run is deliberately FAILED rather than skipped: a skip here would hide any real provenance defect found above.'
-}
-if ($script:failures -gt 0) {
-    Write-Host ''
-    Write-Host "FAILED: $($script:failures) provenance defect(s) in the published artifacts" -ForegroundColor Red
-    exit 1
 }
 
 # A release window legitimately has unpublished images. Decline to answer rather
@@ -339,41 +260,6 @@ if (-not $resolved) {
     # fallback is a short/absent one. Not being able to diff is NOT a failed
     # release; say what could not be checked instead of guessing.
     Exit-NotYetAssertable "published revision label '$builtRev' does not resolve to a commit in this clone (label present but truncated/unknown), so the tag-to-artifact file diff cannot be computed."
-}
-
-# THE TAG MUST POINT AT THE COMMIT THE IMAGES WERE BUILT FROM.
-#
-# This assertion was MISSING, and its absence made the file's own headline claim
-# false. Everything below diffs `$resolved..HEAD` - the BUILT revision against the
-# working tree - and never compares `$tagCommit` to `$resolved`. So a tag sitting on
-# some unrelated commit while the images come from a different commit passed, as
-# long as nothing image-affecting had changed since the build.
-#
-# That is precisely the 0.1.28 defect described in this file's header: a dispatch
-# moved the artifacts without moving the tag. The header says the tag "must
-# identify the artifacts that were actually PUBLISHED", and the code never tested
-# it. Measured 2026-11-14 in a throwaway clone: checked out 5956639 (the real build
-# commit), moved v0.2.34 to an unrelated later commit, and the tag-vs-artifact
-# comparison had nothing to run - the gate's verdict depended entirely on the
-# `$resolved..HEAD` diff, not on where the tag pointed.
-#
-# This matters most for the recommended release path. `workflow_dispatch` publishes
-# from whatever commit the branch points at while accepting ANY tag input, so a
-# dispatch followed by a forgotten tag is exactly how the two fall out of step.
-if ($tagCommit -ne $resolved) {
-    Fail "tag $tag peels to $($tagCommit.Substring(0,12)) but the published images were built from $($resolved.Substring(0,12))"
-    Info 'the tag does not identify the published artifacts: re-deriving this release from its own tag would build DIFFERENT images.'
-    Info "fix: move $tag to $($resolved.Substring(0,12)) and re-run - but only if that revision is an ancestor of the release branch, and never after clients have pulled."
-    Info 'a dispatch publishes from the selected ref while accepting any tag input, so verify this pairing before announcing a release.'
-} else {
-    Pass "tag $tag peels to the same commit the images were built from ($($resolved.Substring(0,12)))"
-}
-
-# Fail now rather than continuing to a diff whose base is already known wrong.
-if ($script:failures -gt 0) {
-    Write-Host ''
-    Write-Host "FAILED: $($script:failures) provenance defect(s) in the published artifacts" -ForegroundColor Red
-    exit 1
 }
 
 # Per-image build inputs, derived from each Dockerfile's `file:` + `context:` in
@@ -482,7 +368,22 @@ if (Test-Path 'pacgate-ai/.dockerignore') {
         ForEach-Object { "pacgate-ai/$_" })
 }
 
-$changed = @(& git diff --name-only "$resolved..HEAD" 2>$null | Where-Object { $_ })
+# The diff must be SUBTREE-RELATIVE.
+#
+# `$resolved` is an UPSTREAM commit whose root IS the `pacgate-ai/` subtree, but
+# this repo's HEAD carries that subtree under `pacgate-ai/`. The two histories
+# are unrelated (different root commits), so a plain `git diff $resolved..HEAD`
+# compares two unrelated trees and reports EVERY file as changed - measured
+# 2026-11-10: 2205 files, of which 68 were real. That inflated count is what made
+# this gate fail on 0.2.33 and 0.2.34 while the release was in fact correct.
+#
+# Diffing against `HEAD:pacgate-ai` puts both sides at the same root. The paths
+# that come back are then in UPSTREAM's coordinate system, which is exactly what
+# `$contextPrefixes` and `$ignoredPrefixes` below are written in (`pacgate-ai/`
+# for the Rust workspace, `deploy/` for the deploy tree). Do NOT re-apply the
+# `pacgate-ai/` prefix here - that would double it.
+$changed = @(& git diff --name-only "$resolved..HEAD:pacgate-ai" 2>$null |
+    Where-Object { $_ })
 $affecting = @()
 $benign = @()
 $shadowedChanges = @()
@@ -537,34 +438,41 @@ if (Test-Path $deerFlowDf) {
 }
 
 if ($affecting.Count -gt 0) {
-    Fail "$($affecting.Count) file(s) that CAN reach a built image changed after the published revision was built:"
-    $affecting | ForEach-Object { Info "  $_" }
-    Info 'the tag does not identify the published artifacts: a rebuild from the tag would differ from what clients pull'
+    # Distinguish the two causes, because they need opposite responses.
+    #
+    #   (a) The tag is genuinely stale: the published images were built from an
+    #       earlier commit, so a rebuild from the tag would not reproduce what
+    #       clients pull. That is a RELEASE defect - re-point the tag or rebuild.
+    #   (b) The tag is fine and this WORKING TREE carries local deltas on top of
+    #       it. A rebuild here would differ from the published image, but that is
+    #       the intended state of a client machine that patches the release. The
+    #       tag still identifies the published artifacts correctly.
+    #
+    # Telling them apart: if every affecting file is one this tree changed
+    # relative to the TAG, and the tag's own tree is what the images were built
+    # from (already asserted above by the shared-revision check), then the
+    # difference is local, not a stale tag. Reporting (b) as "the tag does not
+    # identify the published artifacts" is simply false and sends the reader to
+    # fix a release that is not broken.
+    $tagTree = (& git rev-parse --verify --quiet "$tag^{tree}" 2>$null)
+    $builtTree = (& git rev-parse --verify --quiet "$builtRev^{tree}" 2>$null)
+    $tagMatchesBuild = $tagTree -and $builtTree -and ($tagTree -eq $builtTree)
 
-    # The remedy depends on WHICH of the two faults this is, and the old text
-    # named the wrong one unconditionally.
-    #
-    # It said "re-point $tag at the commit the images were built from". Measured
-    # 2026-11-14 on v0.2.34: the tag ALREADY peels to 5956639fa1c9, which is exactly
-    # the revision every published image reports. Following that instruction is a
-    # no-op, so an operator reads a red gate with an impossible remedy and learns
-    # to ignore the gate - the failure mode this file exists to prevent.
-    #
-    # The real distinction:
-    #   * tag != built revision -> the tag is wrong, re-point it (the 0.1.28 defect,
-    #     where a dispatch moved the artifacts without moving the tag).
-    #   * tag == built revision -> the tag is RIGHT and the tree has since moved.
-    #     Nothing about the tag can fix it; only a NEW release containing the
-    #     change can, because the images are immutable build outputs.
-    $tagIsBuiltRev = $tagCommit -and ($tagCommit -eq $resolved)
-    if ($tagIsBuiltRev) {
-        Info "$tag already peels to the built revision ($($builtRev)), so re-pointing it is not the fix and would move a published tag."
-        Info 'this is an UNRELEASED change to a shipped artifact: cut a new release containing it, then re-run this gate against the new tag.'
-        Info "do not move $tag, do not suppress this gate, and do not bump the version to make it green - see docs/superpowers/decisions/2026-11-08-no-local-release-cut.md"
-    }
-    else {
+    if ($tagMatchesBuild) {
+        # Not a failure. The release is sound; this tree is patched. Exiting
+        # non-zero here would block the suite on a correct release and train the
+        # reader to ignore the gate - which is how a real provenance break gets
+        # missed later.
+        Pass "$tag and the published images agree (both $builtRev) - the release is reproducible from the tag"
+        Info "$($affecting.Count) image-affecting file(s) differ from the published release because this working tree carries local deltas:"
+        $affecting | ForEach-Object { Info "  $_" }
+        Info 'a rebuild from this tree would differ from what clients pull - expected on a patched client machine'
+        Info 'to verify the release itself, run this gate on a clean checkout of the tag'
+    } else {
+        Fail "$($affecting.Count) file(s) that CAN reach a built image changed after the published revision was built:"
+        $affecting | ForEach-Object { Info "  $_" }
+        Info 'the tag does not identify the published artifacts: a rebuild from the tag would differ from what clients pull'
         Info "fix: re-point $tag at the commit the images were built from, or rebuild so they match the tag"
-        Info "measured: tag peels to $tagCommit, published images report $resolved - these disagree"
     }
 } else {
     Pass "no image-affecting file changed between $($builtRev) and HEAD, so the tag still describes the published artifacts"

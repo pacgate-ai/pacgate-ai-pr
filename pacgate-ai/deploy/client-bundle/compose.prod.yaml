@@ -300,7 +300,16 @@ services:
       # Remove both mounts at the 2.1.0 upgrade - the gate becomes native.
       - ./patches/deer-flow-auth.py:/app/backend/app/gateway/routers/auth.py:ro
       - ./patches/deer-flow-auth-errors.py:/app/backend/app/gateway/auth/errors.py:ro
-      # Pacgate: require `description` on write_file/str_replace in the agent
+      # Pacgate: gate self-registration on the uploads middleware too (mirrors
+      # upstream 2.1.0 auth.local.allow_registration). A5 parity: both files mount it.
+      - ./patches/deer-flow-uploads-middleware.py:/app/backend/packages/harness/deerflow/agents/middlewares/uploads_middleware.py:ro
+      # Pacgate: gate self-registration (mirrors upstream 2.1.0 auth.local.allow_registration)
+      # on thread 4de2965b: the detour cost ~75 super-steps after the work was done.
+      - ./patches/deer-flow-sandbox-tools.py:/app/backend/packages/harness/deerflow/sandbox/tools.py:ro
+      # Pacgate 2026-10-07: mirror max_tokens into extra_body for Ollama targets
+      # on essentially every turn of a research run. Person and organisation NAMES
+      # stay permitted by design. See deer-flow-memory-updater.py.
+      - ./patches/deer-flow-memory-updater.py:/app/backend/packages/harness/deerflow/agents/memory/updater.py:ro      # Pacgate: require `description` on write_file/str_replace in the agent
       # system prompt, so the model never drops a required arg and loops on
       # "description: Field required".
       - ./patches/deer-flow-prompt.py:/app/backend/packages/harness/deerflow/agents/lead_agent/prompt.py:ro

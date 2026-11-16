@@ -115,8 +115,22 @@ $deleted = @(git diff --diff-filter=D --name-only $mergeBase $mergeTip 2>&1 | Wh
 Check 'merge deleted no files' { $deleted.Count -eq 0 } ("       {0} deletions" -f $deleted.Count)
 
 # The client-facing pins and installer are the customisations most at risk.
+#
+# `git ls-tree <tree> -- <path>` resolves <path> RELATIVE TO THE CURRENT DIRECTORY,
+# and this script runs from the repo root's `pacgate-ai/` subtree. The merge SHAs
+# above are upstream commits whose root IS that subtree, so a lookup from here is
+# double-prefixed and returns 0 - a false "did not survive the merge". Run git from
+# the toplevel with --full-tree so the paths mean what they say.
+$gitTop = (& git rev-parse --show-toplevel 2>$null)
 foreach ($f in @('deploy/client-bundle/compose.prod.yaml', 'deploy/client-bundle/install.ps1', 'deploy/client-bundle/nginx/default.conf')) {
-    Check "$f survives the merge" { (git ls-tree -r --name-only $mergeTip -- $f 2>&1 | Measure-Object).Count -gt 0 }
+    Check "$f survives the merge" {
+        $n = if ($gitTop) {
+            (& git -C $gitTop ls-tree -r --full-tree --name-only $mergeTip -- $f 2>&1 | Measure-Object).Count
+        } else {
+            (& git ls-tree -r --name-only $mergeTip -- $f 2>&1 | Measure-Object).Count
+        }
+        $n -gt 0
+    }
 }
 
 # Did the merge REVERT the namespace pins? INVERTED 2026-09-21: these two checks

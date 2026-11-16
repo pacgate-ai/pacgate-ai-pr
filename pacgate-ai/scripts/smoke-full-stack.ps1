@@ -229,10 +229,24 @@ if (-not $ovKey) {
         if ($ovLine) { $ovKey = ($ovLine -replace '^\s*OPENVIKING_ROOT_API_KEY\s*=\s*', '').Trim() }
     }
 }
-$mcp = (& curl.exe -s -o NUL -w '%{http_code}' --max-time 15 -X POST 'http://localhost:1933/mcp' `
-        -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' `
-        -H "X-API-Key: $ovKey" `
-        -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' 2>&1 | Out-String).Trim()
+# The JSON-RPC body goes through a FILE, not `-d '<json>'`.
+#
+# MEASURED 2026-11-09: PowerShell 5.1 does not escape embedded double quotes when
+# it builds a native command line, so curl received `{jsonrpc:2.0,...}` with the
+# quotes stripped. openviking answered 400 "Parse error: Expecting property name
+# enclosed in double quotes" and this lane reported a REAL FAILURE on a stack
+# whose endpoint answers 200 with 15 tools when called correctly. A gate that is
+# red when nothing is wrong is the failure mode this suite's own header warns
+# about, so the payload is written to disk and referenced with `-d @file`.
+$ovPayload = Join-Path ([System.IO.Path]::GetTempPath()) "ov-mcp-$PID.json"
+[System.IO.File]::WriteAllText($ovPayload, '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
+try {
+    $mcp = (& curl.exe -s -o NUL -w '%{http_code}' --max-time 15 -X POST 'http://localhost:1933/mcp' `
+            -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' `
+            -H "X-API-Key: $ovKey" `
+            -d "@$ovPayload" 2>&1 | Out-String).Trim()
+}
+finally { Remove-Item $ovPayload -Force -ErrorAction SilentlyContinue }
 if ($mcp -eq '200' -or $mcp -eq '202') { Ok "openviking MCP tools/list -> $mcp" }
 elseif (-not $ovKey) { Skip "openviking MCP -> $mcp (no OPENVIKING_ROOT_API_KEY in env or client-bundle/.env)" }
 else { Bad "openviking MCP -> $mcp (a key IS configured, so this is a real failure, not a skip)" }
