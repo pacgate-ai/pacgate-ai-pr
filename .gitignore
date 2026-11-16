@@ -287,3 +287,4 @@ deploy/client-bundle/compose.local-dev-override.yaml
 # Pair it with a compose override that rebinds only the deer-flow config mount.
 deploy/client-bundle/deer-flow-config.local.yaml
 deploy/client-bundle/compose.local-model-override.yaml
+deploy/client-bundle/compose.local-api-override.yaml

@@ -46,7 +46,19 @@
 param(
     [string]$ComposeFile = '',
     # Report only; never fail. For a machine mid-upgrade.
-    [switch]$ReportOnly
+    [switch]$ReportOnly,
+    # A compose override that DECLARES a different image for a service, e.g. a
+    # locally built pacgate-api carrying a fix that is not in any published tag
+    # yet. A service whose running image equals the override's image is reported
+    # as a declared override, not as drift.
+    #
+    # WHY THIS IS A PARAMETER AND NOT A DEFAULT (2026-11-16): the alternative was
+    # to retag the local build onto the release tag, which would make this gate
+    # green while the image no longer matched the tag's provenance label. A gate
+    # that can be satisfied by relabelling is not a gate. Declaring the override
+    # keeps the pin honest and keeps the comparison discriminating: an image that
+    # matches NEITHER the pin NOR the declaration still fails.
+    [string]$DeclaredOverride = ''
 )
 
 $ErrorActionPreference = 'Continue'
@@ -125,6 +137,23 @@ foreach ($svc in $release) {
 }
 
 # 3. The comparison that this gate exists for: running image == pinned image.
+#
+# A declared override is read from its own compose file rather than passed as a
+# service->image map, so the declaration lives in the same place the operator
+# actually runs (`-f compose.prod.yaml -f <override>`). One source, no drift.
+$declared = @{}
+if ($DeclaredOverride) {
+    if (-not (Test-Path $DeclaredOverride)) { CannotCheck "declared override not found: $DeclaredOverride" }
+    $ovTxt = Get-Content $DeclaredOverride -Raw -Encoding UTF8
+    $ovSvc = ''
+    foreach ($line in ($ovTxt -split "`r?`n")) {
+        if ($line -match '^  ([A-Za-z0-9_.-]+):\s*$') { $ovSvc = $Matches[1]; continue }
+        if ($ovSvc -and $line -match '^\s+image:\s*(\S+)\s*$') { $declared[$ovSvc] = $Matches[1]; $ovSvc = '' }
+    }
+    if ($declared.Count -eq 0) { CannotCheck "declared override names no image: $DeclaredOverride" }
+    Write-Host ("         declared override: {0}" -f (($declared.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ', ')) -ForegroundColor DarkGray
+}
+
 $mismatches = @()
 foreach ($svc in $release) {
     $cn = if ($svc.Container) { $svc.Container } else { $svc.Service }
@@ -133,6 +162,14 @@ foreach ($svc in $release) {
     $actual = (docker inspect $cn --format '{{.Config.Image}}' 2>$null | Out-String).Trim()
     if ([string]::IsNullOrWhiteSpace($actual)) {
         Check "$($svc.Service) image is identifiable" $false "docker inspect returned no image for '$cn'"
+        continue
+    }
+
+    if ($declared.ContainsKey($svc.Service) -and $actual -eq $declared[$svc.Service]) {
+        # Declared, so not drift - but still not the release, so it is reported
+        # loudly rather than silently counted as a pass.
+        Write-Host "  [OVERRIDE] $($svc.Service) runs a DECLARED local image '$actual' (pin is '$($svc.Image)')" -ForegroundColor Yellow
+        $script:passed++
         continue
     }
 
@@ -148,6 +185,17 @@ foreach ($svc in $release) {
 function Test-ImageMatchesPin([string]$pinned, [string]$actual) { return ($pinned -eq $actual) }
 Check 'comparison ACCEPTS a matching image' (Test-ImageMatchesPin 'ghcr.io/jzkk720/pacgate-api:0.2.3' 'ghcr.io/jzkk720/pacgate-api:0.2.3') 'a matching pair was rejected'
 Check 'comparison REJECTS a stale image (so the gate can fail)' (-not (Test-ImageMatchesPin 'ghcr.io/jzkk720/pacgate-api:0.2.3' 'ghcr.io/jzkk720/pacgate-api:0.2.1')) 'a 0.2.1 container under a 0.2.3 pin would read as coherent'
+
+# The override path must not become a hole. An image that matches NEITHER the pin
+# NOR the declaration is still drift, and a declaration for a DIFFERENT service
+# must not excuse this one.
+function Test-IsDeclaredOverride([string]$svc, [string]$actual, $decl) {
+    return ($decl.ContainsKey($svc) -and $actual -eq $decl[$svc])
+}
+$syntheticDecl = @{ 'pacgate-api' = 'ghcr.io/jzkk720/pacgate-api:0.2.36-dev' }
+Check 'override ACCEPTS the declared image' (Test-IsDeclaredOverride 'pacgate-api' 'ghcr.io/jzkk720/pacgate-api:0.2.36-dev' $syntheticDecl) 'a declared local image was treated as drift'
+Check 'override REJECTS an undeclared image (so the override is not a hole)' (-not (Test-IsDeclaredOverride 'pacgate-api' 'ghcr.io/jzkk720/pacgate-api:0.2.99-other' $syntheticDecl)) 'any image would pass once an override is declared'
+Check 'override does not excuse a DIFFERENT service' (-not (Test-IsDeclaredOverride 'pacgate-mcp' 'ghcr.io/jzkk720/pacgate-api:0.2.36-dev' $syntheticDecl)) 'a declaration for one service excused another'
 
 Write-Host ''
 if ($mismatches.Count -gt 0) {
