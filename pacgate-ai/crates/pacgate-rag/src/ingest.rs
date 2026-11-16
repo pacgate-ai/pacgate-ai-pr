@@ -209,6 +209,36 @@ impl ChunkIngestor {
         document_id: &DocumentId,
         redacted_text: &str,
     ) -> Result<u64, RagError> {
+        self.reingest_sanitized_chunks_at(
+            tenant_id,
+            matter_id,
+            document_id,
+            redacted_text,
+            None,
+        )
+        .await
+    }
+
+    /// `reingest_sanitized_chunks`, optionally re-labelling the chunks' data level.
+    ///
+    /// `data_level` is a RETRIEVAL FILTER (`lib.rs` inlines
+    /// `AND c.data_level IN (...)` for `max_data_level`), so the label on a chunk
+    /// decides who can search it. The rewrite used to preserve whatever level the
+    /// EXTRACTION wrote - and extraction hardcodes `T3ProjectSpecific` - so a
+    /// document sanitized at T4 came back labelled T3 and stayed inside the
+    /// default search ceiling. The job's level is the authoritative one: it is
+    /// what `decide()` used to decide whether the artifact may be released.
+    ///
+    /// `None` preserves the existing label, which is what the plain
+    /// `reingest_sanitized_chunks` callers want.
+    pub async fn reingest_sanitized_chunks_at(
+        &self,
+        tenant_id: &TenantId,
+        matter_id: &MatterId,
+        document_id: &DocumentId,
+        redacted_text: &str,
+        data_level: Option<DataLevel>,
+    ) -> Result<u64, RagError> {
         let mut tx = self
             .db
             .begin()
@@ -235,9 +265,12 @@ impl ChunkIngestor {
         let sl_str: String = meta
             .try_get("source_level")
             .unwrap_or_else(|_| "model_inference".to_string());
-        let dl_str: String = meta
-            .try_get("data_level")
-            .unwrap_or_else(|_| "T2".to_string());
+        let dl_str: String = match data_level {
+            Some(level) => level.code().to_string(),
+            None => meta
+                .try_get("data_level")
+                .unwrap_or_else(|_| "T2".to_string()),
+        };
 
         // Chunk with the same splitter as ingest, so chunk boundaries - and so
         // the review panel's spans and `page` values - stay meaningful.
@@ -469,10 +502,13 @@ mod sanitization_state_tests {
         // against the source because no unit test can observe statement order
         // through the consts alone.
         let src = include_str!("ingest.rs");
+        // The body lives in `_at` (the `data_level`-aware form); the plain
+        // `reingest_sanitized_chunks` is a thin wrapper that delegates to it, so
+        // splitting on the wrapper name would find no statements at all.
         let body = src
-            .split("pub async fn reingest_sanitized_chunks")
+            .split("pub async fn reingest_sanitized_chunks_at")
             .nth(1)
-            .expect("reingest_sanitized_chunks must exist");
+            .expect("reingest_sanitized_chunks_at must exist");
         let del = body
             .find("DELETE_UNSANITIZED_CHUNKS_SQL")
             .expect("the rewrite must delete the old rows");
