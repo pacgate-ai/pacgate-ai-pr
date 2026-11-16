@@ -58,3 +58,36 @@ Measured state at the time of this decision, admin tenant `9fc20614`:
 3. Pull the new images here, then re-sanitize the four blocked documents. `POST
    /api/documents/:id/sanitize` reopens a blocked document first, so it is a real recovery path, not
    a no-op.
+
+## Second instance, 2026-11-16: the bank-account detector fix
+
+The same situation recurred, and the same rules were applied. `ebf2510` fixes
+`RE_BANK_ACCOUNT_ANCHOR` in `pacgate-ai/crates/pacgate-redact/src/detect/rules.rs`, which compiles
+into `pacgate-api`. `test-release-provenance.ps1` therefore fails again, correctly:
+
+```
+FAIL  1 file(s) that CAN reach a built image changed after the published revision was built:
+        pacgate-ai/crates/pacgate-redact/src/detect/rules.rs
+```
+
+**Accepted, not suppressed.** No tag was moved, no allowlist was added to the provenance gate, and
+the version was not bumped.
+
+One thing was done differently, and it is worth recording because it is the boundary of this
+decision. The two blocked documents had to become queryable *now*, so the fix runs as a locally
+built `ghcr.io/jzkk720/pacgate-api:0.2.36-dev` selected by the gitignored
+`deploy/client-bundle/compose.local-api-override.yaml`. That is not a release cut:
+
+- the tag is distinct from every published tag, so nothing can mistake it for one
+- `test-release-provenance.ps1` still fails, so the unreleased change is still visible
+- `test-stack-version-coherence.ps1` gained `-DeclaredOverride`, which reports `[OVERRIDE]` and
+  still fails an image matching neither the pin nor the declaration
+
+The alternative - retagging the local build onto `0.2.35` - was rejected for exactly the reason this
+decision exists: it would have made the coherence gate green while the image no longer matched the
+tag's provenance label, and provenance would then have blessed an artifact it had not seen.
+
+**Consequence, unchanged in kind:** a fresh client install from `0.2.35` still blocks these
+documents. The fix is committed, tested, and running here; it is not in a published image until
+upstream cuts one.
+

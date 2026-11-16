@@ -1147,12 +1147,35 @@ foreach ($s in $measurements) {
 
 Write-Output ''
 Write-Host '=== Live-stack gates (exit 2 = CANNOT CHECK, not a failure) ===' -ForegroundColor Cyan
+
+# Per-gate extra arguments, keyed by script path.
+#
+# WHY THIS EXISTS (2026-11-16): test-stack-version-coherence compares every
+# running image to its compose pin, and a locally built pacgate-api carrying a
+# fix that is not in any published tag yet is genuine drift by that definition.
+# The gate gained -DeclaredOverride so the drift can be DECLARED rather than
+# hidden by retagging the local build onto the release tag (which would make
+# test-release-provenance bless an artifact it had not seen).
+#
+# The declaration is passed here only when the file actually exists, so a
+# machine without a local override runs the gate in its strict default. The gate
+# still fails an image that matches neither the pin nor the declaration, and
+# still fails a declaration that names a different service - both asserted
+# synthetically inside the gate itself.
+$gateArgs = @{}
+$localApiOverride = 'deploy/client-bundle/compose.local-api-override.yaml'
+if (Test-Path $localApiOverride) {
+    $gateArgs['scripts/test-stack-version-coherence.ps1'] = @('-DeclaredOverride', $localApiOverride)
+    Write-Host ("  note: {0} exists, so the coherence gate runs with -DeclaredOverride" -f $localApiOverride) -ForegroundColor DarkGray
+}
+
 foreach ($s in $liveStackGates) {
     if (-not (Test-Path $s)) {
         Write-Host ("  SKIP {0} (missing)" -f (Split-Path $s -Leaf)) -ForegroundColor Yellow
         continue
     }
-    $out = & $psLauncher -NoProfile -ExecutionPolicy Bypass -File $s 2>&1
+    $extra = if ($gateArgs.ContainsKey($s)) { $gateArgs[$s] } else { @() }
+    $out = & $psLauncher -NoProfile -ExecutionPolicy Bypass -File $s @extra 2>&1
     $code = $LASTEXITCODE
     $tail = (($out | Where-Object { $_ -match '\d+ passed|ALL .*PASSED|RESULT|CANNOT CHECK|members present' } | Select-Object -Last 2) -join ' ; ')
     if ($code -eq 0) {
