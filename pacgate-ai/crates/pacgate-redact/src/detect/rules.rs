@@ -370,9 +370,26 @@ static RE_TAX_ID: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"[0-9A-Z]{15,20}").expect("tax id regex is valid"));
 
 /// 银行账号 / 对公账户 label.
+///
+/// The separator is BOUNDED to whitespace and table punctuation, the same
+/// discipline `RE_TH_TAXID_CN` uses. It used to be `[:：\s]*`, which let the
+/// label reach across a whole sentence: `RE_GROUPED_DIGITS` was then searched
+/// over the entire remaining text, so the first digit run anywhere after the
+/// label was claimed as the account number.
+///
+/// MEASURED 2026-11-16 on the live Firm KB. `presented-pacgate-ai-平台实战教程`
+/// was `blocked` on every re-sanitize with residue `BankAccount "2026-10-26"`.
+/// The document's two 账号 occurrences are both prose, and the claimed values
+/// were a document date 532 characters later and the numeric range `400–1000`
+/// 402 characters later. Both passed `bank_account_shape_ok` (8-32 digits once
+/// separators are stripped), both became `MatchSource::Context` spans, and a
+/// Context span blocks unconditionally - so the document was permanently
+/// unqueryable and no re-sanitize could ever clear it.
 static RE_BANK_ACCOUNT_ANCHOR: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?:基本户|一般户|开户行|开户银行)?(?:银行)?(?:账号|帐号|账户|帐户)(?:号码)?[:：\s]*")
-        .expect("bank account anchor regex is valid")
+    Regex::new(
+        r"(?:基本户|一般户|开户行|开户银行)?(?:银行)?(?:账号|帐号|账户|帐户)(?:号码)?[\s:：|()（）\[\]【】`]*",
+    )
+    .expect("bank account anchor regex is valid")
 });
 
 /// A digit run that may carry printed grouping separators. The width is
@@ -1299,6 +1316,13 @@ impl Detector for TierOneDetector {
 
         // 银行账号 / 对公账户 - label anchored, then a digit run whose printed
         // grouping separators are stripped before the length test.
+        //
+        // The digit run must start IMMEDIATELY after the separator. The anchor
+        // already consumes every whitespace and table character between the label
+        // and the value, so a legitimate layout leaves the digits at offset 0.
+        // Searching the whole remainder instead let the label claim the first
+        // digit run anywhere after it - measured 2026-11-16, a prose 账号 claimed
+        // a document date 532 characters later and blocked the document forever.
         for a in RE_BANK_ACCOUNT_ANCHOR.find_iter(text) {
             let Some(rest) = text.get(a.end()..) else {
                 continue;
@@ -1306,6 +1330,9 @@ impl Detector for TierOneDetector {
             let Some(m) = RE_GROUPED_DIGITS.find(rest) else {
                 continue;
             };
+            if m.start() != 0 {
+                continue;
+            }
             let start = a.end() + m.start();
             let end = a.end() + m.end();
             if !is_bounded(text, start, end) {
@@ -1476,6 +1503,64 @@ mod tests {
         // 12x is not an allocated mobile prefix.
         let bad = TierOneDetector::new().detect("编号 12812345678").unwrap();
         assert!(bad.is_empty(), "must not treat an unallocated prefix as a mobile");
+    }
+
+    /// A bank-account label must not reach across a sentence to claim a date.
+    ///
+    /// MEASURED 2026-11-16 on the live Firm KB. `presented-pacgate-ai-平台实战教程`
+    /// was `blocked` on every re-sanitize with residue `BankAccount "2026-10-26"`.
+    /// The document contains the word 账号 twice, both in prose:
+    ///
+    /// ```text
+    /// ... 给每个角色建一个测试账号，逐格验证 ...        <- 532 chars before the date
+    /// ... 银行账号、地址、客户名称、金额等 ...          <- 402 chars before 400–1000
+    /// ```
+    ///
+    /// `RE_BANK_ACCOUNT_ANCHOR` matched the label, then `RE_GROUPED_DIGITS` was
+    /// searched over the WHOLE remaining text, so it claimed the first digit run
+    /// anywhere after it - a document date and a numeric range. Both passed
+    /// `bank_account_shape_ok` (8-32 digits once separators are stripped), so both
+    /// became `MatchSource::Context` spans, and a Context span blocks
+    /// unconditionally. The document was permanently unqueryable.
+    ///
+    /// The separator is now bounded the way `RE_TH_TAXID_CN` already bounds its
+    /// own: whitespace and table punctuation only, never a sentence.
+    #[test]
+    fn a_bank_account_label_does_not_claim_a_distant_date() {
+        let text = "给每个角色建一个测试账号，逐格验证”该能做的能做、该不能做的确实报错”。\
+                    权限测试的重点不是”能进去”，是”出不来”。数据快照 2026-10-26 技术文档组";
+        let found = TierOneDetector::new().detect(text).unwrap();
+        assert!(
+            !found.iter().any(|m| m.entity == EntityType::BankAccount),
+            "a label 500 chars away must not claim a date as a bank account, got {:?}",
+            found
+                .iter()
+                .map(|m| (m.entity, m.text.as_str()))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// The same rule must still fire on the layouts it exists for.
+    ///
+    /// `基本户` and `开户行` are optional PREFIXES on the anchor, not anchors
+    /// themselves - the label must still contain 账号/帐号/账户/帐户. That was
+    /// true before this change and is unchanged by it.
+    #[test]
+    fn a_bank_account_label_still_claims_an_adjacent_number() {
+        for text in [
+            "账号 6222020200112345678",
+            "银行账号：6222020200112345678",
+            "| 账号 | 6222020200112345678 |",
+            "基本户账号 6222020200112345678",
+            "账号6222020200112345678",
+            "账号：6222 0202 0011 2345 678",
+        ] {
+            let found = TierOneDetector::new().detect(text).unwrap();
+            assert!(
+                found.iter().any(|m| m.entity == EntityType::BankAccount),
+                "must still find the account in {text:?}"
+            );
+        }
     }
 
     /// The Luhn check digit is a LABEL, not a gate.
